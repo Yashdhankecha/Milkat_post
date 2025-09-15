@@ -27,8 +27,7 @@ import MemberRegistration from "./pages/MemberRegistration";
 
 // Dashboards
 import AdminDashboard from "./pages/dashboards/AdminDashboard";
-import BuyerDashboard from "./pages/dashboards/BuyerDashboard";
-import SellerDashboard from "./pages/dashboards/SellerDashboard";
+import BuyerSellerDashboard from "./pages/dashboards/BuyerSellerDashboard";
 import BrokerDashboard from "./pages/dashboards/BrokerDashboard";
 import DeveloperDashboard from "./pages/dashboards/DeveloperDashboard";
 import SocietyOwnerDashboard from "./pages/dashboards/SocietyOwnerDashboard";
@@ -73,14 +72,9 @@ const App = () => (
                 <AdminDashboard />
               </ProtectedRoute>
             } />
-            <Route path="/buyer/dashboard" element={
-              <ProtectedRoute requiredRole="buyer">
-                <BuyerDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/seller/dashboard" element={
-              <ProtectedRoute requiredRole="seller">
-                <SellerDashboard />
+            <Route path="/buyer-seller/dashboard" element={
+              <ProtectedRoute requiredRole="buyer_seller">
+                <BuyerSellerDashboard />
               </ProtectedRoute>
             } />
             <Route path="/broker/dashboard" element={

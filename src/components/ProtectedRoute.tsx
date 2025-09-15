@@ -18,6 +18,7 @@ export const ProtectedRoute = ({
 }: ProtectedRouteProps) => {
   const { user, loading: authLoading, isUserSuspended } = useAuth()
   const { profile, loading: profileLoading, hasRole } = useProfile()
+  const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true'
 
   // Show loading spinner while checking authentication
   if (authLoading || profileLoading) {
@@ -37,14 +38,13 @@ export const ProtectedRoute = ({
   }
 
   // If user is suspended → show suspended message
-  if (user && isUserSuspended) {
+  if (!mockEnabled && user && isUserSuspended) {
     return <SuspendedUserMessage />
   }
 
-  // ✅ After login/signup → always send to their dashboard
+  // ✅ After login/signup → redirect to home page
   if (user && profile && !requiredRole) {
-    const redirectPath = getRoleBasedPath(profile.role)
-    return <Navigate to={redirectPath} replace />
+    return <Navigate to="/" replace />
   }
 
   // Check role-based access

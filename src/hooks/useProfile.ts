@@ -24,10 +24,36 @@ export const useProfile = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { user } = useAuth()
+  const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true'
 
   useEffect(() => {
     if (!user) {
       setProfile(null)
+      setLoading(false)
+      return
+    }
+
+    if (mockEnabled) {
+      // Synthesize a lightweight profile for mock auth
+      const role = (user as any)?.user_metadata?.role || 'buyer_seller'
+      const fullName = (user as any)?.user_metadata?.full_name || 'Mock User'
+      const phone = (user as any)?.user_metadata?.mobile || (user as any)?.phone || ''
+      setProfile({
+        id: (user as any).id,
+        full_name: fullName,
+        phone,
+        role: role as any,
+        bio: null,
+        profile_picture: null,
+        company_name: null,
+        business_type: null,
+        website: null,
+        social_media: {},
+        verification_status: 'verified',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       setLoading(false)
       return
     }
