@@ -132,30 +132,34 @@ const Auth = () => {
       return;
     }
 
+    // For login, require role selection
+    if (isLogin && !selectedLoginRole) {
+      // Check if user exists and get their roles
+      const { data: userData, error: userError } = await checkUserRoles(phone);
+      
+      if (userError) {
+        toast({
+          title: "User not found",
+          description: userError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (userData && userData.roles.length > 0) {
+        // Show role selection with available roles
+        setAvailableRoles(userData.roles);
+        setShowRoleSelection(true);
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
       if (isLogin) {
-        // Check if user exists and get their roles
-        const { data: userData, error: userError } = await checkUserRoles(phone);
-        
-        if (userError) {
-          toast({
-            title: "User not found",
-            description: userError.message,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (userData && userData.roles.length > 1) {
-          // User has multiple roles, show role selection
-          setAvailableRoles(userData.roles);
-          setShowRoleSelection(true);
-          return;
-        } else if (userData && userData.roles.length === 1) {
-          // User has only one role, proceed with login
-          setSelectedLoginRole(userData.roles[0].role);
+        // If we have a selected role, proceed with login
+        if (selectedLoginRole) {
           await proceedWithLogin();
         }
       } else {
