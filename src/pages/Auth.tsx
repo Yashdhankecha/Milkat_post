@@ -22,10 +22,13 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(false);
+  const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<Array<{role: string, full_name: string}>>([]);
+  const [selectedLoginRole, setSelectedLoginRole] = useState("");
   
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, signUp, signInWithSMS, signUpWithSMS, verifyOTP, user } = useAuth();
+  const { signIn, signUp, signInWithSMS, signUpWithSMS, signUpWithSMSForNewRole, checkUserRoles, verifyOTP, user } = useAuth();
   const { profile, loading: profileLoading, createProfile } = useProfile();
   const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true'
 
@@ -133,26 +136,27 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        // Send OTP for login
-        const { error } = await signInWithSMS(phone);
-        if (error) {
-          const msg = error.message || 'Failed to send OTP'
+        // Check if user exists and get their roles
+        const { data: userData, error: userError } = await checkUserRoles(phone);
+        
+        if (userError) {
           toast({
-            title: "Failed to send OTP",
-            description: /provider|phone auth|sms/i.test(msg)
-              ? "SMS provider not enabled. For development, set VITE_MOCK_OTP=true and use code 123456."
-              : msg,
+            title: "User not found",
+            description: userError.message,
             variant: "destructive",
           });
-        } else {
-          setShowOTPVerification(true);
-          const devOtp = mockEnabled ? (sessionStorage.getItem(`mock_otp_${phone}`) || '123456') : null;
-          toast({
-            title: "OTP Sent!",
-            description: mockEnabled
-              ? `Development OTP: ${devOtp}`
-              : "Please check your phone for the verification code.",
-          });
+          return;
+        }
+
+        if (userData && userData.roles.length > 1) {
+          // User has multiple roles, show role selection
+          setAvailableRoles(userData.roles);
+          setShowRoleSelection(true);
+          return;
+        } else if (userData && userData.roles.length === 1) {
+          // User has only one role, proceed with login
+          setSelectedLoginRole(userData.roles[0].role);
+          await proceedWithLogin();
         }
       } else {
         // Registration - validate required fields
@@ -165,8 +169,20 @@ const Auth = () => {
           return;
         }
 
-        // Send OTP for registration
-        const { error } = await signUpWithSMS(phone, fullName, selectedRole);
+        // Check if user exists for this role
+        const { data: userData, error: userError } = await checkUserRoles(phone);
+        
+        if (userData && userData.roles.some(r => r.role === selectedRole)) {
+          toast({
+            title: "Role already exists",
+            description: "You already have this role. Please login instead.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Send OTP for registration (new role or new user)
+        const { error } = await signUpWithSMSForNewRole(phone, fullName, selectedRole);
         if (error) {
           const msg = error.message || 'Failed to send OTP'
           toast({
@@ -196,6 +212,46 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const proceedWithLogin = async () => {
+    setLoading(true);
+    try {
+      const { error } = await signInWithSMS(phone);
+      if (error) {
+        const msg = error.message || 'Failed to send OTP'
+        toast({
+          title: "Failed to send OTP",
+          description: /provider|phone auth|sms/i.test(msg)
+            ? "SMS provider not enabled. For development, set VITE_MOCK_OTP=true and use code 123456."
+            : msg,
+          variant: "destructive",
+        });
+      } else {
+        setShowOTPVerification(true);
+        setShowRoleSelection(false);
+        const devOtp = mockEnabled ? (sessionStorage.getItem(`mock_otp_${phone}`) || '123456') : null;
+        toast({
+          title: "OTP Sent!",
+          description: mockEnabled
+            ? `Development OTP: ${devOtp}`
+            : "Please check your phone for the verification code.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Something went wrong",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleSelection = async (role: string) => {
+    setSelectedLoginRole(role);
+    await proceedWithLogin();
   };
 
   const handleVerifyOTP = async (otp: string) => {
@@ -286,6 +342,56 @@ const Auth = () => {
             loading={loading}
             resendLoading={resendLoading}
           />
+        ) : showRoleSelection ? (
+          <Card className="shadow-strong border-0">
+            <CardHeader className="space-y-1 text-center">
+              <div className="text-2xl font-bold text-estate-blue mb-2">
+                RealEstate<span className="text-accent">Pro</span>
+              </div>
+              <CardTitle className="text-2xl font-bold text-foreground">
+                Select Your Role
+              </CardTitle>
+              <CardDescription>
+                You have multiple roles. Please select which one you want to sign in as.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {availableRoles.map((roleData, index) => {
+                const roleInfo = roles.find(r => r.value === roleData.role);
+                const IconComponent = roleInfo?.icon || User;
+                return (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    className="w-full h-auto p-4 justify-start"
+                    onClick={() => handleRoleSelection(roleData.role)}
+                    disabled={loading}
+                  >
+                    <div className="flex items-center gap-3">
+                      <IconComponent className={`h-5 w-5 ${roleInfo?.color || 'text-gray-600'}`} />
+                      <div className="text-left">
+                        <div className="font-medium">{roleInfo?.label || roleData.role}</div>
+                        <div className="text-sm text-muted-foreground">{roleData.full_name}</div>
+                      </div>
+                    </div>
+                  </Button>
+                );
+              })}
+              <div className="text-center">
+                <Button
+                  variant="link"
+                  className="p-0 h-auto font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setShowRoleSelection(false);
+                    setAvailableRoles([]);
+                    setSelectedLoginRole("");
+                  }}
+                >
+                  ← Back to login
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           <Card className="shadow-strong border-0">
             <CardHeader className="space-y-1 text-center">

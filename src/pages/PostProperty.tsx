@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { X, Upload, Home, ImagePlus } from "lucide-react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 const PostProperty = () => {
   const { user } = useAuth();
@@ -212,6 +214,7 @@ const PostProperty = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       {/* Header */}
       <section className="bg-gradient-hero py-16">
         <div className="container mx-auto px-6">
@@ -522,6 +525,7 @@ const PostProperty = () => {
           </form>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

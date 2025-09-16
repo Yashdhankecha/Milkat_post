@@ -6,7 +6,7 @@ export interface UserProfile {
   id: string
   full_name: string | null
   phone: string | null
-  role: 'admin' | 'buyer' | 'seller' | 'broker' | 'developer' | 'society_owner' | 'society_member'
+  role: 'admin' | 'buyer_seller' | 'broker' | 'developer' | 'society_owner' | 'society_member'
   bio: string | null
   profile_picture: string | null
   company_name: string | null
@@ -129,21 +129,42 @@ export const useProfile = () => {
     if (!user) return { error: 'No user found' }
 
     try {
-      const { data, error } = await supabase
+      // First, create or update the main profile
+      const { data: profileData_result, error: profileError } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
-          ...profileData,
+          full_name: profileData.full_name,
+          phone: profileData.phone,
+          role: profileData.role, // Keep the current role in profiles table
+          company_name: profileData.company_name,
+          business_type: profileData.business_type,
         })
         .select()
         .single()
 
-      if (error) {
-        return { error: error.message }
+      if (profileError) {
+        return { error: profileError.message }
       }
 
-      setProfile(data as UserProfile)
-      return { data, error: null }
+      // Then, create or update the user_roles entry
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .upsert({
+          user_id: user.id,
+          phone: profileData.phone || '',
+          role: profileData.role,
+          full_name: profileData.full_name,
+          is_active: true,
+        })
+
+      if (roleError) {
+        console.error('Role creation error:', roleError)
+        // Don't fail the entire operation if role creation fails
+      }
+
+      setProfile(profileData_result as UserProfile)
+      return { data: profileData_result, error: null }
     } catch (err) {
       return { error: 'Failed to create profile' }
     }
@@ -160,8 +181,7 @@ export const useProfile = () => {
   }
 
   const isAdmin = () => hasRole('admin')
-  const isBuyer = () => hasRole('buyer')
-  const isSeller = () => hasRole('seller')
+  const isBuyerSeller = () => hasRole('buyer_seller')
   const isBroker = () => hasRole('broker')
   const isDeveloper = () => hasRole('developer')
   const isSocietyOwner = () => hasRole('society_owner')
@@ -176,8 +196,7 @@ export const useProfile = () => {
     createProfile,
     hasRole,
     isAdmin,
-    isBuyer,
-    isSeller,
+    isBuyerSeller,
     isBroker,
     isDeveloper,
     isSocietyOwner,

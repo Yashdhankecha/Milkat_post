@@ -18,6 +18,7 @@ import PostProperty from "./pages/PostProperty";
 import EditProperty from "./pages/EditProperty";
 import SubmitRequirement from "./pages/SubmitRequirement";
 import Contact from "./pages/Contact";
+import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import Rent from "./pages/Rent";
 import Brokers from "./pages/Brokers";
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/faq" element={<FAQ />} />
             <Route path="/properties" element={<Properties />} />
             <Route path="/property/:id" element={<PropertyDetails />} />

@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Home } from "lucide-react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 const SubmitRequirement = () => {
   const { user } = useAuth();
@@ -93,6 +95,7 @@ const SubmitRequirement = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
       {/* Header */}
       <section className="bg-gradient-hero py-16">
         <div className="container mx-auto px-6">
@@ -234,6 +237,7 @@ const SubmitRequirement = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

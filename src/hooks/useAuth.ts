@@ -164,6 +164,46 @@ export const useAuth = () => {
     return { data, error }
   }
 
+  const checkUserRoles = async (phone: string) => {
+    if (mockEnabled) {
+      const existingProfileRaw = localStorage.getItem(`mock_profile_${phone}`)
+      if (!existingProfileRaw) {
+        return { data: null, error: { message: 'User not found. Please register first.' } as any }
+      }
+      const existingProfile = (() => { try { return JSON.parse(existingProfileRaw) } catch { return null } })()
+      return { 
+        data: { 
+          userExists: true, 
+          roles: [{ role: existingProfile?.role || 'buyer_seller', full_name: existingProfile?.fullName || 'Mock User' }] 
+        }, 
+        error: null as any 
+      }
+    }
+
+    // Check if user exists and get their roles
+    const { data: userRoles, error } = await supabase
+      .from('user_roles')
+      .select('role, full_name, is_active')
+      .eq('phone', phone)
+      .eq('is_active', true)
+    
+    if (error) {
+      return { data: null, error }
+    }
+    
+    if (!userRoles || userRoles.length === 0) {
+      return { data: null, error: { message: 'User not found. Please register first.' } as any }
+    }
+    
+    return { 
+      data: { 
+        userExists: true, 
+        roles: userRoles.map(ur => ({ role: ur.role, full_name: ur.full_name }))
+      }, 
+      error: null as any 
+    }
+  }
+
   const verifyOTP = async (phone: string, token: string) => {
     if (mockEnabled) {
       const expected = sessionStorage.getItem(`mock_otp_${phone}`)
@@ -282,6 +322,101 @@ export const useAuth = () => {
     return { data, error }
   }
 
+  const signUpWithSMSForNewRole = async (phone: string, fullName: string, role: string) => {
+    if (mockEnabled) {
+      // For mock mode, allow multiple roles by storing them in an array
+      const existingProfileRaw = localStorage.getItem(`mock_profile_${phone}`)
+      let existingProfile = existingProfileRaw ? JSON.parse(existingProfileRaw) : null
+      
+      if (existingProfile) {
+        // Check if role already exists
+        if (existingProfile.roles && existingProfile.roles.includes(role)) {
+          return { data: null, error: { message: 'You already have this role. Please login instead.' } as any }
+        }
+        
+        // Add new role to existing user
+        const roles = existingProfile.roles || [existingProfile.role]
+        roles.push(role)
+        existingProfile.roles = roles
+        existingProfile.role = role // Set current role
+        localStorage.setItem(`mock_profile_${phone}`, JSON.stringify(existingProfile))
+      } else {
+        // Create new user
+        existingProfile = { fullName, role, roles: [role], phone }
+        localStorage.setItem(`mock_profile_${phone}`, JSON.stringify(existingProfile))
+      }
+      
+      const mockOtp = '123456'
+      const mockUser: any = {
+        id: `mock-user-${phone}`,
+        email: null,
+        phone,
+        user_metadata: {
+          full_name: fullName || 'Mock User',
+          role: role || 'buyer_seller',
+          mobile: phone,
+        },
+      }
+      sessionStorage.setItem(`mock_otp_${phone}`, mockOtp)
+      console.info('[MOCK OTP] code for', phone, 'is', mockOtp)
+      setMockSession({ user: mockUser })
+      setUser(mockUser)
+      setUserProfile({ full_name: mockUser.user_metadata.full_name, role: mockUser.user_metadata.role, status: 'active' })
+      setIsUserSuspended(false)
+      return { data: { user: mockUser }, error: null as any }
+    }
+    
+    // Check if user already exists in database
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, phone')
+      .eq('phone', phone)
+      .single()
+    
+    if (profileError && profileError.code !== 'PGRST116') {
+      return { data: null, error: profileError }
+    }
+    
+    if (existingProfile) {
+      // Check if role already exists for this user
+      const { data: existingRole, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('phone', phone)
+        .eq('role', role)
+        .single()
+      
+      if (existingRole) {
+        return { data: null, error: { message: 'You already have this role. Please login instead.' } as any }
+      }
+      
+      // User exists but doesn't have this role, allow registration for new role
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: phone,
+        options: {
+          data: {
+            full_name: fullName,
+            role: role,
+            is_new_role: true,
+          },
+        },
+      })
+      return { data, error }
+    }
+    
+    // New user registration
+    const { data, error } = await supabase.auth.signInWithOtp({
+      phone: phone,
+      options: {
+        data: {
+          full_name: fullName,
+          role: role,
+        },
+      },
+    })
+    return { data, error }
+  }
+
   const resetPassword = async (email: string) => {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth?mode=reset`,
@@ -311,6 +446,8 @@ export const useAuth = () => {
     signUp,
     signInWithSMS,
     signUpWithSMS,
+    signUpWithSMSForNewRole,
+    checkUserRoles,
     verifyOTP,
     signOut,
     resetPassword,
