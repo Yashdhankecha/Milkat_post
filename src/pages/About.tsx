@@ -103,28 +103,6 @@ const About = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {stats.map((stat, index) => (
-              <Card key={index} className="border-0 shadow-soft hover:shadow-medium transition-shadow text-center">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <Building2 className="text-estate-blue h-5 w-5" />
-                    <div className="text-3xl md:text-4xl font-bold text-estate-blue">{stat.number}</div>
-                  </div>
-                  <div className="text-muted-foreground text-sm flex items-center justify-center gap-2">
-                    <Handshake className="opacity-70 h-4 w-4" />
-                    {stat.label}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Our Story */}
       <section id="story" className="py-20">
         <div className="container mx-auto px-6">
@@ -158,9 +136,7 @@ const About = () => {
               <div className="relative aspect-[4/3] rounded-lg overflow-hidden shadow-medium">
                 <img src={heroImg} alt="Cityscape" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur px-3 py-2 rounded-md text-sm text-foreground shadow-soft flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-estate-blue" /> Premium Locations Worldwide
-                </div>
+             
               </div>
             </div>
           </div>
@@ -279,23 +255,6 @@ const About = () => {
         </div>
       </section>
 
-      {/* Global Presence */}
-      <section className="py-20">
-        <div className="container mx-auto px-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-8">Global Presence</h2>
-          <p className="text-xl text-muted-foreground mb-12 max-w-3xl mx-auto">
-            With offices and partners across five countries, we provide seamless real estate 
-            services to clients worldwide.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            {["India", "USA", "UAE", "Canada", "Kenya"].map((country) => (
-              <Badge key={country} variant="secondary" className="px-6 py-2 text-lg">
-                {country}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* CTA */}
       <section className="pb-20">

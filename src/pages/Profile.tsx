@@ -267,7 +267,7 @@ const Profile = () => {
           </Card>
 
           {/* Form Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Personal Information */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="shadow-soft">
@@ -434,53 +434,9 @@ const Profile = () => {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Account Status */}
-              <Card className="shadow-soft">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg">Account Status</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Verification</span>
-                    <Badge variant={profile?.verification_status === 'verified' ? 'default' : 'secondary'}>
-                      {profile?.verification_status === 'verified' ? 'Verified' : 'Pending'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Status</span>
-                    <Badge variant={profile?.status === 'active' ? 'default' : 'secondary'}>
-                      {profile?.status === 'active' ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Member Since</span>
-                    <span className="text-sm font-medium">
-                      {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+             
 
-              {/* Quick Actions */}
-              <Card className="shadow-soft">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg">Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start" size="sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Documents
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" size="sm">
-                    <FileText className="h-4 w-4 mr-2" />
-                    View Activity
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" size="sm">
-                    <Shield className="h-4 w-4 mr-2" />
-                    Privacy Settings
-                  </Button>
-                </CardContent>
-              </Card>
+           
             </div>
           </div>
 

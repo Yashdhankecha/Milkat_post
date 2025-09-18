@@ -57,12 +57,6 @@ const StatsSection = () => {
       description: "Premium listings available"
     },
     {
-      icon: MapPin,
-      number: statsData.loading ? "..." : formatNumber(statsData.brokers),
-      label: "NRI Brokers",
-      description: "Certified international agents"
-    },
-    {
       icon: Award,
       number: "25+",
       label: "Years Experience",
@@ -72,19 +66,19 @@ const StatsSection = () => {
 
   const testimonials = [
     {
-      name: "Sarah Johnson",
+      name: "Yash Dhankecha ",
       role: "Property Investor",
       quote: "Exceptional service and professionalism. Found my dream property within weeks!",
-      rating: 5
+      rating: 4
     },
     {
-      name: "Michael Chen",
+      name: "Harsh Vyas",
       role: "First-time Buyer",
       quote: "The team guided me through every step. Transparent, reliable, and trustworthy.",
       rating: 5
     },
     {
-      name: "Emily Rodriguez",
+      name: "Karansinh Desai ",
       role: "Real Estate Developer",
       quote: "Outstanding market knowledge and innovative approach. Highly recommended!",
       rating: 5
@@ -95,7 +89,7 @@ const StatsSection = () => {
     <section className="py-16 bg-estate-gray-light">
       <div className="container mx-auto px-4">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {stats.map((stat, index) => (
             <Card key={index} className="text-center border-none shadow-soft hover:shadow-medium transition-shadow">
               <CardContent className="p-6">
