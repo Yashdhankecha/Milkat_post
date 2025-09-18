@@ -14,6 +14,46 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_roles: {
+        Row: {
+          id: string
+          user_id: string
+          phone: string
+          role: 'admin' | 'buyer_seller' | 'broker' | 'developer' | 'society_owner' | 'society_member'
+          full_name: string | null
+          is_active: boolean | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          phone: string
+          role: 'admin' | 'buyer_seller' | 'broker' | 'developer' | 'society_owner' | 'society_member'
+          full_name?: string | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          phone?: string
+          role?: 'admin' | 'buyer_seller' | 'broker' | 'developer' | 'society_owner' | 'society_member'
+          full_name?: string | null
+          is_active?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_roles_user_id_fkey'
+            columns: ['user_id']
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          }
+        ]
+      },
       brokers: {
         Row: {
           commission_rate: number | null

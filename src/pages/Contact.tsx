@@ -33,57 +33,7 @@ const Contact = () => {
     office: ''
   });
 
-  const offices = [
-    {
-      country: "India",
-      city: "Mumbai (Head Office)",
-      address: "123 Business District, Bandra Kurla Complex, Mumbai - 400051",
-      phone: "+91 22 4567 8900",
-      email: "mumbai@realestatepro.com",
-      hours: "Mon-Sat: 9:00 AM - 7:00 PM"
-    },
-    {
-      country: "India",
-      city: "Bangalore",
-      address: "456 Tech Park, Electronic City, Bangalore - 560100",
-      phone: "+91 80 4567 8901",
-      email: "bangalore@realestatepro.com",
-      hours: "Mon-Sat: 9:00 AM - 7:00 PM"
-    },
-    {
-      country: "USA",
-      city: "New York",
-      address: "789 Manhattan Plaza, New York, NY 10001",
-      phone: "+1 212 456 7890",
-      email: "newyork@realestatepro.com",
-      hours: "Mon-Fri: 9:00 AM - 6:00 PM EST"
-    },
-    {
-      country: "UAE",
-      city: "Dubai",
-      address: "321 Business Bay, Dubai Marina, UAE",
-      phone: "+971 4 567 8900",
-      email: "dubai@realestatepro.com",
-      hours: "Sun-Thu: 9:00 AM - 6:00 PM GST"
-    },
-    {
-      country: "Canada", 
-      city: "Toronto",
-      address: "654 Financial District, Toronto, ON M5H 2N2",
-      phone: "+1 416 567 8900",
-      email: "toronto@realestatepro.com",
-      hours: "Mon-Fri: 9:00 AM - 6:00 PM EST"
-    },
-    {
-      country: "Kenya",
-      city: "Nairobi",
-      address: "987 Westlands Business Park, Nairobi, Kenya",
-      phone: "+254 20 567 8900",
-      email: "nairobi@realestatepro.com",
-      hours: "Mon-Fri: 8:00 AM - 5:00 PM EAT"
-    }
-  ];
-
+ 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -132,7 +82,7 @@ const Contact = () => {
       </section>
 
       <div className="container mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <div className="max-w-3xl mx-auto">
           {/* Contact Form */}
           <div className="lg:col-span-2">
             <Card className="shadow-soft">
@@ -182,22 +132,7 @@ const Contact = () => {
                         placeholder="Enter your phone number"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="office" className="text-sm font-medium">Preferred Office</Label>
-                      <Select value={formData.office} onValueChange={(value) => handleInputChange('office', value)}>
-                        <SelectTrigger className="h-11">
-                          <SelectValue placeholder="Select office" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {offices.map((office, index) => (
-                            <SelectItem key={index} value={office.city}>
-                              {office.city}, {office.country}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="subject" className="text-sm font-medium">Subject *</Label>
@@ -252,53 +187,7 @@ const Contact = () => {
             </Card>
           </div>
 
-          {/* Office Locations */}
-          <div className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold mb-2">Our Global Offices</h2>
-              <p className="text-muted-foreground text-sm">Visit us at any of our locations worldwide</p>
-            </div>
-            
-            <div className="space-y-4 max-h-[28rem] md:max-h-[32rem] overflow-y-auto pr-1">
-              {offices.map((office, index) => (
-                <Card key={index} className="hover:shadow-medium transition-all duration-200 border-l-4 border-l-estate-blue/20 hover:border-l-estate-blue">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-estate-blue/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Building className="w-5 h-5 text-estate-blue" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-base mb-1">{office.city}</h3>
-                        <div className="space-y-1.5 text-xs text-muted-foreground">
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                            <span className="leading-tight">{office.address}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Phone className="w-3 h-3 flex-shrink-0" />
-                            <span>{office.phone}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Mail className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{office.email}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-3 h-3 flex-shrink-0" />
-                            <span>{office.hours}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            
-          </div>
+          
         </div>
 
         {/* Full-width Support CTA */}
