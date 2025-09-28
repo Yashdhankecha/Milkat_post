@@ -266,7 +266,7 @@ const BuyerDashboard = () => {
                           <div className="aspect-video bg-muted relative">
                             {property.images?.[0] ? (
                               <img 
-                                src={property.images[0]} 
+                                src={property.images[0]?.url || property.images[0]} 
                                 alt={property.title}
                                 className="w-full h-full object-cover"
                               />

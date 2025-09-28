@@ -26,6 +26,7 @@ const Auth = () => {
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [availableRoles, setAvailableRoles] = useState<Array<{role: string, full_name: string}>>([]);
   const [selectedLoginRole, setSelectedLoginRole] = useState("");
+  const [showLoginRoleSelection, setShowLoginRoleSelection] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -102,7 +103,7 @@ const Auth = () => {
       pathname: window.location.pathname
     });
     
-    // Redirect authenticated users to home page after successful login
+    // Redirect authenticated users to appropriate dashboard
     if (user && !profileLoading) {
       console.log('[Auth] User authenticated, checking redirect conditions', {
         pathname: window.location.pathname,
@@ -110,18 +111,24 @@ const Auth = () => {
         showRoleSelection
       });
       
-      // If we're on the auth page and user is authenticated, redirect to home
+      // If we're on the auth page and user is authenticated, redirect to dashboard
       const isOnAuthPage = window.location.pathname.includes('/auth');
       console.log('[Auth] Is on auth page:', isOnAuthPage);
       
       // Only redirect if we're not in the middle of OTP verification or role selection
       if (isOnAuthPage && !showOTPVerification && !showRoleSelection) {
-        console.log('[Auth] Redirecting to home page');
-        // Redirect to home page after successful login
-        navigate('/', { replace: true });
+        // Get user's role from profile and redirect to appropriate dashboard
+        if (profile?.role) {
+          const dashboardPath = getRoleBasedPath(profile.role);
+          console.log('[Auth] Redirecting to dashboard:', dashboardPath);
+          navigate(dashboardPath, { replace: true });
+        } else {
+          console.log('[Auth] No profile role found, redirecting to home');
+          navigate('/', { replace: true });
+        }
       }
     }
-  }, [user, profileLoading, showOTPVerification, showRoleSelection, navigate]);
+  }, [user, profile, profileLoading, showOTPVerification, showRoleSelection, navigate]);
 
   const getRoleBasedPath = (role: string): string => {
     switch (role) {
@@ -185,61 +192,13 @@ const Auth = () => {
       return;
     }
 
-    // For login, check if user has multiple roles
+    // For login, validate role selection
     if (isLogin && !selectedLoginRole) {
-      console.log('[Auth] Checking for multiple roles');
-      // Check if user exists and get their roles
-      if (mockEnabled) {
-        const existingProfilesRaw = localStorage.getItem(`mock_profiles_${phone}`);
-        if (!existingProfilesRaw) {
-          toast({
-            title: "User not found",
-            description: "Please register first.",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-        
-        const existingProfiles = JSON.parse(existingProfilesRaw);
-        const roles = existingProfiles.map((p: any) => ({
-          role: p.role,
-          full_name: p.fullName
-        }));
-        
-        setAvailableRoles(roles);
-        console.log('[Auth] Found roles:', roles);
-        
-        // If user has multiple roles, show role selection
-        if (roles.length > 1) {
-          console.log('[Auth] Showing role selection screen');
-          setShowRoleSelection(true);
-          setLoading(false);
-          return;
-        } 
-        // If single role, auto-select it and continue
-        else if (roles.length === 1) {
-          console.log('[Auth] Auto-selecting single role:', roles[0].role);
-          setSelectedLoginRole(roles[0].role);
-          // Continue with login after auto-selecting the single role
-          await proceedWithLogin(roles[0].role);
-          setLoading(false);
-          return;
-        } else {
-          // No roles found
-          toast({
-            title: "No roles found",
-            description: "Please register first.",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // For non-mock mode, we would check with the server
-      // But for now, let's continue with the flow
-      await proceedWithLogin();
+      toast({
+        title: "Role required",
+        description: "Please select your role to continue.",
+        variant: "destructive",
+      });
       setLoading(false);
       return;
     }
@@ -248,19 +207,8 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        // If we have a selected role, proceed with login
-        if (selectedLoginRole) {
-          console.log('[Auth] Proceeding with login for role:', selectedLoginRole);
-          await proceedWithLogin();
-        } else {
-          // This shouldn't happen, but just in case
-          console.log('[Auth] No role selected in login flow');
-          toast({
-            title: "No role selected",
-            description: "Please select a role to continue.",
-            variant: "destructive",
-          });
-        }
+        console.log('[Auth] Proceeding with login for role:', selectedLoginRole);
+        await proceedWithLogin();
       } else {
         // Registration - validate required fields
         if (!fullName || !selectedRole) {
@@ -414,9 +362,11 @@ const Auth = () => {
           description: isLogin ? "You've been successfully logged in." : "Your account has been created successfully.",
         });
         
-        // Explicitly navigate to home page after successful verification
-        console.log('[Auth] OTP verification successful, redirecting to home');
-        navigate('/', { replace: true });
+        // Redirect to appropriate dashboard based on role
+        const roleToUse = isLogin ? selectedLoginRole : selectedRole;
+        const dashboardPath = getRoleBasedPath(roleToUse);
+        console.log('[Auth] OTP verification successful, redirecting to dashboard:', dashboardPath);
+        navigate(dashboardPath, { replace: true });
       }
     } catch (error) {
       toast({
@@ -600,6 +550,35 @@ const Auth = () => {
                 </>
               )}
               
+              {isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="loginRole" className="text-sm font-medium text-foreground">
+                    Select Your Role
+                  </Label>
+                  <Select value={selectedLoginRole} onValueChange={setSelectedLoginRole} required>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Choose your role to sign in" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((role) => {
+                        const IconComponent = role.icon;
+                        return (
+                          <SelectItem key={role.value} value={role.value}>
+                            <div className="flex items-center gap-3 py-1">
+                              <IconComponent className={`h-4 w-4 ${role.color}`} />
+                              <div>
+                                <div className="font-medium">{role.label}</div>
+                                <div className="text-sm text-muted-foreground">{role.description}</div>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-sm font-medium text-foreground">
                   Phone Number
@@ -650,9 +629,10 @@ const Auth = () => {
                   setPhone("");
                   setFullName("");
                   setSelectedRole("");
-                  setShowRoleSelection(false);
-                  setAvailableRoles([]);
                   setSelectedLoginRole("");
+                  setShowRoleSelection(false);
+                  setShowLoginRoleSelection(false);
+                  setAvailableRoles([]);
                 }}
               >
                 {isLogin ? "Create new account" : "Sign in instead"}

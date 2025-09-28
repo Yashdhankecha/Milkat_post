@@ -1,29 +1,30 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Profile from '../models/Profile.js';
+import config from '../config-loader.js';
 
 // Generate JWT token
 export const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
+  return jwt.sign({ userId }, config.JWT_SECRET, {
+    expiresIn: config.JWT_EXPIRE
   });
 };
 
 // Generate refresh token
 export const generateRefreshToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRE || '30d'
+  return jwt.sign({ userId }, config.JWT_REFRESH_SECRET, {
+    expiresIn: config.JWT_REFRESH_EXPIRE
   });
 };
 
 // Verify JWT token
 export const verifyToken = (token) => {
-  return jwt.verify(token, process.env.JWT_SECRET);
+  return jwt.verify(token, config.JWT_SECRET);
 };
 
 // Verify refresh token
 export const verifyRefreshToken = (token) => {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+  return jwt.verify(token, config.JWT_REFRESH_SECRET);
 };
 
 // Authentication middleware
@@ -181,38 +182,38 @@ export const checkOwnership = (resourceUserIdField = 'owner') => {
   };
 };
 
-// Rate limiting for authentication endpoints
-export const authRateLimit = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
-  const attempts = new Map();
+// Rate limiting for authentication endpoints - REMOVED
+// export const authRateLimit = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
+//   const attempts = new Map();
 
-  return (req, res, next) => {
-    const key = req.ip + req.body.phone;
-    const now = Date.now();
-    const windowStart = now - windowMs;
+//   return (req, res, next) => {
+//     const key = req.ip + req.body.phone;
+//     const now = Date.now();
+//     const windowStart = now - windowMs;
 
-    // Clean old attempts
-    if (attempts.has(key)) {
-      const userAttempts = attempts.get(key).filter(time => time > windowStart);
-      attempts.set(key, userAttempts);
-    }
+//     // Clean old attempts
+//     if (attempts.has(key)) {
+//       const userAttempts = attempts.get(key).filter(time => time > windowStart);
+//       attempts.set(key, userAttempts);
+//     }
 
-    // Check if limit exceeded
-    if (attempts.has(key) && attempts.get(key).length >= maxAttempts) {
-      return res.status(429).json({
-        status: 'error',
-        message: 'Too many authentication attempts. Please try again later.'
-      });
-    }
+//     // Check if limit exceeded
+//     if (attempts.has(key) && attempts.get(key).length >= maxAttempts) {
+//       return res.status(429).json({
+//         status: 'error',
+//         message: 'Too many authentication attempts. Please try again later.'
+//       });
+//     }
 
-    // Record attempt
-    if (!attempts.has(key)) {
-      attempts.set(key, []);
-    }
-    attempts.get(key).push(now);
+//     // Record attempt
+//     if (!attempts.has(key)) {
+//       attempts.set(key, []);
+//     }
+//     attempts.get(key).push(now);
 
-    next();
-  };
-};
+//     next();
+//   };
+// };
 
 // Generate OTP
 export const generateOTP = (length = 6) => {
@@ -240,3 +241,4 @@ export const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
+    ` `

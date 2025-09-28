@@ -16,13 +16,11 @@ const BuilderProjects = () => {
 
   const fetchProjects = async () => {
     try {
-      const { data, error } = await apiClient
-        
-        
-        ;
-
-      if (error) throw error;
-      setProjects(data || []);
+      const result = await apiClient.getProjects({ limit: 6, status: 'active' });
+      
+      if (result.error) throw new Error(result.error);
+      const projectsData = result.data?.projects || result.data || [];
+      setProjects(projectsData);
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast({

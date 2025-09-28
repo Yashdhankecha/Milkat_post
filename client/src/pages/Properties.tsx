@@ -16,22 +16,36 @@ import { Search, Filter, X, ChevronDown, MapPin, IndianRupee, Home } from "lucid
 import { useToast } from "@/hooks/use-toast";
 
 interface Property {
-  id: string;
+  _id: string;
   title: string;
-  location: string;
-  city: string;
-  state: string;
-  country: string;
+  description?: string;
+  propertyType: string;
+  listingType: string;
   price: number;
   area: number;
-  images: string[];
-  property_type: string;
-  listing_type: string;
-  furnished_status?: string;
+  location: {
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+  };
+  images: Array<{
+    url: string;
+    caption?: string;
+    isPrimary: boolean;
+  }>;
+  videos: Array<{
+    url: string;
+    caption?: string;
+  }>;
   amenities: string[];
   status: string;
-  monthly_rent?: number;
-  security_deposit?: number;
+  monthlyRent?: number;
+  securityDeposit?: number;
+  furnishedStatus?: string;
+  createdAt: string;
+  updatedAt: string;
+  propertyId: string;
 }
 
 const Properties = () => {
@@ -99,20 +113,27 @@ const Properties = () => {
 
   const fetchProperties = async () => {
     try {
-      // Only show approved properties
+      setLoading(true);
+      
+      // Build query parameters
+      const params: any = {
+        page: 1,
+        limit: 50, // Load more properties initially
+        status: 'active' // Only show active properties
+      };
 
-      // Apply URL-based filters first
+      // Apply URL-based filters
       if (urlFilters.country) {
-        query = query;
+        params.country = urlFilters.country;
       }
       if (urlFilters.state) {
-        query = query;
+        params.state = urlFilters.state;
       }
       if (urlFilters.city) {
-        query = query;
+        params.city = urlFilters.city;
       }
       if (urlFilters.propertyType) {
-        query = query;
+        params.propertyType = urlFilters.propertyType;
       }
       
       // Handle budget range filtering
@@ -121,74 +142,77 @@ const Properties = () => {
         if (range.includes('-')) {
           const [min, max] = range.split('-');
           if (max && !max.includes('+')) {
-            // Apply price range filter
-            // This would be handled by the API client
+            params.minPrice = min;
+            params.maxPrice = max;
           } else {
-            // Apply minimum price filter
-            // This would be handled by the API client
+            params.minPrice = min;
           }
         }
       }
 
-      // Apply advanced filters (don't override status for approved properties)
+      // Apply advanced filters
       if (filterType !== 'all') {
-        // Apply property type filter
-        // This would be handled by the API client
+        params.propertyType = filterType;
       }
       
-      // Allow filtering by sold/rented status but not pending
-      if (filterStatus !== 'all' && filterStatus === 'available') {
-        // Already filtered above
-      } else if (filterStatus === 'sold' || filterStatus === 'rented') {
-        // Apply status filter
-        // This would be handled by the API client
+      // Apply status filter
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
       }
 
       if (listingType !== 'all') {
-        // Apply listing type filter
-        // This would be handled by the API client
+        params.listingType = listingType;
       }
 
       // Price range filter
-      if (listingType === 'rent') {
-        // Apply rent price filter
-        // This would be handled by the API client
-      } else {
-        // Apply sale price filter
-        // This would be handled by the API client
+      if (priceRange[0] > 0 || priceRange[1] < 10000000) {
+        params.minPrice = priceRange[0];
+        params.maxPrice = priceRange[1];
       }
 
       // Area range filter
-      // This would be handled by the API client
+      if (areaRange[0] > 0 || areaRange[1] < 5000) {
+        params.minArea = areaRange[0];
+        params.maxArea = areaRange[1];
+      }
 
       // Amenities filter
       if (selectedAmenities.length > 0) {
-        // Apply amenities filter
-        // This would be handled by the API client
+        params.amenities = selectedAmenities.join(',');
       }
 
       // Apply search
       if (searchTerm) {
-        // Apply search filter
-        // This would be handled by the API client
+        params.search = searchTerm;
       }
 
       // Apply sorting
       if (sortBy === 'price_asc') {
-        // Apply ascending price sort
-        // This would be handled by the API client
+        params.sort = 'price';
+        params.order = 'asc';
       } else if (sortBy === 'price_desc') {
-        // Apply descending price sort
-        // This would be handled by the API client
+        params.sort = 'price';
+        params.order = 'desc';
+      } else if (sortBy === 'area') {
+        params.sort = 'area';
+        params.order = 'desc';
       } else {
-        // Apply default sort
-        // This would be handled by the API client
+        params.sort = 'createdAt';
+        params.order = 'desc';
       }
 
-      const result = await apiClient.getProperties();
+      console.log('Fetching properties with params:', params);
+      const result = await apiClient.getProperties(params);
 
-      if (result.error) throw result.error;
-      setProperties(result.data || []);
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      // The API returns { data: { properties: [...] } }
+      const propertiesData = result.data?.properties || result.data || [];
+      console.log('Received properties:', propertiesData);
+      console.log(`✅ Successfully loaded ${propertiesData.length} properties from database`);
+      setProperties(propertiesData);
     } catch (error) {
       console.error('Error fetching properties:', error);
       toast({
@@ -230,16 +254,20 @@ const Properties = () => {
     <div className="min-h-screen bg-background">
       <Header />
       {/* Header */}
-      <section className="bg-gradient-hero py-16">
-        <div className="container mx-auto px-6">
-          <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-4">
-            Property Listings
-          </h1>
-          <p className="text-xl text-white/90 text-center max-w-2xl mx-auto">
-            Discover your perfect property from our extensive collection of homes, 
-            apartments, and commercial spaces.
-          </p>
+      <section className="bg-gradient-hero py-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="container mx-auto px-6 relative z-10">
+          <div className="animate-slide-in-down">
+            <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-4">
+              Property Listings
+            </h1>
+            <p className="text-xl text-white/90 text-center max-w-2xl mx-auto animate-fade-in-up" style={{animationDelay: '200ms'}}>
+              Discover your perfect property from our extensive collection of homes, 
+              apartments, and commercial spaces.
+            </p>
+          </div>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
       </section>
 
       {/* Filters */}
@@ -292,7 +320,7 @@ const Properties = () => {
             </div>
           )}
           
-          <Card>
+          <Card className="animate-fade-in-up" style={{animationDelay: '400ms'}}>
             <CardContent className="p-6">
               <div className="space-y-4">
                 {/* Main Search Bar */}
@@ -463,32 +491,57 @@ const Properties = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[...Array(9)].map((_, i) => (
                 <div key={i} className="animate-pulse">
-                  <div className="bg-gray-200 h-64 rounded-lg mb-4"></div>
-                  <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  <div className="bg-gradient-to-br from-gray-200 to-gray-300 h-64 rounded-xl mb-4"></div>
+                  <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg mb-2"></div>
+                  <div className="h-4 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg w-3/4"></div>
                 </div>
               ))}
             </div>
           ) : properties.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {properties.map((property) => (
-                <PropertyCard
-                  key={property.id}
-                  id={property.id}
-                  title={property.title}
-                  location={`${property.location}, ${property.city}`}
-                  price={property.listing_type === 'rent' 
-                    ? `₹${(property.monthly_rent || property.price).toLocaleString()}/month`
-                    : `₹${property.price.toLocaleString()}`
-                  }
-                  area={`${property.area} sq ft`}
-                  image={property.images[0] || "/placeholder.svg"}
-                  type={property.property_type}
-                  status={property.listing_type === 'rent' ? 'For Rent' : 
-                           property.status === 'available' ? 'For Sale' : 
-                           property.status === 'rented' ? 'For Rent' : 'Sold'}
-                />
-              ))}
+              {properties.map((property, index) => {
+                // Get primary image or first image
+                const primaryImage = property.images?.find(img => img.isPrimary) || property.images?.[0];
+                const imageUrl = primaryImage?.url || "/placeholder.svg";
+                
+                // Format price based on listing type
+                const displayPrice = property.listingType === 'rent' 
+                  ? `₹${(property.monthlyRent || property.price).toLocaleString()}/month`
+                  : `₹${property.price.toLocaleString()}`;
+                
+                // Format location
+                const locationText = `${property.location.address}, ${property.location.city}`;
+                
+                // Format property type for display
+                const propertyTypeDisplay = property.propertyType.charAt(0).toUpperCase() + property.propertyType.slice(1);
+                
+                // Format status
+                const statusDisplay = property.listingType === 'rent' ? 'For Rent' : 
+                                   property.status === 'active' ? 'For Sale' : 
+                                   property.status === 'sold' ? 'Sold' : 'For Sale';
+                
+                return (
+                  <div
+                    key={property._id}
+                    className="animate-fade-in-up"
+                    style={{
+                      animationDelay: `${index * 100}ms`,
+                      animationFillMode: 'both'
+                    }}
+                  >
+                    <PropertyCard
+                      id={property._id}
+                      title={property.title}
+                      location={locationText}
+                      price={displayPrice}
+                      area={`${property.area} sq ft`}
+                      image={imageUrl}
+                      type={propertyTypeDisplay}
+                      status={statusDisplay}
+                    />
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-20">

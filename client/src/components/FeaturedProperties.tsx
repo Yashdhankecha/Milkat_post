@@ -18,14 +18,11 @@ const FeaturedProperties = () => {
 
   const fetchProperties = async () => {
     try {
-      const { data, error } = await apiClient
-        
-        
-        
-        ;
-
-      if (error) throw error;
-      setProperties(data || []);
+      const result = await apiClient.getProperties({ limit: 6, status: 'active' });
+      
+      if (result.error) throw new Error(result.error);
+      const propertiesData = result.data?.properties || result.data || [];
+      setProperties(propertiesData);
     } catch (error) {
       console.error('Error fetching properties:', error);
       toast({
@@ -66,19 +63,32 @@ const FeaturedProperties = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {properties.length > 0 ? (
-            properties.map((property) => (
-              <PropertyCard 
-                key={property.id} 
-                id={property.id}
-                title={property.title}
-                location={`${property.city}, ${property.state}`}
-                price={property.listing_type === 'rent' ? `₹${property.monthly_rent}/month` : `₹${property.price}`}
-                area={`${property.area} sq.ft`}
-                image={property.images?.[0] || "/placeholder.svg"}
-                type={property.property_type}
-                status={property.listing_type === 'rent' ? 'For Rent' : 'For Sale'}
-              />
-            ))
+            properties.map((property) => {
+              const primaryImage = property.images?.find(img => img.isPrimary) || property.images?.[0];
+              const imageUrl = primaryImage?.url || primaryImage || "/placeholder.svg";
+              const displayPrice = property.listingType === 'rent' 
+                ? `₹${(property.monthlyRent || property.price).toLocaleString()}/month`
+                : `₹${property.price.toLocaleString()}`;
+              const locationText = `${property.location?.address || ''}, ${property.location?.city || ''}`;
+              const propertyTypeDisplay = property.propertyType?.charAt(0).toUpperCase() + property.propertyType?.slice(1) || 'Property';
+              const statusDisplay = property.listingType === 'rent' ? 'For Rent' : 
+                                   property.status === 'active' ? 'For Sale' : 
+                                   property.status === 'sold' ? 'Sold' : 'For Sale';
+              
+              return (
+                <PropertyCard 
+                  key={property._id} 
+                  id={property._id}
+                  title={property.title}
+                  location={locationText}
+                  price={displayPrice}
+                  area={`${property.area} sq ft`}
+                  image={imageUrl}
+                  type={propertyTypeDisplay}
+                  status={statusDisplay}
+                />
+              );
+            })
           ) : (
             <div className="col-span-full text-center py-8">
               <p className="text-muted-foreground">No properties available at the moment.</p>

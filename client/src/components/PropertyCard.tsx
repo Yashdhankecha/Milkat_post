@@ -28,19 +28,31 @@ const PropertyCard = ({ id, title, location, price, area, image, type, status }:
     }
   };
 
+  // Handle image fallback
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = '/placeholder.svg';
+  };
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    // Image loaded successfully
+  };
+
   return (
     <Link to={`/property/${id}`}>
-      <Card className="group hover:shadow-strong transition-all duration-300 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer">
-      <div className="relative">
+      <Card className="group hover:shadow-strong transition-all duration-500 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer hover-lift smooth-transition">
+      <div className="relative overflow-hidden">
         <img 
-          src={image} 
+          src={image || '/placeholder.svg'} 
           alt={title}
-          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+          className="w-full h-48 object-cover group-hover:scale-110 transition-all duration-500 ease-out"
+          onError={handleImageError}
+          onLoad={handleImageLoad}
         />
-        <Badge className={`absolute top-3 left-3 ${getStatusColor(status)}`}>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <Badge className={`absolute top-3 left-3 ${getStatusColor(status)} smooth-transition group-hover:scale-105`}>
           {status}
         </Badge>
-        <Badge variant="secondary" className="absolute top-3 right-3">
+        <Badge variant="secondary" className="absolute top-3 right-3 smooth-transition group-hover:scale-105">
           {type}
         </Badge>
       </div>
@@ -63,10 +75,6 @@ const PropertyCard = ({ id, title, location, price, area, image, type, status }:
             <Ruler className="h-4 w-4" />
             <span>{area}</span>
           </div>
-        </div>
-        
-        <div className="text-xs text-muted-foreground">
-          Property ID: {id}
         </div>
       </CardContent>
     </Card>

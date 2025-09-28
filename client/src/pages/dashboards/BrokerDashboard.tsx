@@ -390,7 +390,7 @@ const BrokerDashboard = () => {
                         <div className="aspect-video bg-muted relative">
                           {listing.images?.[0] ? (
                             <img 
-                              src={listing.images[0]} 
+                              src={listing.images[0]?.url || listing.images[0]} 
                               alt={listing.title}
                               className="w-full h-full object-cover"
                             />

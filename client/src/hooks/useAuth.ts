@@ -134,11 +134,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('auth_user');
     localStorage.removeItem('auth_profile');
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_refresh_token');
     setUser(null);
     setProfile(null);
     setSession(null);
     setIsUserSuspended(false);
     apiClient.setToken(null);
+    apiClient.setRefreshToken(null);
   };
 
   const saveAuthData = (sessionData: AuthSession) => {
@@ -146,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('auth_user', JSON.stringify(sessionData.user));
     localStorage.setItem('auth_profile', JSON.stringify(sessionData.profile));
     apiClient.setToken(sessionData.accessToken);
+    apiClient.setRefreshToken(sessionData.refreshToken);
   };
 
   const signOut = async () => {
@@ -252,18 +255,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { data: null, error: result.error };
       }
 
-      // If verification successful, get user profile
-      const profileResult = await apiClient.getProfile();
-      
-      if (profileResult.error) {
-        return { data: null, error: profileResult.error };
+      // If verification successful, get user profile if not already included
+      let profileData = result.data.profile;
+      if (!profileData) {
+        const profileResult = await apiClient.getProfile();
+        if (profileResult.error) {
+          return { data: null, error: profileResult.error };
+        }
+        profileData = profileResult.data;
       }
 
       const sessionData: AuthSession = {
-        accessToken: result.data.accessToken,
+        accessToken: result.data.accessToken || result.data.token,
         refreshToken: result.data.refreshToken,
         user: result.data.user,
-        profile: profileResult.data,
+        profile: profileData,
         expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
       };
 
@@ -344,18 +350,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { data: null, error: result.error };
       }
 
-      // Get the created profile
-      const profileResult = await apiClient.getProfile();
-      
-      if (profileResult.error) {
-        return { data: null, error: profileResult.error };
+      // Get the created profile if not already included
+      let profileData = result.data.profile;
+      if (!profileData) {
+        const profileResult = await apiClient.getProfile();
+        if (profileResult.error) {
+          return { data: null, error: profileResult.error };
+        }
+        profileData = profileResult.data;
       }
 
       const sessionData: AuthSession = {
-        accessToken: result.data.accessToken,
+        accessToken: result.data.accessToken || result.data.token,
         refreshToken: result.data.refreshToken,
         user: result.data.user,
-        profile: profileResult.data,
+        profile: profileData,
         expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
       };
 
@@ -387,18 +396,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { data: null, error: result.error };
       }
 
-      // Get user profile
-      const profileResult = await apiClient.getProfile();
-      
-      if (profileResult.error) {
-        return { data: null, error: profileResult.error };
+      // Get user profile if not already included
+      let profileData = result.data.profile;
+      if (!profileData) {
+        const profileResult = await apiClient.getProfile();
+        if (profileResult.error) {
+          return { data: null, error: profileResult.error };
+        }
+        profileData = profileResult.data;
       }
 
       const sessionData: AuthSession = {
-        accessToken: result.data.accessToken,
+        accessToken: result.data.accessToken || result.data.token,
         refreshToken: result.data.refreshToken,
         user: result.data.user,
-        profile: profileResult.data,
+        profile: profileData,
         expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
       };
 
@@ -433,7 +445,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const sessionData: AuthSession = {
-        accessToken: result.data.accessToken,
+        accessToken: result.data.accessToken || result.data.token,
         refreshToken: result.data.refreshToken,
         user: result.data.user,
         profile: result.data.profile,

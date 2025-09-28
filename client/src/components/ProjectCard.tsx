@@ -48,9 +48,12 @@ const ProjectCard = ({
       <Card className="group hover:shadow-strong transition-all duration-300 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer">
         <div className="relative">
           <img 
-            src={images?.[0] || "/placeholder.svg"} 
+            src={images?.[0]?.url || images?.[0] || "/placeholder.svg"} 
             alt={name}
             className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              e.currentTarget.src = '/placeholder.svg';
+            }}
           />
           <Badge className={`absolute top-3 left-3 ${getStatusColor(status)}`}>
             {status.replace('_', ' ').toUpperCase()}
@@ -89,9 +92,6 @@ const ProjectCard = ({
             </div>
           )}
           
-          <div className="text-xs text-muted-foreground">
-            Project ID: {id}
-          </div>
         </CardContent>
       </Card>
     </Link>

@@ -1,5 +1,6 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { v2 as cloudinary } from 'cloudinary';
 import { AppError } from './errorHandler.js';
 
@@ -13,7 +14,15 @@ cloudinary.config({
 // Configure multer for local storage (fallback)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    const uploadDir = 'uploads/';
+    
+    // Ensure uploads directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      console.log('Created uploads directory:', uploadDir);
+    }
+    
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -169,14 +178,12 @@ export const validateImageDimensions = (minWidth = 100, minHeight = 100, maxWidt
 export const cleanupTempFiles = (req, res, next) => {
   res.on('finish', () => {
     if (req.file && req.file.path) {
-      const fs = require('fs');
       fs.unlink(req.file.path, (err) => {
         if (err) console.error('Error deleting temp file:', err);
       });
     }
     
     if (req.files) {
-      const fs = require('fs');
       req.files.forEach(file => {
         if (file.path) {
           fs.unlink(file.path, (err) => {

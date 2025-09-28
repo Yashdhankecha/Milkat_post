@@ -4,7 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
+// import rateLimit from 'express-rate-limit'; // Removed - no rate limiting needed
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import xss from 'xss-clean';
@@ -24,6 +24,10 @@ import developerRoutes from './routes/developers.js';
 import inquiryRoutes from './routes/inquiries.js';
 import supportRoutes from './routes/support.js';
 import uploadRoutes from './routes/upload.js';
+import requirementRoutes from './routes/requirements.js';
+import likeRoutes from './routes/likes.js';
+import shareRoutes from './routes/shares.js';
+import notificationRoutes from './routes/notifications.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -42,18 +46,18 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: config.RATE_LIMIT_WINDOW_MS,
-  max: config.RATE_LIMIT_MAX_REQUESTS,
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Rate limiting - REMOVED
+// const limiter = rateLimit({
+//   windowMs: config.RATE_LIMIT_WINDOW_MS,
+//   max: config.RATE_LIMIT_MAX_REQUESTS,
+//   message: {
+//     error: 'Too many requests from this IP, please try again later.'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+// });
 
-app.use('/api/', limiter);
+// app.use('/api/', limiter); // Removed - no rate limiting needed
 
 // CORS configuration
 const corsOptions = {
@@ -98,7 +102,7 @@ if (config.NODE_ENV === 'development') {
   }));
 }
 
-// Static files
+// Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check endpoint
@@ -122,6 +126,10 @@ app.use('/api/developers', developerRoutes);
 app.use('/api/inquiries', inquiryRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/requirements', requirementRoutes);
+app.use('/api/likes', likeRoutes);
+app.use('/api/shares', shareRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

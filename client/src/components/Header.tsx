@@ -7,6 +7,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import apiClient from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import NotificationBell from "./NotificationBell";
 
 const Header = () => {
   const { user, signOut } = useAuth();
@@ -218,6 +219,7 @@ const Header = () => {
           <div className="flex items-center gap-2">
             {user ? (
               <div className="flex items-center gap-2">
+                <NotificationBell />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="text-xs sm:text-sm">

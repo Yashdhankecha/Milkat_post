@@ -595,7 +595,7 @@ const DeveloperDashboard = () => {
                         <div className="aspect-video bg-muted relative">
                           {project.images?.[0] ? (
                             <img 
-                              src={project.images[0]} 
+                              src={project.images[0]?.url || project.images[0]} 
                               alt={project.name}
                               className="w-full h-full object-cover"
                             />
@@ -678,7 +678,7 @@ const DeveloperDashboard = () => {
                         <div className="aspect-video bg-muted relative">
                           {property.images?.[0] ? (
                             <img 
-                              src={property.images[0]} 
+                              src={property.images[0]?.url || property.images[0]} 
                               alt={property.title}
                               className="w-full h-full object-cover"
                             />

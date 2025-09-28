@@ -9,8 +9,8 @@ import {
   authenticate,
   generateOTP,
   validatePhoneNumber,
-  validateEmail,
-  authRateLimit
+  validateEmail
+  // authRateLimit // Removed - no rate limiting needed
 } from '../middleware/auth.js';
 import { catchAsync, AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
@@ -32,7 +32,7 @@ const validateRequest = (req, res, next) => {
 
 // Send OTP for phone authentication
 router.post('/send-otp', 
-  authRateLimit(5, 15 * 60 * 1000), // 5 attempts per 15 minutes
+  // authRateLimit(5, 15 * 60 * 1000), // Removed - no rate limiting needed
   [
     body('phone')
       .notEmpty()
@@ -106,7 +106,7 @@ router.post('/send-otp',
 
 // Verify OTP and login
 router.post('/verify-otp',
-  authRateLimit(10, 15 * 60 * 1000), // 10 attempts per 15 minutes
+  // authRateLimit(10, 15 * 60 * 1000), // Removed - no rate limiting needed
   [
     body('phone')
       .isLength({ min: 10, max: 16 })
@@ -206,7 +206,7 @@ router.post('/verify-otp',
             isVerified: user.isVerified
           },
           profile: roleProfile,
-          token,
+          accessToken: token,
           refreshToken,
           expiresIn: process.env.JWT_EXPIRE || '7d'
         }
@@ -238,7 +238,7 @@ router.post('/verify-otp',
 
 // Register new user with phone
 router.post('/register',
-  authRateLimit(3, 15 * 60 * 1000), // 3 attempts per 15 minutes
+  // authRateLimit(3, 15 * 60 * 1000), // Removed - no rate limiting needed
   [
     body('phone')
       .isLength({ min: 10, max: 16 })
@@ -345,7 +345,7 @@ router.post('/register',
 
 // Signup with SMS for new role (handles both new users and existing users adding new roles)
 router.post('/signup-new-role',
-  authRateLimit(3, 15 * 60 * 1000), // 3 attempts per 15 minutes
+  // authRateLimit(3, 15 * 60 * 1000), // Removed - no rate limiting needed
   [
     body('phone')
       .isLength({ min: 10, max: 16 })
@@ -485,7 +485,7 @@ router.post('/refresh-token',
         status: 'success',
         message: 'Token refreshed successfully',
         data: {
-          token: newToken,
+          accessToken: newToken,
           refreshToken: newRefreshToken,
           expiresIn: process.env.JWT_EXPIRE || '7d'
         }

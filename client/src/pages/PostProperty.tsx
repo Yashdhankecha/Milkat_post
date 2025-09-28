@@ -160,7 +160,6 @@ const PostProperty = () => {
     if (!files || !user) return;
 
     setUploadingMedia(true);
-    const uploadedUrls: string[] = [];
 
     try {
       // Check if we're in mock mode
@@ -168,7 +167,9 @@ const PostProperty = () => {
       
       if (isMockMode) {
         // In mock mode, create data URLs for images to avoid network errors
+        const uploadedUrls: string[] = [];
         let processedCount = 0;
+        
         for (const file of Array.from(files)) {
           const fileReader = new FileReader();
           fileReader.onload = (event) => {
@@ -193,24 +194,20 @@ const PostProperty = () => {
           fileReader.readAsDataURL(file);
         }
       } else {
-        // Real Supabase upload
-        for (const file of Array.from(files)) {
-          const fileExt = file.name.split('.').pop();
-          const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-          const { error: uploadError } = await apiClient.storage
-            .from('property-images')
-            .upload(filePath, file);
-
-          if (uploadError) throw uploadError;
-
-          const { data } = apiClient.storage
-            .from('property-images')
-            .getPublicUrl(filePath);
-
-          uploadedUrls.push(data.publicUrl);
+        // Real MERN stack upload using Express + Multer
+        const fileArray = Array.from(files);
+        const result = await apiClient.uploadPropertyImages(fileArray);
+        
+        if (result.error) {
+          throw new Error(result.error);
         }
 
+        const uploadedUrls = result.data.images.map((img: any) => {
+          // Ensure URL is absolute for proper display
+          const url = img.url.startsWith('http') ? img.url : `http://localhost:5000${img.url}`;
+          return url;
+        });
+        
         setFormData(prev => ({
           ...prev,
           images: [...prev.images, ...uploadedUrls]
@@ -229,10 +226,7 @@ const PostProperty = () => {
         description: "Failed to upload images. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      if (typeof import.meta === 'undefined' || (import.meta as any).env?.VITE_MOCK_OTP !== 'true') {
-        setUploadingMedia(false);
-      }
+      setUploadingMedia(false);
     }
   };
 
@@ -241,7 +235,6 @@ const PostProperty = () => {
     if (!files || !user) return;
 
     setUploadingMedia(true);
-    const uploadedUrls: string[] = [];
 
     try {
       // Check if we're in mock mode
@@ -249,6 +242,8 @@ const PostProperty = () => {
       
       if (isMockMode) {
         // In mock mode, create mock URLs for videos
+        const uploadedUrls: string[] = [];
+        
         for (const file of Array.from(files)) {
           // Check file size (max 100MB per video)
           if (file.size > 100 * 1024 * 1024) {
@@ -277,24 +272,34 @@ const PostProperty = () => {
         });
         setUploadingMedia(false);
       } else {
-        // Real Supabase upload
-        for (const file of Array.from(files)) {
-          const fileExt = file.name.split('.').pop();
-          const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-          const { error: uploadError } = await apiClient.storage
-            .from('property-videos')
-            .upload(filePath, file);
-
-          if (uploadError) throw uploadError;
-
-          const { data } = apiClient.storage
-            .from('property-videos')
-            .getPublicUrl(filePath);
-
-          uploadedUrls.push(data.publicUrl);
+        // Real MERN stack upload using Express + Multer
+        const fileArray = Array.from(files);
+        
+        // Check file sizes first
+        for (const file of fileArray) {
+          if (file.size > 100 * 1024 * 1024) {
+            toast({
+              title: "File too large",
+              description: `${file.name} is larger than 100MB. Please choose a smaller file.`,
+              variant: "destructive",
+            });
+            setUploadingMedia(false);
+            return;
+          }
+        }
+        
+        const result = await apiClient.uploadImages(fileArray); // Using general images endpoint for videos
+        
+        if (result.error) {
+          throw new Error(result.error);
         }
 
+        const uploadedUrls = result.data.files.map((file: any) => {
+          // Ensure URL is absolute for proper display
+          const url = file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`;
+          return url;
+        });
+        
         setFormData(prev => ({
           ...prev,
           videos: [...prev.videos, ...uploadedUrls]
@@ -313,7 +318,6 @@ const PostProperty = () => {
         description: "Failed to upload videos. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setUploadingMedia(false);
     }
   };
@@ -357,6 +361,88 @@ const PostProperty = () => {
 
     if (loading) return;
 
+    // Validate required fields
+    if (!formData.title || formData.title.length < 5) {
+      toast({
+        title: "Validation Error",
+        description: "Title must be at least 5 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.description || formData.description.length < 10) {
+      toast({
+        title: "Validation Error", 
+        description: "Description must be at least 10 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid price.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.area || parseFloat(formData.area) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid area.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.location || formData.location.length < 5) {
+      toast({
+        title: "Validation Error",
+        description: "Location must be at least 5 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.city || formData.city.length < 2) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a valid city.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.state || formData.state.length < 2) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a valid state.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.property_type) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a property type.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.listing_type) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a listing type.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -371,27 +457,93 @@ const PostProperty = () => {
         });
         navigate('/properties');
       } else {
-        // Real Supabase insert - fix the data structure to match the database schema
-        const { data, error } = await apiClient
-          ({
-            title: formData.title,
-            description: formData.description,
-            price: parseFloat(formData.price),
-            area: parseFloat(formData.area),
-            location: formData.location,
+        // Map frontend values to backend expected values
+        const propertyTypeMap: { [key: string]: string } = {
+          'Apartment': 'apartment',
+          'Villa': 'villa',
+          'Independent House': 'house',
+          'Duplex': 'house',
+          'Penthouse': 'apartment',
+          'Studio': 'apartment',
+          'Farmhouse': 'house',
+          'Row House': 'house',
+          'Bungalow': 'house',
+          'Residential Land': 'plot',
+          'Commercial Space': 'commercial',
+          'Office Space': 'office',
+          'Retail Shop': 'shop',
+          'Warehouse': 'warehouse',
+          'Industrial Land': 'other'
+        };
+
+        const listingTypeMap: { [key: string]: string } = {
+          'For Sale': 'sale',
+          'For Rent': 'rent',
+          'Redevelopment': 'lease'
+        };
+
+        // Map amenities to backend enum values
+        const amenityMap: { [key: string]: string } = {
+          'Swimming Pool': 'swimming_pool',
+          'Gym/Fitness Center': 'gym',
+          'Parking': 'parking',
+          'Security': 'security',
+          '24/7 Power Backup': 'power_backup',
+          'Elevator/Lift': 'elevator',
+          'Garden/Landscaping': 'garden',
+          'Playground': 'playground',
+          'Club House': 'clubhouse',
+          'Internet/Wi-Fi': 'water_supply', // Using water_supply as closest match
+          'Air Conditioning': 'ac',
+          'Balcony': 'balcony',
+          'Furnished': 'furnished',
+          'Semi-Furnished': 'semi_furnished'
+        };
+
+        // Prepare data for API call
+        const propertyData = {
+          title: formData.title,
+          description: formData.description,
+          price: parseFloat(formData.price),
+          area: parseFloat(formData.area),
+          location: {
+            address: formData.location,
             city: formData.city,
             state: formData.state,
-            country: formData.country,
-            property_type: formData.property_type,
-            listing_type: formData.listing_type, // No longer converting to lowercase since we want to preserve the actual value
-            images: formData.images,
-            videos: formData.videos,
-            amenities: formData.amenities,
-            owner_id: user.id
-          })
-          .select();
+            country: formData.country
+          },
+          propertyType: propertyTypeMap[formData.property_type] || 'other',
+          listingType: listingTypeMap[formData.listing_type] || 'sale',
+          images: formData.images.map((url, index) => ({
+            url: url,
+            caption: `Property image ${index + 1}`,
+            isPrimary: index === 0
+          })),
+          videos: formData.videos.map((url, index) => ({
+            url: url,
+            caption: `Property video ${index + 1}`
+          })),
+          amenities: formData.amenities.map(amenity => amenityMap[amenity] || amenity.toLowerCase().replace(/\s+/g, '_'))
+        };
 
-        if (error) throw error;
+        // Debug: Log the data being sent
+        console.log('Sending property data:', propertyData);
+
+        // Real MERN stack API call with correct data structure
+        const result = await apiClient.createProperty(propertyData);
+
+        if (result.error) {
+          console.error('Property creation error:', result.error);
+          console.error('Validation errors:', result.errors);
+          
+          // Display detailed validation errors
+          if (result.errors && result.errors.length > 0) {
+            const errorMessages = result.errors.map((err: any) => err.msg).join(', ');
+            throw new Error(`Validation failed: ${errorMessages}`);
+          } else {
+            throw new Error(result.error);
+          }
+        }
 
         toast({
           title: "Success!",
@@ -413,19 +565,40 @@ const PostProperty = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <Header />
       <main className="container py-8">
-        <Card className="max-w-4xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">Post Your Property</CardTitle>
-            <p className="text-muted-foreground">Fill in the details below to list your property</p>
-          </CardHeader>
+        <div className="max-w-5xl mx-auto">
+          {/* Header Section */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-slate-900 mb-4">Post Your Property</h1>
+            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+              List your property and connect with potential buyers, renters, and investors
+            </p>
+          </div>
+          
+          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="pb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-estate-blue rounded-lg flex items-center justify-center">
+                  <Home className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl font-bold text-slate-900">Property Details</CardTitle>
+                  <p className="text-slate-600">Complete all sections to create your listing</p>
+                </div>
+              </div>
+            </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Basic Information Section */}
-              <div className="border rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Basic Information</h2>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-8 border border-blue-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <Home className="w-4 h-4 text-white" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-slate-800">Basic Information</h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="title">Title *</Label>
@@ -474,8 +647,16 @@ const PostProperty = () => {
               </div>
 
               {/* Location Section */}
-              <div className="border rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Location Details</h2>
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-8 border border-green-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-semibold text-slate-800">Location Details</h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="location">Location *</Label>
@@ -536,8 +717,15 @@ const PostProperty = () => {
               </div>
 
               {/* Amenities Section */}
-              <div className="border rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Amenities</h2>
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-8 border border-purple-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-semibold text-slate-800">Amenities & Features</h2>
+                </div>
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {commonAmenities.map((amenity) => (
@@ -614,8 +802,13 @@ const PostProperty = () => {
               </div>
 
               {/* Media Upload Section */}
-              <div className="border rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Media</h2>
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-8 border border-orange-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                    <ImagePlus className="w-4 h-4 text-white" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-slate-800">Photos & Videos</h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <div>
@@ -625,10 +818,12 @@ const PostProperty = () => {
                         variant="outline"
                         onClick={() => imageInputRef.current?.click()}
                         disabled={uploadingMedia}
-                        className="w-full"
+                        className="w-full h-12 border-2 border-dashed border-orange-300 hover:border-orange-400 hover:bg-orange-50 transition-all duration-200"
                       >
-                        <ImagePlus className="mr-2 h-4 w-4" />
-                        {uploadingMedia ? 'Uploading...' : 'Upload Images'}
+                        <ImagePlus className="mr-2 h-5 w-5 text-orange-600" />
+                        <span className="font-medium">
+                          {uploadingMedia ? 'Uploading...' : 'Upload Images'}
+                        </span>
                       </Button>
                       <input
                         ref={imageInputRef}
@@ -640,23 +835,37 @@ const PostProperty = () => {
                       />
                     </div>
                     {formData.images.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
-                        {formData.images.map((url, index) => (
-                          <div key={index} className="relative group">
-                            <img 
-                              src={url} 
-                              alt={`Property ${index + 1}`} 
-                              className="w-full h-32 object-cover rounded-lg border"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeImage(url)}
-                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
+                      <div className="mt-6">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-slate-700">
+                            {formData.images.length} image{formData.images.length !== 1 ? 's' : ''} uploaded
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {formData.images.map((url, index) => (
+                            <div key={index} className="relative group">
+                              <div className="aspect-square overflow-hidden rounded-xl border-2 border-orange-200 hover:border-orange-300 transition-colors">
+                                <img 
+                                  src={url} 
+                                  alt={`Property ${index + 1}`} 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  onError={(e) => {
+                                    console.error('Image failed to load:', url);
+                                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2UgRXJyb3I8L3RleHQ+PC9zdmc+';
+                                  }}
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeImage(url)}
+                                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -669,10 +878,12 @@ const PostProperty = () => {
                         variant="outline"
                         onClick={() => videoInputRef.current?.click()}
                         disabled={uploadingMedia}
-                        className="w-full"
+                        className="w-full h-12 border-2 border-dashed border-orange-300 hover:border-orange-400 hover:bg-orange-50 transition-all duration-200"
                       >
-                        <Video className="mr-2 h-4 w-4" />
-                        {uploadingMedia ? 'Uploading...' : 'Upload Videos'}
+                        <Video className="mr-2 h-5 w-5 text-orange-600" />
+                        <span className="font-medium">
+                          {uploadingMedia ? 'Uploading...' : 'Upload Videos'}
+                        </span>
                       </Button>
                       <input
                         ref={videoInputRef}
@@ -726,12 +937,30 @@ const PostProperty = () => {
                 </div>
               </div>
               
-              <Button type="submit" className="w-full md:w-auto px-8 py-3" disabled={loading || uploadingMedia}>
-                {loading ? 'Posting...' : 'Post Property'}
-              </Button>
+              {/* Submit Button */}
+              <div className="flex justify-center pt-8">
+                <Button 
+                  type="submit" 
+                  className="w-full md:w-auto px-12 py-4 bg-gradient-to-r from-estate-blue to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105" 
+                  disabled={loading || uploadingMedia}
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Posting Property...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Home className="w-5 h-5" />
+                      Post Property
+                    </div>
+                  )}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
+        </div>
       </main>
       <Footer />
     </div>

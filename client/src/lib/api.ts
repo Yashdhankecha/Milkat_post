@@ -27,6 +27,14 @@ class ApiClient {
     }
   }
 
+  setRefreshToken(refreshToken: string | null) {
+    if (refreshToken) {
+      localStorage.setItem('auth_refresh_token', refreshToken);
+    } else {
+      localStorage.removeItem('auth_refresh_token');
+    }
+  }
+
   private async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
@@ -53,6 +61,7 @@ class ApiClient {
       if (!response.ok) {
         return {
           error: data.message || data.error || 'Request failed',
+          errors: data.errors || null,
           status: 'error'
         };
       }
@@ -114,8 +123,9 @@ class ApiClient {
   }
 
   async refreshToken() {
-    return this.request('/auth/refresh', {
+    return this.request('/auth/refresh-token', {
       method: 'POST',
+      body: JSON.stringify({ refreshToken: localStorage.getItem('auth_refresh_token') }),
     });
   }
 
@@ -171,6 +181,137 @@ class ApiClient {
   async getProjects(params?: any) {
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.request(`/projects${queryString}`);
+  }
+
+  // Requirements endpoints
+  async getRequirements(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/requirements${queryString}`);
+  }
+
+  async getRequirement(id: string) {
+    return this.request(`/requirements/${id}`);
+  }
+
+  async createRequirement(requirement: any) {
+    return this.request('/requirements', {
+      method: 'POST',
+      body: JSON.stringify(requirement),
+    });
+  }
+
+  async updateRequirement(id: string, updates: any) {
+    return this.request(`/requirements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteRequirement(id: string) {
+    return this.request(`/requirements/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMyRequirements(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/requirements/my/requirements${queryString}`);
+  }
+
+  // Inquiries endpoints
+  async createInquiry(inquiry: any) {
+    return this.request('/inquiries', {
+      method: 'POST',
+      body: JSON.stringify(inquiry),
+    });
+  }
+
+  async getInquiries(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/inquiries${queryString}`);
+  }
+
+  // Likes endpoints
+  async likeProperty(propertyId: string) {
+    return this.request('/likes', {
+      method: 'POST',
+      body: JSON.stringify({ propertyId }),
+    });
+  }
+
+  async unlikeProperty(propertyId: string) {
+    return this.request(`/likes/${propertyId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async checkIfLiked(propertyId: string) {
+    return this.request(`/likes/check/${propertyId}`);
+  }
+
+  async getLikeCount(propertyId: string) {
+    return this.request(`/likes/count/${propertyId}`);
+  }
+
+  async getMyLikes(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/likes/my-likes${queryString}`);
+  }
+
+  // Shares endpoints
+  async shareProperty(propertyId: string, shareMethod: string, sharedWith?: string) {
+    return this.request('/shares', {
+      method: 'POST',
+      body: JSON.stringify({ propertyId, shareMethod, sharedWith }),
+    });
+  }
+
+  async getShareCount(propertyId: string) {
+    return this.request(`/shares/count/${propertyId}`);
+  }
+
+  async getShareCountByMethod(propertyId: string) {
+    return this.request(`/shares/count-by-method/${propertyId}`);
+  }
+
+  async getMyShares(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/shares/my-shares${queryString}`);
+  }
+
+  // Notifications endpoints
+  async getNotifications(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/notifications${queryString}`);
+  }
+
+  async markNotificationsAsRead(notificationIds?: string[]) {
+    return this.request('/notifications/mark-read', {
+      method: 'PATCH',
+      body: JSON.stringify({ notificationIds }),
+    });
+  }
+
+  async markNotificationAsRead(notificationId: string) {
+    return this.request(`/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+    });
+  }
+
+  async getUnreadCount() {
+    return this.request('/notifications/unread-count');
+  }
+
+  async deleteNotification(notificationId: string) {
+    return this.request(`/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async clearAllNotifications() {
+    return this.request('/notifications', {
+      method: 'DELETE',
+    });
   }
 
   async getProject(id: string) {
@@ -231,6 +372,76 @@ class ApiClient {
     // Don't set Content-Type for FormData, let browser set it with boundary
 
     const url = `${this.baseURL}/upload`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        error: data.message || data.error || 'Upload failed',
+        status: 'error'
+      };
+    }
+
+    return {
+      data: data.data || data,
+      message: data.message,
+      status: data.status || 'success'
+    };
+  }
+
+  // Upload multiple property images
+  async uploadPropertyImages(files: File[]) {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const url = `${this.baseURL}/upload/property-images`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        error: data.message || data.error || 'Upload failed',
+        status: 'error'
+      };
+    }
+
+    return {
+      data: data.data || data,
+      message: data.message,
+      status: data.status || 'success'
+    };
+  }
+
+  // Upload multiple images (general)
+  async uploadImages(files: File[]) {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const url = `${this.baseURL}/upload/images`;
     const response = await fetch(url, {
       method: 'POST',
       headers,
