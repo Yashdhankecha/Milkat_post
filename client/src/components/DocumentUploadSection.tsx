@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import apiClient from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -7,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileText, X, Eye, Download, Trash2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 export interface DocumentFile {
@@ -112,13 +112,13 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
       const fileExt = document.file.name.split('.').pop();
       const filePath = `${folderPath}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await apiClient.storage
         .from(bucketName)
         .upload(filePath, document.file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
+      const { data } = apiClient.storage
         .from(bucketName)
         .getPublicUrl(filePath);
 
@@ -175,7 +175,7 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
       const bucketIndex = urlParts.findIndex(part => part === bucketName);
       const filePath = urlParts.slice(bucketIndex + 1).join('/');
 
-      const { error } = await supabase.storage
+      const { error } = await apiClient.storage
         .from(bucketName)
         .remove([filePath]);
 

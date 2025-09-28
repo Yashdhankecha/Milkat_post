@@ -1,8 +1,8 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { MapPin, Users, Home, Building, Phone, Mail, User } from "lucide-react"
 
@@ -89,33 +89,30 @@ const RedevelopmentDetails = ({ requirementId }: RedevelopmentDetailsProps) => {
       setLoading(true)
 
       // Fetch requirement details
-      const { data: requirementData, error: requirementError } = await supabase
-        .from('redevelopment_requirements')
-        .select('*')
-        .eq('id', requirementId)
-        .single()
+      const { data: requirementData, error: requirementError } = await apiClient
+        
+        
+        
 
       if (requirementError) throw requirementError
       setRequirement(requirementData)
 
       if (requirementData?.society_id) {
         // Fetch society details
-        const { data: societyData, error: societyError } = await supabase
-          .from('societies')
-          .select('*')
-          .eq('id', requirementData.society_id)
-          .single()
+        const { data: societyData, error: societyError } = await apiClient
+          
+          
+          
 
         if (societyError) throw societyError
         setSocietyData(societyData)
 
         // Fetch society owner profile
         if (societyData?.owner_id) {
-          const { data: ownerData, error: ownerError } = await supabase
-            .from('profiles')
-            .select('id, full_name, phone')
-            .eq('id', societyData.owner_id)
-            .single()
+          const { data: ownerData, error: ownerError } = await apiClient
+            
+            
+            
 
           if (ownerError && ownerError.code !== 'PGRST116') {
             console.warn('Could not fetch owner profile:', ownerError)
@@ -125,12 +122,11 @@ const RedevelopmentDetails = ({ requirementId }: RedevelopmentDetailsProps) => {
         }
 
         // Fetch society members
-        const { data: membersData, error: membersError } = await supabase
-          .from('society_members')
-          .select('*')
-          .eq('society_id', requirementData.society_id)
-          .eq('status', 'active')
-          .order('flat_number')
+        const { data: membersData, error: membersError } = await apiClient
+          
+          
+          
+          
 
         if (membersError) throw membersError
         setSocietyMembers(membersData || [])
@@ -139,10 +135,9 @@ const RedevelopmentDetails = ({ requirementId }: RedevelopmentDetailsProps) => {
         if (membersData && membersData.length > 0) {
           const userIds = membersData.map(member => member.user_id)
           
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id, full_name, phone')
-            .in('id', userIds)
+          const { data: profilesData, error: profilesError } = await apiClient
+            
+            
 
           if (profilesError) {
             console.warn('Could not fetch member profiles:', profilesError)
@@ -161,10 +156,9 @@ const RedevelopmentDetails = ({ requirementId }: RedevelopmentDetailsProps) => {
           // Fetch flat details
           const memberIds = membersData.map(member => member.id)
           
-          const { data: flatDetailsData, error: flatDetailsError } = await supabase
-            .from('flat_details')
-            .select('*')
-            .in('society_member_id', memberIds)
+          const { data: flatDetailsData, error: flatDetailsError } = await apiClient
+            
+            
 
           if (flatDetailsError) {
             console.warn('Could not fetch flat details:', flatDetailsError)

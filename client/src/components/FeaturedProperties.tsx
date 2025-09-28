@@ -1,8 +1,8 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PropertyCard from "./PropertyCard";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -18,12 +18,11 @@ const FeaturedProperties = () => {
 
   const fetchProperties = async () => {
     try {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('status', 'available')
-        .limit(6)
-        .order('created_at', { ascending: false });
+      const { data, error } = await apiClient
+        
+        
+        
+        ;
 
       if (error) throw error;
       setProperties(data || []);

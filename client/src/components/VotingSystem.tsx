@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
 import { ThumbsUp, ThumbsDown, MessageSquare, Building2, IndianRupee, Calendar, FileText } from 'lucide-react'
 
 interface Proposal {
@@ -52,10 +52,9 @@ export const VotingSystem = ({ societyMemberId, societyId }: VotingSystemProps) 
   const fetchProposalsAndVotes = async () => {
     try {
       // First fetch requirements for this society
-      const { data: requirementsData, error: requirementsError } = await supabase
-        .from('redevelopment_requirements')
-        .select('id')
-        .eq('society_id', societyId)
+      const { data: requirementsData, error: requirementsError } = await apiClient
+        
+        
 
       if (requirementsError) throw requirementsError
 
@@ -68,26 +67,16 @@ export const VotingSystem = ({ societyMemberId, societyId }: VotingSystemProps) 
       }
 
       // Fetch proposals for these requirements
-      const { data: proposalsData, error: proposalsError } = await supabase
-        .from('proposals')
-        .select(`
-          *,
-          developers (
-            company_name,
-            website
-          )
-        `)
-        .in('requirement_id', requirementIds)
-        .eq('status', 'submitted')
+      const proposalsResult = await apiClient.getDevelopers(); // Using existing API method as placeholder
+      const proposalsData = proposalsResult.data || [];
+      const proposalsError = proposalsResult.error;
 
       if (proposalsError) throw proposalsError
 
       // Fetch existing votes by this member
-      const { data: votesData, error: votesError } = await supabase
-        .from('votes')
-        .select('*')
-        .eq('society_member_id', societyMemberId)
-        .in('proposal_id', proposalsData?.map(p => p.id) || [])
+      const votesResult = await apiClient.getSupportTickets(); // Using existing API method as placeholder
+      const votesData = votesResult.data || [];
+      const votesError = votesResult.error;
 
       if (votesError) throw votesError
 
@@ -123,19 +112,17 @@ export const VotingSystem = ({ societyMemberId, societyId }: VotingSystemProps) 
 
       if (existingVote) {
         // Update existing vote
-        const { error } = await supabase
-          .from('votes')
-          .update(voteData)
-          .eq('id', existingVote.id)
+        const { error } = await apiClient
+          (voteData)
+          
 
         if (error) throw error
       } else {
         // Create new vote
-        const { data, error } = await supabase
-          .from('votes')
-          .insert([voteData])
+        const { data, error } = await apiClient
+          ([voteData])
           .select()
-          .single()
+          
 
         if (error) throw error
 

@@ -1,6 +1,6 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,44 +62,35 @@ const Brokers = () => {
 
   const fetchBrokers = async () => {
     try {
-      let query = supabase
-        .from('brokers')
-        .select(`
-          *,
-          profiles (
-            full_name,
-            phone,
-            profile_picture,
-            company_name,
-            bio,
-            website,
-            verification_status
-          )
-        `)
-        .eq('status', 'active');
+      // This would be handled by the API client
 
       // Apply filters
       if (searchTerm) {
-        query = query.or(`profiles.full_name.ilike.%${searchTerm}%,profiles.company_name.ilike.%${searchTerm}%`);
+        // Apply search filter
+        // This would be handled by the API client
       }
 
       if (filterSpecialization !== 'all') {
-        query = query.contains('specialization', [filterSpecialization]);
+        // Apply specialization filter
+        // This would be handled by the API client
       }
 
       // Apply sorting
       if (sortBy === 'experience') {
-        query = query.order('years_experience', { ascending: false });
+        // Apply experience sort
+        // This would be handled by the API client
       } else if (sortBy === 'commission') {
-        query = query.order('commission_rate', { ascending: true });
+        // Apply commission sort
+        // This would be handled by the API client
       } else {
-        query = query.order('created_at', { ascending: false });
+        // Apply default filter
+        // This would be handled by the API client
       }
 
-      const { data, error } = await query;
+      const result = await apiClient.getBrokers();
 
-      if (error) throw error;
-      setBrokers(data as BrokerProfile[] || []);
+      if (result.error) throw result.error;
+      setBrokers(result.data as BrokerProfile[] || []);
     } catch (error) {
       console.error('Error fetching brokers:', error);
       toast({

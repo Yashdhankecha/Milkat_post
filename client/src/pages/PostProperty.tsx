@@ -1,7 +1,7 @@
+import apiClient from '@/lib/api';
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,13 +198,13 @@ const PostProperty = () => {
           const fileExt = file.name.split('.').pop();
           const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-          const { error: uploadError } = await supabase.storage
+          const { error: uploadError } = await apiClient.storage
             .from('property-images')
             .upload(filePath, file);
 
           if (uploadError) throw uploadError;
 
-          const { data } = supabase.storage
+          const { data } = apiClient.storage
             .from('property-images')
             .getPublicUrl(filePath);
 
@@ -282,13 +282,13 @@ const PostProperty = () => {
           const fileExt = file.name.split('.').pop();
           const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-          const { error: uploadError } = await supabase.storage
+          const { error: uploadError } = await apiClient.storage
             .from('property-videos')
             .upload(filePath, file);
 
           if (uploadError) throw uploadError;
 
-          const { data } = supabase.storage
+          const { data } = apiClient.storage
             .from('property-videos')
             .getPublicUrl(filePath);
 
@@ -372,9 +372,8 @@ const PostProperty = () => {
         navigate('/properties');
       } else {
         // Real Supabase insert - fix the data structure to match the database schema
-        const { data, error } = await supabase
-          .from('properties')
-          .insert({
+        const { data, error } = await apiClient
+          ({
             title: formData.title,
             description: formData.description,
             price: parseFloat(formData.price),

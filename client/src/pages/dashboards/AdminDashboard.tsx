@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { 
   Users, 
@@ -144,30 +144,36 @@ const AdminDashboard = () => {
 
       // Fetch statistics
       const [
-        { count: usersCount },
-        { count: propertiesCount },
-        { count: inquiriesCount },
-        { count: ticketsCount },
-        { count: pendingCount },
-        { count: projectsCount },
-        { count: brokersCount },
-        { count: developersCount }
+        usersResult,
+        propertiesResult,
+        inquiriesResult,
+        ticketsResult,
+        pendingResult,
+        projectsResult,
+        brokersResult,
+        developersResult
       ] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('properties').select('*', { count: 'exact', head: true }),
-        supabase.from('inquiries').select('*', { count: 'exact', head: true }),
-        supabase.from('support_tickets').select('*', { count: 'exact', head: true }),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
-        supabase.from('projects').select('*', { count: 'exact', head: true }),
-        supabase.from('brokers').select('*', { count: 'exact', head: true }),
-        supabase.from('developers').select('*', { count: 'exact', head: true })
+        apiClient.getProfile(),
+        apiClient.getProperties(),
+        apiClient.createInquiry(),
+        apiClient.getProfile(),
+        apiClient.getProfile(),
+        apiClient.getProjects(),
+        apiClient.getBrokers(),
+        apiClient.getDevelopers()
       ])
 
+      const usersCount = usersResult.data?.length || 0;
+      const propertiesCount = propertiesResult.data?.length || 0;
+      const inquiriesCount = inquiriesResult.data?.length || 0;
+      const ticketsCount = ticketsResult.data?.length || 0;
+      const pendingCount = pendingResult.data?.length || 0;
+      const projectsCount = projectsResult.data?.length || 0;
+      const brokersCount = brokersResult.data?.length || 0;
+      const developersCount = developersResult.data?.length || 0;
+
       // Calculate monthly revenue (simplified - sum of property prices)
-      const { data: propertiesRevenue } = await supabase
-        .from('properties')
-        .select('price')
-        .gte('created_at', new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString())
+      const propertiesRevenue = propertiesResult.data || [];
       
       const monthlyRevenue = propertiesRevenue?.reduce((sum, prop) => sum + (prop.price || 0), 0) || 0
 
@@ -184,23 +190,20 @@ const AdminDashboard = () => {
       })
 
       // Fetch users
-      const { data: usersData } = await supabase
-        .from('profiles')
-        .select('id, full_name, role, status, verification_status, created_at')
-        .order('created_at', { ascending: false })
+      const { data: usersData } = await apiClient
+        
+        
 
       setUsers(usersData || [])
 
       // Fetch all properties first
-      const { data: propertiesData } = await supabase
-        .from('properties')
-        .select('id, title, status, price, location, property_type, owner_id, created_at')
-        .order('created_at', { ascending: false })
+      const { data: propertiesData } = await apiClient
+        
+        
 
       // Fetch all profiles to get owner names
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, full_name')
+      const { data: profilesData } = await apiClient
+        
 
       const profilesMap = (profilesData || []).reduce((acc, profile) => {
         acc[profile.id] = profile.full_name
@@ -213,18 +216,16 @@ const AdminDashboard = () => {
       })))
 
       // Fetch projects
-      const { data: projectsData } = await supabase
-        .from('projects')
-        .select('id, name, status, builder, location, total_units, available_units, created_at')
-        .order('created_at', { ascending: false })
+      const { data: projectsData } = await apiClient
+        
+        
 
       setProjects(projectsData || [])
 
       // Fetch developers  
-      const { data: developersData } = await supabase
-        .from('developers')
-        .select('id, company_name, user_id, verification_status, status, established_year, website, created_at')
-        .order('created_at', { ascending: false })
+      const { data: developersData } = await apiClient
+        
+        
 
       setDevelopers((developersData || []).map(dev => ({
         ...dev,
@@ -232,10 +233,9 @@ const AdminDashboard = () => {
       })))
 
       // Fetch support tickets
-      const { data: ticketsData } = await supabase
-        .from('support_tickets')
-        .select('id, subject, category, status, priority, user_id, created_at, description')
-        .order('created_at', { ascending: false })
+      const { data: ticketsData } = await apiClient
+        
+        
 
       setSupportTickets((ticketsData || []).map(ticket => ({
         ...ticket,
@@ -257,10 +257,9 @@ const AdminDashboard = () => {
   const updateUserStatus = async (userId: string, status: string, verificationType: 'status' | 'verification') => {
     try {
       const updateField = verificationType === 'status' ? 'status' : 'verification_status'
-      const { error } = await supabase
-        .from('profiles')
-        .update({ [updateField]: status })
-        .eq('id', userId)
+      const { error } = await apiClient
+        ({ [updateField]: status })
+        
 
       if (error) throw error
 
@@ -281,10 +280,9 @@ const AdminDashboard = () => {
 
   const updatePropertyStatus = async (propertyId: string, status: string) => {
     try {
-      const { error } = await supabase
-        .from('properties')
-        .update({ status })
-        .eq('id', propertyId)
+      const { error } = await apiClient
+        ({ status })
+        
 
       if (error) throw error
 
@@ -305,10 +303,9 @@ const AdminDashboard = () => {
 
   const deleteProperty = async (propertyId: string) => {
     try {
-      const { error } = await supabase
-        .from('properties')
+      const { error } = await apiClient
         .delete()
-        .eq('id', propertyId)
+        
 
       if (error) throw error
 
@@ -329,10 +326,9 @@ const AdminDashboard = () => {
 
   const updateProjectStatus = async (projectId: string, status: string) => {
     try {
-      const { error } = await supabase
-        .from('projects')
-        .update({ status })
-        .eq('id', projectId)
+      const { error } = await apiClient
+        ({ status })
+        
 
       if (error) throw error
 
@@ -356,10 +352,9 @@ const AdminDashboard = () => {
       console.log(`Updating developer ${developerId} ${verificationType} to ${status}`)
       
       const updateField = verificationType === 'status' ? 'status' : 'verification_status'
-      const { error } = await supabase
-        .from('developers')
-        .update({ [updateField]: status })
-        .eq('id', developerId)
+      const { error } = await apiClient
+        ({ [updateField]: status })
+        
 
       if (error) {
         console.error('Database update error:', error)
@@ -386,10 +381,9 @@ const AdminDashboard = () => {
 
   const updateTicketStatus = async (ticketId: string, status: string) => {
     try {
-      const { error } = await supabase
-        .from('support_tickets')
-        .update({ status })
-        .eq('id', ticketId)
+      const { error } = await apiClient
+        ({ status })
+        
 
       if (error) throw error
 

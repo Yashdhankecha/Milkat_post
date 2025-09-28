@@ -1,10 +1,10 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/integrations/supabase/client"
 import { useProfile } from "@/hooks/useProfile"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
@@ -65,18 +65,16 @@ const SellerDashboard = () => {
       setLoading(true)
 
       // Fetch user properties
-      const { data: propertiesData, error: propertiesError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('owner_id', profile.id)
-        .order('created_at', { ascending: false })
+      const { data: propertiesData, error: propertiesError } = await apiClient
+        
+        
+        
 
       if (propertiesError) throw propertiesError
       setProperties(propertiesData || [])
 
       // Fetch property inquiries
-      const { data: inquiryData, error: inquiryError } = await supabase
-        .from('inquiries')
+      const { data: inquiryData, error: inquiryError } = await apiClient
         .select(`
           id,
           subject,
@@ -88,8 +86,8 @@ const SellerDashboard = () => {
             full_name
           )
         `)
-        .in('property_id', (propertiesData || []).map(p => p.id))
-        .order('created_at', { ascending: false })
+        .map(p => p.id))
+        
 
       if (inquiryError) throw inquiryError
       setInquiries(inquiryData || [])
@@ -131,10 +129,9 @@ const SellerDashboard = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('properties')
+      const { error } = await apiClient
         .delete()
-        .eq('id', propertyId)
+        
 
       if (error) throw error
 

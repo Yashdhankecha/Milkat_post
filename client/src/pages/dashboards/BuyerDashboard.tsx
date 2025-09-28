@@ -1,10 +1,10 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/integrations/supabase/client"
 import { useProfile } from "@/hooks/useProfile"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
@@ -70,8 +70,7 @@ const BuyerDashboard = () => {
       setLoading(true)
 
       // Fetch saved properties
-      const { data: savedData, error: savedError } = await supabase
-        .from('saved_properties')
+      const { data: savedData, error: savedError } = await apiClient
         .select(`
           id,
           created_at,
@@ -87,15 +86,14 @@ const BuyerDashboard = () => {
             status
           )
         `)
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
+        
+        
 
       if (savedError) throw savedError
       setSavedProperties(savedData || [])
 
       // Fetch user inquiries
-      const { data: inquiryData, error: inquiryError } = await supabase
-        .from('inquiries')
+      const { data: inquiryData, error: inquiryError } = await apiClient
         .select(`
           id,
           subject,
@@ -109,8 +107,8 @@ const BuyerDashboard = () => {
             location
           )
         `)
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
+        
+        
 
       if (inquiryError) throw inquiryError
       setInquiries(inquiryData || [])
@@ -129,10 +127,9 @@ const BuyerDashboard = () => {
 
   const removeSavedProperty = async (savedPropertyId: string) => {
     try {
-      const { error } = await supabase
-        .from('saved_properties')
+      const { error } = await apiClient
         .delete()
-        .eq('id', savedPropertyId)
+        
 
       if (error) throw error
 

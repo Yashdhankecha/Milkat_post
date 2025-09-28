@@ -272,22 +272,21 @@ const Auth = () => {
           return;
         }
 
-        // Check if user already has this role
-        const { error: checkError } = await sendOTP(phone, selectedRole as any);
-        
-        if (checkError && checkError.message.includes('already')) {
-          toast({
-            title: "Role already exists",
-            description: "You already have this role. Please login instead.",
-            variant: "destructive",
-          });
-          return;
-        }
-
         // Send OTP for registration (new role or new user)
         const { error } = await signUpWithSMSForNewRole(phone, fullName, selectedRole as any);
         if (error) {
-          const msg = error.message || 'Failed to send OTP'
+          const msg = error.message || 'Failed to send OTP';
+          
+          // Check if user already has this role
+          if (msg.includes('already have this role')) {
+            toast({
+              title: "Role already exists",
+              description: "You already have this role. Please login instead.",
+              variant: "destructive",
+            });
+            return;
+          }
+          
           toast({
             title: "Failed to send OTP",
             description: /provider|phone auth|sms/i.test(msg)

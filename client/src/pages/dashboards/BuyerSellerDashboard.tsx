@@ -1,10 +1,10 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/integrations/supabase/client"
 import { useProfile } from "@/hooks/useProfile"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
@@ -100,8 +100,7 @@ const BuyerSellerDashboard = () => {
       setLoading(true)
 
       // Fetch saved properties (buyer functionality)
-      const { data: savedData, error: savedError } = await supabase
-        .from('saved_properties')
+      const { data: savedData, error: savedError } = await apiClient
         .select(`
           id,
           created_at,
@@ -117,25 +116,23 @@ const BuyerSellerDashboard = () => {
             status
           )
         `)
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
+        
+        
 
       if (savedError) throw savedError
       setSavedProperties(savedData || [])
 
       // Fetch my properties (seller functionality)
-      const { data: propertiesData, error: propertiesError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('owner_id', profile.id)
-        .order('created_at', { ascending: false })
+      const { data: propertiesData, error: propertiesError } = await apiClient
+        
+        
+        
 
       if (propertiesError) throw propertiesError
       setMyProperties(propertiesData || [])
 
       // Fetch my inquiries (buyer functionality)
-      const { data: inquiryData, error: inquiryError } = await supabase
-        .from('inquiries')
+      const { data: inquiryData, error: inquiryError } = await apiClient
         .select(`
           id,
           subject,
@@ -149,28 +146,17 @@ const BuyerSellerDashboard = () => {
             location
           )
         `)
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
+        
+        
 
       if (inquiryError) throw inquiryError
       setMyInquiries(inquiryData || [])
 
       // Fetch inquiries on my properties (seller functionality)
-      const { data: propertyInquiryData, error: propertyInquiryError } = await supabase
-        .from('inquiries')
-        .select(`
-          id,
-          subject,
-          message,
-          status,
-          created_at,
-          user_id,
-          profiles (
-            full_name
-          )
-        `)
-        .in('property_id', (propertiesData || []).map(p => p.id))
-        .order('created_at', { ascending: false })
+      const result = await apiClient.getInquiries();
+      const propertyInquiryData = result.data || [];
+      const propertyInquiryError = result.error;
+        
 
       if (propertyInquiryError) throw propertyInquiryError
       setPropertyInquiries(propertyInquiryData || [])
@@ -189,10 +175,9 @@ const BuyerSellerDashboard = () => {
 
   const removeSavedProperty = async (savedPropertyId: string) => {
     try {
-      const { error } = await supabase
-        .from('saved_properties')
+      const { error } = await apiClient
         .delete()
-        .eq('id', savedPropertyId)
+        
 
       if (error) throw error
 
@@ -217,10 +202,9 @@ const BuyerSellerDashboard = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('properties')
+      const { error } = await apiClient
         .delete()
-        .eq('id', propertyId)
+        
 
       if (error) throw error
 

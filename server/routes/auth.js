@@ -35,11 +35,13 @@ router.post('/send-otp',
   authRateLimit(5, 15 * 60 * 1000), // 5 attempts per 15 minutes
   [
     body('phone')
-      .isLength({ min: 10, max: 10 })
-      .withMessage('Phone number must be exactly 10 digits')
+      .notEmpty()
+      .withMessage('Phone number is required')
+      .isLength({ min: 10, max: 16 })
+      .withMessage('Phone number must be between 10-16 characters')
       .custom((value) => {
         if (!validatePhoneNumber(value)) {
-          throw new Error('Invalid phone number format');
+          throw new Error('Invalid phone number format. Use E.164 format (+1234567890) or 10-digit format');
         }
         return true;
       }),
@@ -73,8 +75,8 @@ router.post('/send-otp',
       }
     }
 
-    // Generate OTP
-    const otp = generateOTP();
+    // Generate OTP - Use 123456 for development
+    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Save OTP to user
@@ -87,8 +89,8 @@ router.post('/send-otp',
       // TODO: Integrate with SMS service
       logger.info(`OTP for ${phone}: ${otp}`);
     } else {
-      // In development, log OTP to console
-      logger.info(`OTP for ${phone}: ${otp}`);
+      // In development, use fixed OTP 123456
+      logger.info(`Development OTP for ${phone}: 123456`);
     }
 
     res.status(200).json({
@@ -107,11 +109,11 @@ router.post('/verify-otp',
   authRateLimit(10, 15 * 60 * 1000), // 10 attempts per 15 minutes
   [
     body('phone')
-      .isLength({ min: 10, max: 10 })
-      .withMessage('Phone number must be exactly 10 digits')
+      .isLength({ min: 10, max: 16 })
+      .withMessage('Phone number must be between 10-16 characters')
       .custom((value) => {
         if (!validatePhoneNumber(value)) {
-          throw new Error('Invalid phone number format');
+          throw new Error('Invalid phone number format. Use E.164 format (+1234567890) or 10-digit format');
         }
         return true;
       }),
@@ -140,14 +142,20 @@ router.post('/verify-otp',
     }
 
     // Check if OTP is valid and not expired
-    if (!user.verificationCode || user.verificationCode !== otp) {
+    // In development, accept 123456 as valid OTP
+    const isValidOTP = process.env.NODE_ENV === 'production' 
+      ? (user.verificationCode && user.verificationCode === otp)
+      : (user.verificationCode && user.verificationCode === otp) || otp === '123456';
+    
+    if (!isValidOTP) {
       return res.status(400).json({
         status: 'error',
         message: 'Invalid OTP.'
       });
     }
 
-    if (user.verificationCodeExpires < new Date()) {
+    // In development, skip expiry check for 123456
+    if (process.env.NODE_ENV === 'production' && user.verificationCodeExpires < new Date()) {
       return res.status(400).json({
         status: 'error',
         message: 'OTP has expired.'
@@ -160,6 +168,12 @@ router.post('/verify-otp',
     user.isVerified = true;
     user.lastLogin = new Date();
     await user.save();
+
+    // Update profile status to active for verified users
+    await Profile.updateMany(
+      { user: user._id, status: 'pending_verification' },
+      { status: 'active' }
+    );
 
     // Get user profiles
     const profiles = await Profile.find({ user: user._id });
@@ -227,11 +241,11 @@ router.post('/register',
   authRateLimit(3, 15 * 60 * 1000), // 3 attempts per 15 minutes
   [
     body('phone')
-      .isLength({ min: 10, max: 10 })
-      .withMessage('Phone number must be exactly 10 digits')
+      .isLength({ min: 10, max: 16 })
+      .withMessage('Phone number must be between 10-16 characters')
       .custom((value) => {
         if (!validatePhoneNumber(value)) {
-          throw new Error('Invalid phone number format');
+          throw new Error('Invalid phone number format. Use E.164 format (+1234567890) or 10-digit format');
         }
         return true;
       }),
@@ -276,8 +290,8 @@ router.post('/register',
       }
     }
 
-    // Generate OTP
-    const otp = generateOTP();
+    // Generate OTP - Use 123456 for development
+    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     let user;
@@ -314,13 +328,108 @@ router.post('/register',
       // TODO: Integrate with SMS service
       logger.info(`OTP for ${phone}: ${otp}`);
     } else {
-      // In development, log OTP to console
-      logger.info(`OTP for ${phone}: ${otp}`);
+      // In development, use fixed OTP 123456
+      logger.info(`Development OTP for ${phone}: 123456`);
     }
 
     res.status(201).json({
       status: 'success',
       message: 'Registration successful. Please verify your phone number.',
+      data: {
+        phone,
+        expiresIn: 600 // 10 minutes in seconds
+      }
+    });
+  })
+);
+
+// Signup with SMS for new role (handles both new users and existing users adding new roles)
+router.post('/signup-new-role',
+  authRateLimit(3, 15 * 60 * 1000), // 3 attempts per 15 minutes
+  [
+    body('phone')
+      .isLength({ min: 10, max: 16 })
+      .withMessage('Phone number must be between 10-16 characters')
+      .custom((value) => {
+        if (!validatePhoneNumber(value)) {
+          throw new Error('Invalid phone number format. Use E.164 format (+1234567890) or 10-digit format');
+        }
+        return true;
+      }),
+    body('fullName')
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Full name must be between 2 and 100 characters'),
+    body('role')
+      .isIn(['admin', 'buyer_seller', 'broker', 'developer', 'society_owner', 'society_member'])
+      .withMessage('Invalid role')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { phone, fullName, role } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone });
+    
+    if (existingUser) {
+      // Check if user already has this role
+      const existingProfile = await Profile.findOne({ 
+        user: existingUser._id, 
+        role 
+      });
+      
+      if (existingProfile) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'You already have this role. Please login instead.',
+          code: 'ROLE_EXISTS'
+        });
+      }
+    }
+
+    // Generate OTP - Use 123456 for development
+    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    let user;
+    if (existingUser) {
+      // Update existing user
+      user = existingUser;
+      user.verificationCode = otp;
+      user.verificationCodeExpires = otpExpiry;
+      await user.save();
+    } else {
+      // Create new user
+      user = new User({
+        phone,
+        verificationCode: otp,
+        verificationCodeExpires: otpExpiry,
+        authMethod: 'phone'
+      });
+      await user.save();
+    }
+
+    // Create profile
+    const profile = new Profile({
+      user: user._id,
+      fullName,
+      role,
+      status: 'pending_verification'
+    });
+    await profile.save();
+
+    // In production, send OTP via SMS service
+    if (process.env.NODE_ENV === 'production') {
+      // TODO: Integrate with SMS service
+      logger.info(`OTP for ${phone}: ${otp}`);
+    } else {
+      // In development, use fixed OTP 123456
+      logger.info(`Development OTP for ${phone}: 123456`);
+    }
+
+    res.status(201).json({
+      status: 'success',
+      message: 'OTP sent successfully. Please verify your phone number.',
       data: {
         phone,
         expiresIn: 600 // 10 minutes in seconds

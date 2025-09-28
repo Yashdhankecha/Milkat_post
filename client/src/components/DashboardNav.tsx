@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { Link, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,8 +20,6 @@ import {
   ChevronDown,
   SwitchCamera
 } from "lucide-react"
-import { supabase } from "@/integrations/supabase/client"
-
 const DashboardNav = () => {
   const navigate = useNavigate()
   const { signOut, user } = useAuth()
@@ -120,10 +119,9 @@ const DashboardNav = () => {
           return;
         }
       } else {
-        const { data: profiles, error } = await supabase
-          .from('profiles')
-          .select('role, full_name')
-          .eq('phone', phone);
+        const { data: profiles, error } = await apiClient
+          
+          ;
         
         if (!error && profiles) {
           const roles = profiles.map(p => ({

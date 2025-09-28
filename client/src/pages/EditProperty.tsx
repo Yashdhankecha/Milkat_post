@@ -1,7 +1,7 @@
+import apiClient from '@/lib/api';
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,12 +64,11 @@ const EditProperty = () => {
 
       try {
         setFetchingProperty(true);
-        const { data, error } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('id', id)
-          .eq('owner_id', user.id) // Ensure user owns the property
-          .single();
+        const { data, error } = await apiClient
+          
+          
+           // Ensure user owns the property
+          ;
 
         if (error) throw error;
 
@@ -178,13 +177,13 @@ const EditProperty = () => {
         const fileExt = file.name.split('.').pop();
         const filePath = `${user.id}/${Date.now()}.${fileExt}`;
 
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await apiClient.storage
           .from('property-images')
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
-        const { data } = supabase.storage
+        const { data } = apiClient.storage
           .from('property-images')
           .getPublicUrl(filePath);
 
@@ -227,9 +226,8 @@ const EditProperty = () => {
     setLoading(true);
     
     try {
-      const { error } = await supabase
-        .from('properties')
-        .update({
+      const { error } = await apiClient
+        ({
           title: formData.title,
           description: formData.description,
           price: parseFloat(formData.price),
@@ -243,8 +241,8 @@ const EditProperty = () => {
           images: formData.images,
           amenities: formData.amenities,
         })
-        .eq('id', id)
-        .eq('owner_id', user.id); // Ensure user owns the property
+        
+        ; // Ensure user owns the property
 
       if (error) throw error;
 

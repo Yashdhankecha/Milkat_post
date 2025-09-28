@@ -1,6 +1,6 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,10 +53,9 @@ const PropertyDetails = () => {
   const fetchPropertyDetails = async () => {
     try {
       // First get the property
-      const { data: propertyData, error: propertyError } = await supabase
-        .from('properties')
-        .select('*')
-        .eq('id', id)
+      const { data: propertyData, error: propertyError } = await apiClient
+        
+        
         .maybeSingle();
 
       if (propertyError) throw propertyError;
@@ -64,10 +63,9 @@ const PropertyDetails = () => {
       // Then get the owner profile if property exists
       let ownerProfile = null;
       if (propertyData?.owner_id) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('full_name, phone')
-          .eq('id', propertyData.owner_id)
+        const { data: profileData } = await apiClient
+          
+          
           .maybeSingle();
         
         ownerProfile = profileData;
@@ -94,11 +92,10 @@ const PropertyDetails = () => {
 
   const fetchRelatedProperties = async () => {
     try {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('*')
+      const { data, error } = await apiClient
+        
         .neq('id', id)
-        .limit(3);
+        ;
 
       if (error) throw error;
       setRelatedProperties(data || []);
@@ -111,12 +108,11 @@ const PropertyDetails = () => {
     if (!user) return;
 
     try {
-      const { data } = await supabase
-        .from('saved_properties')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('property_id', id)
-        .single();
+      const { data } = await apiClient
+        
+        
+        
+        ;
 
       setIsSaved(!!data);
     } catch (error) {
@@ -136,18 +132,16 @@ const PropertyDetails = () => {
 
     try {
       if (isSaved) {
-        await supabase
-          .from('saved_properties')
+        await apiClient
           .delete()
-          .eq('user_id', user.id)
-          .eq('property_id', id);
+          
+          ;
         
         setIsSaved(false);
         toast({ title: "Property removed from favorites" });
       } else {
-        await supabase
-          .from('saved_properties')
-          .insert({
+        await apiClient
+          ({
             user_id: user.id,
             property_id: id
           });

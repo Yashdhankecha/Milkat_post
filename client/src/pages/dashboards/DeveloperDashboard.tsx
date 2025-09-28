@@ -1,10 +1,10 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/integrations/supabase/client"
 import { useProfile } from "@/hooks/useProfile"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
@@ -134,7 +134,7 @@ const DeveloperDashboard = () => {
       fetchDashboardData()
       
       // Set up real-time subscription for developer profile changes
-      const subscription = supabase
+      const subscription = apiClient
         .channel('developer_profile_changes')
         .on(
           'postgres_changes',
@@ -165,11 +165,10 @@ const DeveloperDashboard = () => {
       setLoading(true)
 
       // Fetch developer profile with fresh data
-      const { data: developerData, error: developerError } = await supabase
-        .from('developers')
-        .select('*')
-        .eq('user_id', profile.id)
-        .single()
+      const { data: developerData, error: developerError } = await apiClient
+        
+        
+        
 
       if (developerError && developerError.code !== 'PGRST116') {
         throw developerError
@@ -185,35 +184,32 @@ const DeveloperDashboard = () => {
 
       // Fetch projects if developer profile exists
       if (developerData) {
-        const { data: projectsData, error: projectsError } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('developer_id', developerData.id)
-          .order('created_at', { ascending: false })
+        const { data: projectsData, error: projectsError } = await apiClient
+          
+          
+          
 
         if (projectsError) throw projectsError
         setProjects(projectsData || [])
 
         // Fetch properties for this developer
-        const { data: propertiesData, error: propertiesError } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('owner_id', profile.id)
-          .order('created_at', { ascending: false })
+        const { data: propertiesData, error: propertiesError } = await apiClient
+          
+          
+          
 
         if (propertiesError) throw propertiesError
         setProperties(propertiesData || [])
 
         // Fetch redevelopment requirements
         console.log('Fetching redevelopment requirements...')
-        const { data: requirementsData, error: requirementsError } = await supabase
-          .from('redevelopment_requirements')
+        const { data: requirementsData, error: requirementsError } = await apiClient
           .select(`
             *,
             societies!inner(name, address, city, total_flats)
           `)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
+          
+          
 
         console.log('Requirements query result:', { requirementsData, requirementsError })
 
@@ -221,8 +217,7 @@ const DeveloperDashboard = () => {
         setRequirements(requirementsData || [])
 
         // Fetch developer's proposals
-        const { data: proposalsData, error: proposalsError } = await supabase
-          .from('proposals')
+        const { data: proposalsData, error: proposalsError } = await apiClient
           .select(`
             *,
             requirement:redevelopment_requirements(
@@ -230,8 +225,8 @@ const DeveloperDashboard = () => {
               societies!inner(name, city)
             )
           `)
-          .eq('developer_id', developerData.id)
-          .order('created_at', { ascending: false })
+          
+          
 
         if (proposalsError) throw proposalsError
         setProposals(proposalsData || [])
@@ -268,16 +263,15 @@ const DeveloperDashboard = () => {
     if (!profile) return
 
     try {
-      const { data, error } = await supabase
-        .from('developers')
-        .insert({
+      const { data, error } = await apiClient
+        ({
           user_id: profile.id,
           company_name: profile.company_name || 'My Development Company',
           verification_status: 'pending',
           status: 'active'
         })
         .select()
-        .single()
+        
 
       if (error) throw error
 
@@ -321,10 +315,9 @@ const DeveloperDashboard = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('properties')
+      const { error } = await apiClient
         .delete()
-        .eq('id', propertyId)
+        
 
       if (error) throw error
 

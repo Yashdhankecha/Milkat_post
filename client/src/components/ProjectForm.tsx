@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
@@ -70,10 +70,9 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
 
     try {
       console.log('Fetching developer profile for user_id:', profile.id);
-      const { data, error } = await supabase
-        .from('developers')
-        .select('*')
-        .eq('user_id', profile.id)
+      const { data, error } = await apiClient
+        
+        
         .maybeSingle();
 
       console.log('Developer profile query result:', { data, error });
@@ -167,16 +166,14 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       };
 
       if (existingProject) {
-        const { error } = await supabase
-          .from('projects')
-          .update(projectData)
-          .eq('id', existingProject.id);
+        const { error } = await apiClient
+          (projectData)
+          ;
         
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('projects')
-          .insert(projectData);
+        const { error } = await apiClient
+          (projectData);
         
         if (error) throw error;
       }

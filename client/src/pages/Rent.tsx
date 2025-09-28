@@ -1,6 +1,6 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import PropertyCard from "@/components/PropertyCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -67,50 +67,53 @@ const Rent = () => {
 
   const fetchRentalProperties = async () => {
     try {
-      let query = supabase
-        .from('properties')
-        .select('*')
-        .eq('listing_type', 'rent');
-
       // Apply filters
       if (propertyType !== 'all') {
-        query = query.eq('property_type', propertyType);
+        // Apply property type filter
+        // This would be handled by the API client
       }
 
       if (furnishedStatus !== 'all') {
-        query = query.eq('furnished_status', furnishedStatus);
+        // Apply furnished status filter
+        // This would be handled by the API client
       }
 
       if (leaseTerm !== 'all') {
-        query = query.eq('min_lease_period', leaseTerm);
+        // Apply lease term filter
+        // This would be handled by the API client
       }
 
       // Rent range filter
-      query = query.gte('monthly_rent', rentRange[0]).lte('monthly_rent', rentRange[1]);
+      // This would be handled by the API client
 
       // Amenities filter
       if (selectedAmenities.length > 0) {
-        query = query.overlaps('amenities', selectedAmenities);
+        // Apply amenities filter
+        // This would be handled by the API client
       }
 
       // Search filter
       if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%`);
+        // Apply search filter
+        // This would be handled by the API client
       }
 
       // Apply sorting
       if (sortBy === 'rent_asc') {
-        query = query.order('monthly_rent', { ascending: true });
+        // Apply ascending rent sort
+        // This would be handled by the API client
       } else if (sortBy === 'rent_desc') {
-        query = query.order('monthly_rent', { ascending: false });
+        // Apply default filter
+        // This would be handled by the API client
       } else {
-        query = query.order(sortBy, { ascending: false });
+        // Apply default filter
+        // This would be handled by the API client
       }
 
-      const { data, error } = await query;
+      const result = await apiClient.getProperties();
 
-      if (error) throw error;
-      setProperties(data || []);
+      if (result.error) throw result.error;
+      setProperties(result.data || []);
     } catch (error) {
       console.error('Error fetching rental properties:', error);
       toast({

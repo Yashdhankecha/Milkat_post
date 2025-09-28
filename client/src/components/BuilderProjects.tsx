@@ -1,8 +1,8 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProjectCard from "./ProjectCard";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const BuilderProjects = () => {
@@ -16,11 +16,10 @@ const BuilderProjects = () => {
 
   const fetchProjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .limit(6)
-        .order('created_at', { ascending: false });
+      const { data, error } = await apiClient
+        
+        
+        ;
 
       if (error) throw error;
       setProjects(data || []);

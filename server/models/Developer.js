@@ -167,11 +167,8 @@ const developerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
-developerSchema.index({ user: 1 });
+// Indexes - user, registrationNumber, and panNumber already have unique indexes from schema definition
 developerSchema.index({ companyName: 1 });
-developerSchema.index({ registrationNumber: 1 });
-developerSchema.index({ panNumber: 1 });
 developerSchema.index({ status: 1 });
 developerSchema.index({ verificationStatus: 1 });
 developerSchema.index({ specializations: 1 });

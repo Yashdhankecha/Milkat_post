@@ -1,6 +1,6 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,10 +93,9 @@ const SocietyOwnerDashboard = () => {
     
     try {
       // Fetch societies owned by the current user
-      const { data: societiesData, error: societyError } = await supabase
-        .from('societies')
-        .select('*')
-        .eq('owner_id', user.id);
+      const { data: societiesData, error: societyError } = await apiClient
+        
+        ;
 
       // Use the first society for now (TODO: Add society selector if multiple)
       const societyData = societiesData?.[0];
@@ -129,20 +128,18 @@ const SocietyOwnerDashboard = () => {
         }
 
         // Fetch society members
-        const { data: membersData, error: membersError } = await supabase
-          .from('society_members')
-          .select('*')
-          .eq('society_id', societyData.id);
+        const { data: membersData, error: membersError } = await apiClient
+          
+          ;
 
         if (membersError) {
           console.error('Members fetch error:', membersError);
         } else if (membersData && membersData.length > 0) {
           // Fetch profiles separately to avoid relation issues
           const memberIds = membersData.map(member => member.user_id);
-          const { data: profilesData } = await supabase
-            .from('profiles')
-            .select('id, full_name, phone')
-            .in('id', memberIds);
+          const { data: profilesData } = await apiClient
+            
+            ;
 
           // Combine the data
           const membersWithProfiles = membersData.map(member => {
@@ -159,11 +156,10 @@ const SocietyOwnerDashboard = () => {
         }
 
         // Fetch requirements
-        const { data: requirementsData, error: requirementsError } = await supabase
-          .from('redevelopment_requirements')
-          .select('*')
-          .eq('society_id', societyData.id)
-          .order('created_at', { ascending: false });
+        const { data: requirementsData, error: requirementsError } = await apiClient
+          
+          
+          ;
 
         if (requirementsError) {
           console.error('Requirements fetch error:', requirementsError);
@@ -174,16 +170,15 @@ const SocietyOwnerDashboard = () => {
         // Fetch proposals for requirements
         const requirementIds = requirementsData?.map(req => req.id) || [];
         if (requirementIds.length > 0) {
-          const { data: proposalsData, error: proposalsError } = await supabase
-            .from('proposals')
+          const { data: proposalsData, error: proposalsError } = await apiClient
             .select(`
               *,
               developers:developer_id (
                 company_name
               )
             `)
-            .in('requirement_id', requirementIds)
-            .order('submitted_at', { ascending: false });
+            
+            ;
 
           if (proposalsError) {
             console.error('Proposals fetch error:', proposalsError);
@@ -216,13 +211,12 @@ const SocietyOwnerDashboard = () => {
         .filter(doc => doc.status === 'completed' && doc.url)
         .map(doc => doc.url!);
 
-      const { error } = await supabase
-        .from('societies')
-        .update({
+      const { error } = await apiClient
+        ({
           registration_documents: registrationDocUrls,
           flat_plan_documents: floorPlanDocUrls
         })
-        .eq('id', society.id);
+        ;
 
       if (error) throw error;
 

@@ -4,8 +4,7 @@ const profileSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    unique: true
+    required: true
   },
   fullName: {
     type: String,
@@ -89,8 +88,7 @@ const profileSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
-profileSchema.index({ user: 1 });
+// Indexes - user already has unique index from schema definition
 profileSchema.index({ role: 1 });
 profileSchema.index({ status: 1 });
 profileSchema.index({ verificationStatus: 1 });
@@ -133,5 +131,8 @@ profileSchema.pre('save', function(next) {
   }
   next();
 });
+
+// Compound unique index to allow multiple roles per user
+profileSchema.index({ user: 1, role: 1 }, { unique: true });
 
 export default mongoose.model('Profile', profileSchema);

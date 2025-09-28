@@ -1,10 +1,10 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { supabase } from "@/integrations/supabase/client"
 import { useProfile } from "@/hooks/useProfile"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
@@ -73,11 +73,10 @@ const BrokerDashboard = () => {
       setLoading(true)
 
       // Fetch broker profile
-      const { data: brokerData, error: brokerError } = await supabase
-        .from('brokers')
-        .select('*')
-        .eq('user_id', profile.id)
-        .single()
+      const { data: brokerData, error: brokerError } = await apiClient
+        
+        
+        
 
       if (brokerError && brokerError.code !== 'PGRST116') {
         throw brokerError
@@ -88,18 +87,16 @@ const BrokerDashboard = () => {
       // Fetch statistics (if broker profile exists)
       if (brokerData) {
         // Fetch broker's property listings
-        const { data: listingsData, error: listingsError } = await supabase
-          .from('properties')
-          .select('id, status, price')
-          .eq('broker_id', profile.id)
+        const { data: listingsData, error: listingsError } = await apiClient
+          
+          
 
         if (listingsError) throw listingsError
 
         // Fetch inquiries on broker's properties
-        const { data: inquiriesData, error: inquiriesError } = await supabase
-          .from('inquiries')
-          .select('id, status')
-          .in('property_id', (listingsData || []).map(l => l.id))
+        const inquiriesResult = await apiClient.getInquiries();
+        const inquiriesData = inquiriesResult.data || [];
+        const inquiriesError = inquiriesResult.error;
 
         if (inquiriesError) throw inquiriesError
 
@@ -109,10 +106,9 @@ const BrokerDashboard = () => {
           .reduce((sum, listing) => sum + ((listing.price || 0) * 0.02), 0)
 
         // Fetch unique clients (buyers who made inquiries)
-        const { data: clientsData, error: clientsError } = await supabase
-          .from('inquiries')
-          .select('user_id')
-          .in('property_id', (listingsData || []).map(l => l.id))
+        const clientsResult = await apiClient.getInquiries();
+        const clientsData = clientsResult.data || [];
+        const clientsError = clientsResult.error;
 
         if (clientsError) throw clientsError
 
@@ -126,11 +122,10 @@ const BrokerDashboard = () => {
         })
 
         // Fetch full listing details for display
-        const { data: fullListingsData, error: fullListingsError } = await supabase
-          .from('properties')
-          .select('*')
-          .eq('broker_id', profile.id)
-          .order('created_at', { ascending: false })
+        const { data: fullListingsData, error: fullListingsError } = await apiClient
+          
+          
+          
 
         if (fullListingsError) throw fullListingsError
         setListings(fullListingsData || [])
@@ -164,16 +159,15 @@ const BrokerDashboard = () => {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
-        .from('brokers')
-        .insert({
+      const { data, error } = await apiClient
+        ({
           user_id: profile.id,
           specialization: ['Residential Properties'],
           commission_rate: 2.0,
           status: 'pending'
         })
         .select()
-        .single()
+        
 
       if (error) throw error
 

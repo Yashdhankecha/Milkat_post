@@ -130,9 +130,7 @@ const brokerSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
-brokerSchema.index({ user: 1 });
-brokerSchema.index({ licenseNumber: 1 });
+// Indexes - user and licenseNumber already have unique indexes from schema definition
 brokerSchema.index({ status: 1 });
 brokerSchema.index({ verificationStatus: 1 });
 brokerSchema.index({ specialization: 1 });

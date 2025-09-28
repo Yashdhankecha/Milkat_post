@@ -1,7 +1,7 @@
+import apiClient from '@/lib/api';
 import { Users, Building2, MapPin, Award } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 const StatsSection = () => {
   const [statsData, setStatsData] = useState({
@@ -15,7 +15,7 @@ const StatsSection = () => {
     const fetchStats = async () => {
       try {
         // Call the secure database function to get stats
-        const { data, error } = await supabase.rpc('get_public_stats');
+        const result = await apiClient.rpc('get_public_stats');
         
         if (error) throw error;
 

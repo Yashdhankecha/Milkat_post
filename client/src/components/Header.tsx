@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import apiClient from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const Header = () => {
@@ -101,51 +101,16 @@ const Header = () => {
           return;
         }
       } else {
-        const { data: profiles, error } = await supabase
-          .from('profiles')
-          .select('role, full_name')
-          .eq('phone', phone);
-        
-        if (!error && profiles) {
-          const roles = profiles.map(p => ({
-            role: p.role,
-            full_name: p.full_name || 'User'
-          }));
-          
-          console.log(`[Header] Found ${roles.length} roles for user, redirecting to role selection`);
-          if (roles.length > 0) {
-            toast({
-              title: "Info",
-              description: "Loading your roles...",
-              variant: "default",
-              duration: 3000,
-            });
-            navigate("/role-selection", { state: { phone, roles } });
-          } else {
-            toast({
-              title: "Info",
-              description: "No roles found. Redirecting to login...",
-              variant: "default",
-              duration: 3000,
-            });
-            setTimeout(() => {
-              navigate('/auth');
-            }, 2000);
-          }
-          return;
-        } else if (error) {
-          console.error('[Header] Error fetching profiles:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load roles. Redirecting to login.",
-            variant: "error",
-            duration: 3000,
-          });
-          setTimeout(() => {
-            navigate('/auth');
-          }, 2000);
-          return;
-        }
+        // For now, we'll assume single role per user with our backend API
+        // Multiple roles would need to be implemented in the backend
+        console.log('[Header] Using backend API - single role per user');
+        toast({
+          title: "Info",
+          description: "Loading your profile...",
+          variant: "default",
+          duration: 3000,
+        });
+        navigate("/role-selection", { state: { phone, roles: [] } });
       }
       
       // Fallback if no roles found

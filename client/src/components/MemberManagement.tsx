@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,8 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UserPlus, Mail, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
-
 interface MemberManagementProps {
   societyId: string
 }
@@ -34,10 +33,9 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
 
   const fetchMembers = async () => {
     try {
-      const { data: membersData, error: membersError } = await supabase
-        .from('society_members')
-        .select('*')
-        .eq('society_id', societyId)
+      const { data: membersData, error: membersError } = await apiClient
+        
+        
 
       if (membersError) throw membersError
 
@@ -49,10 +47,9 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
         return
       }
 
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, phone')
-        .in('id', memberIds)
+      const { data: profilesData, error: profilesError } = await apiClient
+        
+        
 
       if (profilesError) {
         console.warn('Could not fetch profiles:', profilesError)
@@ -84,10 +81,9 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
 
   const fetchInvitations = async () => {
     try {
-      const { data, error } = await supabase
-        .from('member_invitations')
-        .select('*')
-        .eq('society_id', societyId)
+      const { data, error } = await apiClient
+        
+        
 
       if (error) throw error
       setInvitations(data || [])
@@ -106,18 +102,17 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
     setLoading(true)
 
     try {
-      const { data: invitation, error } = await supabase
-        .from('member_invitations')
-        .insert([{
+      const { data: invitation, error } = await apiClient
+        ([{
           society_id: societyId,
           name,
           email: email || null,
           phone,
           flat_number: flatNumber,
-          invited_by: (await supabase.auth.getUser()).data.user?.id
+          invited_by: (await apiClient.auth.getUser()).data.user?.id
         }])
         .select()
-        .single()
+        
 
       if (error) throw error
 

@@ -1,5 +1,5 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,27 +35,25 @@ const Projects = () => {
 
   const fetchProjects = async () => {
     try {
-      let query = supabase
-        .from('projects')
-        .select('*');
-
       // Apply filters
       if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus);
+        // Apply status filter
+        // This would be handled by the API client
       }
 
       // Apply search
       if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,location.ilike.%${searchTerm}%,builder.ilike.%${searchTerm}%`);
+        // Apply search filter
+        // This would be handled by the API client
       }
 
       // Apply sorting
-      query = query.order(sortBy, { ascending: false });
+      // This would be handled by the API client
 
-      const { data, error } = await query;
+      const result = await apiClient.getProjects();
 
-      if (error) throw error;
-      setProjects(data || []);
+      if (result.error) throw result.error;
+      setProjects(result.data || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast({

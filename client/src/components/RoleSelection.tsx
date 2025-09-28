@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,7 +7,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { User, Building2, Shield, Users, Briefcase } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { supabase } from "@/integrations/supabase/client";
 
 const RoleSelection = () => {
   const location = useLocation();
@@ -159,10 +159,9 @@ const RoleSelection = () => {
               return;
             }
           } else {
-            const { data: profiles, error } = await supabase
-              .from('profiles')
-              .select('role, full_name')
-              .eq('phone', userPhone);
+            const { data: profiles, error } = await apiClient
+              
+              ;
             
             if (!error && profiles && profiles.length > 0) {
               const fetchedRoles = profiles.map(p => ({

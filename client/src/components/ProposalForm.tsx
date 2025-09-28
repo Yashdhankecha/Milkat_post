@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { X } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
-
 interface ProposalFormProps {
   requirementId: string
   onSuccess?: () => void
@@ -36,14 +35,13 @@ export const ProposalForm = ({ requirementId, onSuccess, proposal, isEditing = f
 
   const fetchDeveloperId = async () => {
     try {
-      const { data: user } = await supabase.auth.getUser()
+      const result = await apiClient.auth.getUser()
       if (!user.user) return
 
-      const { data, error } = await supabase
-        .from('developers')
-        .select('id')
-        .eq('user_id', user.user.id)
-        .single()
+      const { data, error } = await apiClient
+        
+        
+        
 
       if (error) throw error
       setDeveloperId(data.id)
@@ -94,10 +92,9 @@ export const ProposalForm = ({ requirementId, onSuccess, proposal, isEditing = f
       }
 
       if (isEditing && proposal) {
-        const { error } = await supabase
-          .from('proposals')
-          .update(proposalData)
-          .eq('id', proposal.id)
+        const { error } = await apiClient
+          (proposalData)
+          
 
         if (error) throw error
 
@@ -106,9 +103,8 @@ export const ProposalForm = ({ requirementId, onSuccess, proposal, isEditing = f
           description: "Your proposal has been updated successfully.",
         })
       } else {
-        const { error } = await supabase
-          .from('proposals')
-          .insert([proposalData])
+        const { error } = await apiClient
+          ([proposalData])
 
         if (error) throw error
 

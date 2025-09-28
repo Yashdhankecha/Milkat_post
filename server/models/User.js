@@ -63,9 +63,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for performance
-userSchema.index({ phone: 1 });
-userSchema.index({ email: 1 });
+// Index for performance - phone and email already have unique indexes from schema definition
 userSchema.index({ isActive: 1, isSuspended: 1 });
 
 // Virtual for account lock status
@@ -78,7 +76,7 @@ userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
-    const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS) || 12);
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {

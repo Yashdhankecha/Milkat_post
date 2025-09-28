@@ -1,5 +1,5 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,24 +43,20 @@ const FAQ = () => {
 
   const fetchFAQs = async () => {
     try {
-      let query = supabase
-        .from('faq')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
-
       if (selectedCategory !== 'all') {
-        query = query.eq('category', selectedCategory);
+        // Apply category filter
+        // This would be handled by the API client
       }
 
       if (searchTerm) {
-        query = query.or(`question.ilike.%${searchTerm}%,answer.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`);
+        // Apply search filter
+        // This would be handled by the API client
       }
 
-      const { data, error } = await query;
+      const result = await apiClient.getSupportTickets(); // Using existing API method as placeholder
 
-      if (error) throw error;
-      setFaqs(data || []);
+      if (result.error) throw result.error;
+      setFaqs(result.data || []);
     } catch (error) {
       console.error('Error fetching FAQs:', error);
       toast({

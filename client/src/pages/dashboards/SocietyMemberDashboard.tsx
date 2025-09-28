@@ -1,6 +1,6 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,28 +58,24 @@ const SocietyMemberDashboard = () => {
       console.log('Fetching membership data for user:', user?.id)
       
       // First fetch member's society membership without join
-      const { data: membershipData, error: membershipError } = await supabase
-        .from('society_members')
-        .select('*')
-        .eq('user_id', user?.id)
-        .single();
+      const membershipResult = await apiClient.getProfile();
+      const { data: membershipData, error: membershipError } = membershipResult;
 
       console.log('Membership data (no join):', { membershipData, membershipError })
 
-      if (membershipError && membershipError.code !== 'PGRST116') {
-        console.error('Error fetching membership:', membershipError);
-        return;
+      if (membershipError) {
+        if (typeof membershipError === 'object' && membershipError && 'code' in membershipError && (membershipError as any).code !== 'PGRST116') {
+          console.error('Error fetching membership:', membershipError);
+          return;
+        }
       }
 
       if (membershipData) {
         console.log('Society ID from membership:', membershipData.society_id)
         
         // Now fetch society data separately
-        const { data: societyData, error: societyError } = await supabase
-          .from('societies')
-          .select('*')
-          .eq('id', membershipData.society_id)
-          .single();
+        const societyResult = await apiClient.getSociety(membershipData.society_id);
+        const { data: societyData, error: societyError } = societyResult;
           
         console.log('Society data:', { societyData, societyError })
         
@@ -97,11 +93,8 @@ const SocietyMemberDashboard = () => {
         }
 
         // Fetch society requirements
-        const { data: requirementsData, error: requirementsError } = await supabase
-          .from('redevelopment_requirements')
-          .select('*')
-          .eq('society_id', membershipData.society_id)
-          .eq('status', 'active');
+        const requirementsResult = await apiClient.getSocieties({ society_id: membershipData.society_id });
+        const { data: requirementsData, error: requirementsError } = requirementsResult;
 
         if (requirementsError) {
           console.error('Error fetching requirements:', requirementsError);
@@ -110,16 +103,10 @@ const SocietyMemberDashboard = () => {
         }
 
         // Fetch proposals for voting
-        const { data: proposalsData, error: proposalsError } = await supabase
-          .from('proposals')
-          .select(`
-            *,
-            developers (
-              company_name
-            )
-          `)
-          .in('requirement_id', requirementsData?.map(r => r.id) || [])
-          .eq('status', 'submitted')
+        const result = await apiClient.getDevelopers();
+        const proposalsData = result.data || [];
+        const proposalsError = result.error;
+          
 
         if (proposalsError) {
           console.error('Error fetching proposals:', proposalsError);

@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { useProfile } from "@/hooks/useProfile";
 
 interface DeveloperProfile {
@@ -107,17 +107,15 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
 
       if (existingProfile?.id) {
         // Update existing profile
-        const { error } = await supabase
-          .from('developers')
-          .update(updateData)
-          .eq('id', existingProfile.id);
+        const { error } = await apiClient
+          (updateData)
+          ;
         
         if (error) throw error;
       } else {
         // Create new profile
-        const { error } = await supabase
-          .from('developers')
-          .insert(updateData);
+        const { error } = await apiClient
+          (updateData);
         
         if (error) throw error;
       }

@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useProfile, UserProfile } from '@/hooks/useProfile'
 import { Loader2 } from 'lucide-react'
 import SuspendedUserMessage from './SuspendedUserMessage'
-import { supabase } from '@/integrations/supabase/client'
+import apiClient from '@/lib/api'
 
 interface ProtectedRouteProps {
   children: ReactNode
@@ -78,25 +78,9 @@ export const ProtectedRoute = ({
                 }
               }
             } else {
-              const { data: profiles, error } = await supabase
-                .from('profiles')
-                .select('role, full_name')
-                .eq('phone', phone)
-              
-              if (!error && profiles) {
-                const roles = profiles.map(p => ({
-                  role: p.role,
-                  full_name: p.full_name
-                }))
-                
-                console.log('[ProtectedRoute] Available roles from Supabase:', roles);
-                
-                // If user has multiple roles and no role is selected, redirect to role selection
-                if (roles.length > 1 && !localStorage.getItem('selectedRole')) {
-                  console.log('[ProtectedRoute] Redirecting to role selection');
-                  navigate('/role-selection', { state: { phone, roles }, replace: true })
-                }
-              }
+              // For now, we'll assume single role per user with our backend API
+              // Multiple roles would need to be implemented in the backend
+              console.log('[ProtectedRoute] Using backend API - single role per user');
             }
           }
         } catch (error) {

@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +14,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns'
 import { X, Upload, FileText, Building2, MapPin, Users, Settings, CheckCircle2, Star, CalendarIcon, Plus, Trash } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
 import { cn } from '@/lib/utils'
 import { DocumentUploadSection, type DocumentFile } from '@/components/DocumentUploadSection'
 
@@ -203,20 +203,18 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         contact_email: contactEmail || null,
         registration_documents: allDocumentUrls.length > 0 ? allDocumentUrls : null,
         flat_plan_documents: allFlatPlanUrls.length > 0 ? allFlatPlanUrls : null,
-        ...(!isEditing && { owner_id: (await supabase.auth.getUser()).data.user?.id })
+        ...(!isEditing && { owner_id: (await apiClient.auth.getUser()).data.user?.id })
       }
 
       let result
       if (isEditing && society) {
-        result = await supabase
-          .from('societies')
-          .update(societyData)
-          .eq('id', society.id)
+        result = await apiClient
+          (societyData)
+          
           .select()
       } else {
-        result = await supabase
-          .from('societies')
-          .insert(societyData)
+        result = await apiClient
+          (societyData)
           .select()
       }
 

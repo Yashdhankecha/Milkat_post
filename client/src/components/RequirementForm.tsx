@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { X } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
-
 interface RequirementFormProps {
   societyId: string
   onSuccess?: () => void
@@ -75,14 +74,13 @@ export const RequirementForm = ({ societyId, onSuccess, requirement, isEditing =
         budget_range: budgetRange,
         timeline_expectation: timelineExpectation,
         special_needs: specialNeeds,
-        created_by: (await supabase.auth.getUser()).data.user?.id
+        created_by: (await apiClient.auth.getUser()).data.user?.id
       }
 
       if (isEditing && requirement) {
-        const { error } = await supabase
-          .from('redevelopment_requirements')
-          .update(requirementData)
-          .eq('id', requirement.id)
+        const { error } = await apiClient
+          (requirementData)
+          
 
         if (error) throw error
 
@@ -91,9 +89,8 @@ export const RequirementForm = ({ societyId, onSuccess, requirement, isEditing =
           description: "Your redevelopment requirement has been updated successfully.",
         })
       } else {
-        const { error } = await supabase
-          .from('redevelopment_requirements')
-          .insert([requirementData])
+        const { error } = await apiClient
+          ([requirementData])
 
         if (error) throw error
 

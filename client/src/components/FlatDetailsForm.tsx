@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -6,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
 import { Home, Save } from 'lucide-react'
 
 interface FlatDetailsFormProps {
@@ -38,10 +38,9 @@ export const FlatDetailsForm = ({ societyMemberId, onSave }: FlatDetailsFormProp
 
   const fetchFlatDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('flat_details')
-        .select('*')
-        .eq('society_member_id', societyMemberId)
+      const { data, error } = await apiClient
+        
+        
         .maybeSingle()
 
       if (error) throw error
@@ -72,19 +71,17 @@ export const FlatDetailsForm = ({ societyMemberId, onSave }: FlatDetailsFormProp
 
       if (flatDetails.id) {
         // Update existing
-        const { error } = await supabase
-          .from('flat_details')
-          .update(payload)
-          .eq('id', flatDetails.id)
+        const { error } = await apiClient
+          (payload)
+          
 
         if (error) throw error
       } else {
         // Create new
-        const { data, error } = await supabase
-          .from('flat_details')
-          .insert([payload])
+        const { data, error } = await apiClient
+          ([payload])
           .select()
-          .single()
+          
 
         if (error) throw error
         setFlatDetails({ ...flatDetails, id: data.id })

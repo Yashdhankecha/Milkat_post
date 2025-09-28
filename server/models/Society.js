@@ -217,9 +217,8 @@ const societySchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes
+// Indexes - societyCode already has unique index from schema definition
 societySchema.index({ owner: 1 });
-societySchema.index({ societyCode: 1 });
 societySchema.index({ 'location.city': 1 });
 societySchema.index({ 'location.state': 1 });
 societySchema.index({ status: 1 });

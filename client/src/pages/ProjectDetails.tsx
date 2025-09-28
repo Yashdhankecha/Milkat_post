@@ -1,6 +1,6 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,7 @@ const ProjectDetails = () => {
 
   const fetchProjectDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('projects')
+      const { data, error } = await apiClient
         .select(`
           *,
           developers(
@@ -58,7 +57,7 @@ const ProjectDetails = () => {
             verification_status
           )
         `)
-        .eq('id', id)
+        
         .maybeSingle();
 
       if (error) throw error;
@@ -77,11 +76,10 @@ const ProjectDetails = () => {
 
   const fetchRelatedProjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
+      const { data, error } = await apiClient
+        
         .neq('id', id)
-        .limit(3);
+        ;
 
       if (error) throw error;
       setRelatedProjects(data || []);
@@ -103,9 +101,8 @@ const ProjectDetails = () => {
     }
 
     try {
-      await supabase
-        .from('inquiries')
-        .insert({
+      await apiClient
+        ({
           user_id: user.id,
           project_id: id,
           developer_id: project?.developer_id,

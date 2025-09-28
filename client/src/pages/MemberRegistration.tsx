@@ -1,3 +1,4 @@
+import apiClient from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { useSearchParams, Navigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -7,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, Building2, Users } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
-import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import SMSOTPVerification from '@/components/SMSOTPVerification'
 import { PhoneNumberInput } from '@/components/CountryCodeSelector'
@@ -54,8 +54,7 @@ const MemberRegistration = () => {
 
   const fetchInvitationDetails = async () => {
     try {
-      const { data, error } = await supabase
-        .from('member_invitations')
+      const { data, error } = await apiClient
         .select(`
           *,
           societies (
@@ -65,8 +64,8 @@ const MemberRegistration = () => {
             state
           )
         `)
-        .eq('id', invitationId)
-        .eq('society_id', societyId)
+        
+        
         .maybeSingle()
 
       if (error) throw error
@@ -129,9 +128,7 @@ const MemberRegistration = () => {
       }
 
       // Send OTP
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: phone,
-      })
+      const { error } = await apiClient.sendOTP(phone)
 
       if (error) {
         toast({
@@ -163,7 +160,7 @@ const MemberRegistration = () => {
 
     try {
       // Verify OTP
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { data, error } = await apiClient.verifyOTP({
         phone: phone,
         token: otp,
         type: 'sms'
@@ -180,19 +177,17 @@ const MemberRegistration = () => {
 
       if (data.user) {
         // Update profile with society_member role
-        await supabase
-          .from('profiles')
-          .update({ 
+        await apiClient
+          ({ 
             full_name: invitation?.name,
             phone: invitation?.phone,
             role: 'society_member'
           })
-          .eq('id', data.user.id)
+          
 
         // Create society membership
-        await supabase
-          .from('society_members')
-          .insert({
+        await apiClient
+          ({
             society_id: societyId,
             user_id: data.user.id,
             flat_number: invitation?.flat_number,
@@ -200,10 +195,9 @@ const MemberRegistration = () => {
           })
 
         // Update invitation status
-        await supabase
-          .from('member_invitations')
-          .update({ status: 'accepted' })
-          .eq('id', invitationId)
+        await apiClient
+          ({ status: 'accepted' })
+          
 
         setRegistered(true)
         toast({
@@ -226,7 +220,7 @@ const MemberRegistration = () => {
     setResendLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await apiClient.sendOTP({
         phone: phone,
       })
       

@@ -8,9 +8,10 @@ import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import xss from 'xss-clean';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+// Import config loader (handles environment variables)
+import config from './config-loader.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -28,9 +29,6 @@ import uploadRoutes from './routes/upload.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './utils/logger.js';
 
-// Load environment variables
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -46,8 +44,8 @@ app.use(helmet({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  windowMs: config.RATE_LIMIT_WINDOW_MS,
+  max: config.RATE_LIMIT_MAX_REQUESTS,
   message: {
     error: 'Too many requests from this IP, please try again later.'
   },
@@ -60,7 +58,7 @@ app.use('/api/', limiter);
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'];
+    const allowedOrigins = config.ALLOWED_ORIGINS.split(',');
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -90,7 +88,7 @@ app.use(hpp());
 app.use(compression());
 
 // Logging middleware
-if (process.env.NODE_ENV === 'development') {
+if (config.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined', {
@@ -109,7 +107,7 @@ app.get('/health', (req, res) => {
     status: 'success',
     message: 'Server is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    environment: config.NODE_ENV
   });
 });
 
@@ -139,14 +137,11 @@ app.use(errorHandler);
 // Database connection
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.NODE_ENV === 'test' 
-      ? process.env.MONGODB_TEST_URI 
-      : process.env.MONGODB_URI;
+    const mongoURI = config.NODE_ENV === 'test' 
+      ? config.MONGODB_TEST_URI 
+      : config.MONGODB_URI;
 
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(mongoURI);
 
     logger.info('MongoDB connected successfully');
   } catch (error) {
@@ -169,14 +164,14 @@ process.on('SIGINT', async () => {
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || 'localhost';
+const PORT = config.PORT;
+const HOST = config.HOST;
 
 const startServer = async () => {
   await connectDB();
   
   app.listen(PORT, HOST, () => {
-    logger.info(`Server running on ${HOST}:${PORT} in ${process.env.NODE_ENV} mode`);
+    logger.info(`Server running on ${HOST}:${PORT} in ${config.NODE_ENV} mode`);
   });
 };
 

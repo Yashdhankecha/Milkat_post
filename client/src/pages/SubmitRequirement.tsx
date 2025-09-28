@@ -1,8 +1,8 @@
+import apiClient from '@/lib/api';
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,9 +123,8 @@ const SubmitRequirement = () => {
         error = null;
       } else {
         // Real Supabase insertion with proper authentication
-        const result = await supabase
-          .from('requirements')
-          .insert({
+        const result = await apiClient
+          ({
             user_id: user.id,
             purpose: formData.purpose,
             budget: formData.budget,

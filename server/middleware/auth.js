@@ -224,10 +224,15 @@ export const generateOTP = (length = 6) => {
   return otp;
 };
 
-// Validate phone number
+// Validate phone number - E.164 format
 export const validatePhoneNumber = (phone) => {
-  const phoneRegex = /^[6-9]\d{9}$/;
-  return phoneRegex.test(phone);
+  // E.164 format: +[country code][number] (max 15 digits total including country code)
+  const e164Regex = /^\+[1-9]\d{7,14}$/;
+  
+  // Also allow 10-digit numbers for backward compatibility
+  const tenDigitRegex = /^\d{10}$/;
+  
+  return e164Regex.test(phone) || tenDigitRegex.test(phone);
 };
 
 // Validate email
