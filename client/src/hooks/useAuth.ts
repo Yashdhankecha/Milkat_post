@@ -9,6 +9,8 @@ export interface User {
   email?: string;
   isVerified: boolean;
   authMethod: 'phone' | 'email';
+  currentRole?: string;
+  activeRole?: string;
   lastLogin?: string;
   createdAt: string;
   updatedAt: string;
@@ -50,6 +52,7 @@ interface AuthContextType {
   register: (phone: string, otp: string, fullName: string, role: UserRole) => Promise<{ data: any; error: any }>;
   login: (phone: string, otp: string) => Promise<{ data: any; error: any }>;
   refreshSession: () => Promise<{ data: any; error: any }>;
+  refreshUser: () => Promise<void>;
   signUpWithSMSForNewRole: (phone: string, fullName: string, role: UserRole) => Promise<{ data: any; error: any }>;
 }
 
@@ -64,6 +67,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Check if mock mode is enabled
   const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true';
+
+  // Helper function to parse expiration time from backend
+  const parseExpirationTime = (expiresIn: string | number): number => {
+    if (typeof expiresIn === 'number') {
+      return expiresIn * 1000; // Convert seconds to milliseconds
+    }
+    
+    // Parse string format like "7d", "24h", "30m"
+    const match = expiresIn.toString().match(/^(\d+)([dhms])$/);
+    if (match) {
+      const value = parseInt(match[1]);
+      const unit = match[2];
+      
+      switch (unit) {
+        case 'd': return value * 24 * 60 * 60 * 1000; // days to milliseconds
+        case 'h': return value * 60 * 60 * 1000; // hours to milliseconds
+        case 'm': return value * 60 * 1000; // minutes to milliseconds
+        case 's': return value * 1000; // seconds to milliseconds
+        default: return 7 * 24 * 60 * 60 * 1000; // default 7 days
+      }
+    }
+    
+    // Default to 7 days if parsing fails
+    return 7 * 24 * 60 * 60 * 1000;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -83,20 +111,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const profileData = JSON.parse(savedProfile);
 
           // Check if session is still valid
-          if (sessionData.expiresAt && sessionData.expiresAt > Date.now()) {
+          const now = Date.now();
+          const expiresAt = sessionData.expiresAt;
+          const isValid = expiresAt && expiresAt > now;
+          
+          console.log('[AuthProvider] Session validation:', {
+            expiresAt: new Date(expiresAt).toISOString(),
+            now: new Date(now).toISOString(),
+            isValid,
+            timeRemaining: expiresAt ? Math.round((expiresAt - now) / 1000 / 60) : 0 // minutes
+          });
+          
+          if (isValid) {
             console.log('[AuthProvider] Restored valid session');
-              if (isMounted) {
+            if (isMounted) {
               setUser(userData);
               setProfile(profileData);
               setSession(sessionData);
               apiClient.setToken(sessionData.accessToken);
-                setLoading(false);
-              }
-              return;
-            } else {
+              setLoading(false);
+            }
+            return;
+          } else {
             console.log('[AuthProvider] Session expired, clearing storage');
             clearAuthStorage();
-            }
+          }
           } catch (error) {
           console.error('[AuthProvider] Error parsing saved session:', error);
           clearAuthStorage();
@@ -104,17 +143,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // If no valid session, try to refresh token
-      if (apiClient.token) {
+      const refreshToken = localStorage.getItem('auth_refresh_token');
+      if (refreshToken) {
         try {
+          console.log('[AuthProvider] Attempting to refresh token...');
           const result = await refreshSession();
           if (result.error) {
-            console.log('[AuthProvider] Token refresh failed, clearing auth');
+            console.log('[AuthProvider] Token refresh failed, clearing auth:', result.error);
             clearAuthStorage();
+          } else {
+            console.log('[AuthProvider] Token refreshed successfully');
           }
         } catch (error) {
           console.error('[AuthProvider] Error refreshing token:', error);
           clearAuthStorage();
         }
+      } else {
+        console.log('[AuthProvider] No refresh token found');
       }
 
       if (isMounted) {
@@ -147,6 +192,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('auth_session', JSON.stringify(sessionData));
     localStorage.setItem('auth_user', JSON.stringify(sessionData.user));
     localStorage.setItem('auth_profile', JSON.stringify(sessionData.profile));
+    localStorage.setItem('auth_token', sessionData.accessToken);
+    localStorage.setItem('auth_refresh_token', sessionData.refreshToken);
     apiClient.setToken(sessionData.accessToken);
     apiClient.setRefreshToken(sessionData.refreshToken);
   };
@@ -270,7 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshToken: result.data.refreshToken,
         user: result.data.user,
         profile: profileData,
-        expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
+        expiresAt: Date.now() + parseExpirationTime(result.data.expiresIn || '7d'),
       };
 
       setUser(sessionData.user);
@@ -365,7 +412,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshToken: result.data.refreshToken,
         user: result.data.user,
         profile: profileData,
-        expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
+        expiresAt: Date.now() + parseExpirationTime(result.data.expiresIn || '7d'),
       };
 
       setUser(sessionData.user);
@@ -411,7 +458,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshToken: result.data.refreshToken,
         user: result.data.user,
         profile: profileData,
-        expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
+        expiresAt: Date.now() + parseExpirationTime(result.data.expiresIn || '7d'),
       };
 
       setUser(sessionData.user);
@@ -449,7 +496,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshToken: result.data.refreshToken,
         user: result.data.user,
         profile: result.data.profile,
-        expiresAt: Date.now() + (result.data.expiresIn || 3600) * 1000,
+        expiresAt: Date.now() + parseExpirationTime(result.data.expiresIn || '7d'),
       };
 
       setUser(sessionData.user);
@@ -516,6 +563,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [profile]);
 
+  const refreshUser = async () => {
+    try {
+      console.log('[AuthProvider] Refreshing user data...');
+      const result = await apiClient.getProfile();
+      if (result.data) {
+        const profileData = result.data;
+        setProfile(profileData);
+        
+        // Update user data with active role from profile
+        if (user) {
+          const updatedUser = {
+            ...user,
+            activeRole: profileData.activeRole || profileData.currentRole,
+            currentRole: profileData.currentRole
+          };
+          setUser(updatedUser);
+          
+          // Update localStorage
+          localStorage.setItem('auth_user', JSON.stringify(updatedUser));
+          localStorage.setItem('auth_profile', JSON.stringify(profileData));
+        }
+        
+        console.log('[AuthProvider] User data refreshed successfully');
+      }
+    } catch (error) {
+      console.error('[AuthProvider] Error refreshing user data:', error);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     profile,
@@ -528,6 +604,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     login,
     refreshSession,
+    refreshUser,
     signUpWithSMSForNewRole,
   };
 

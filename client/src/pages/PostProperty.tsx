@@ -36,7 +36,7 @@ const PostProperty = () => {
     country: 'India',
     property_type: '',
     listing_type: '',
-    images: [] as string[],
+    images: [] as (string | { url: string; caption?: string; isPrimary?: boolean })[],
     videos: [] as string[],
     amenities: [] as string[]
   });
@@ -202,20 +202,21 @@ const PostProperty = () => {
           throw new Error(result.error);
         }
 
-        const uploadedUrls = result.data.images.map((img: any) => {
-          // Ensure URL is absolute for proper display
-          const url = img.url.startsWith('http') ? img.url : `http://localhost:5000${img.url}`;
-          return url;
-        });
+        // New Cloudinary response format - images are already objects with url, caption, isPrimary
+        const uploadedImages = result.data.images.map((img: any) => ({
+          url: img.url, // Cloudinary URLs are already absolute
+          caption: img.caption || `Property image`,
+          isPrimary: img.isPrimary || false
+        }));
         
         setFormData(prev => ({
           ...prev,
-          images: [...prev.images, ...uploadedUrls]
+          images: [...prev.images, ...uploadedImages]
         }));
 
         toast({
           title: "Success!",
-          description: `${uploadedUrls.length} image(s) uploaded successfully.`,
+          description: `${uploadedImages.length} image(s) uploaded successfully.`,
         });
         setUploadingMedia(false);
       }
@@ -514,11 +515,22 @@ const PostProperty = () => {
           },
           propertyType: propertyTypeMap[formData.property_type] || 'other',
           listingType: listingTypeMap[formData.listing_type] || 'sale',
-          images: formData.images.map((url, index) => ({
-            url: url,
-            caption: `Property image ${index + 1}`,
-            isPrimary: index === 0
-          })),
+          images: formData.images.map((image, index) => {
+            // Handle both string URLs (legacy) and object format (new Cloudinary)
+            if (typeof image === 'string') {
+              return {
+                url: image,
+                caption: `Property image ${index + 1}`,
+                isPrimary: index === 0
+              };
+            } else {
+              return {
+                url: image.url,
+                caption: image.caption || `Property image ${index + 1}`,
+                isPrimary: image.isPrimary || index === 0
+              };
+            }
+          }),
           videos: formData.videos.map((url, index) => ({
             url: url,
             caption: `Property video ${index + 1}`
@@ -534,15 +546,8 @@ const PostProperty = () => {
 
         if (result.error) {
           console.error('Property creation error:', result.error);
-          console.error('Validation errors:', result.errors);
-          
-          // Display detailed validation errors
-          if (result.errors && result.errors.length > 0) {
-            const errorMessages = result.errors.map((err: any) => err.msg).join(', ');
-            throw new Error(`Validation failed: ${errorMessages}`);
-          } else {
-            throw new Error(result.error);
-          }
+          // Display error message
+          throw new Error(result.error);
         }
 
         toast({
@@ -843,28 +848,31 @@ const PostProperty = () => {
                           </span>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                          {formData.images.map((url, index) => (
-                            <div key={index} className="relative group">
-                              <div className="aspect-square overflow-hidden rounded-xl border-2 border-orange-200 hover:border-orange-300 transition-colors">
-                                <img 
-                                  src={url} 
-                                  alt={`Property ${index + 1}`} 
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                                  onError={(e) => {
-                                    console.error('Image failed to load:', url);
+                          {formData.images.map((image, index) => {
+                            const imageUrl = typeof image === 'string' ? image : image.url;
+                            return (
+                              <div key={index} className="relative group">
+                                <div className="aspect-square overflow-hidden rounded-xl border-2 border-orange-200 hover:border-orange-300 transition-colors">
+                                  <img 
+                                    src={imageUrl} 
+                                    alt={`Property ${index + 1}`} 
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                    onError={(e) => {
+                                      console.error('Image failed to load:', imageUrl);
                                     e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2UgRXJyb3I8L3RleHQ+PC9zdmc+';
                                   }}
                                 />
                               </div>
                               <button
                                 type="button"
-                                onClick={() => removeImage(url)}
+                                onClick={() => removeImage(imageUrl)}
                                 className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
                               >
                                 <X className="w-3 h-3" />
                               </button>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}

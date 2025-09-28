@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
+import apiClient from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +36,8 @@ import {
 } from "lucide-react";
 
 const Profile = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
   const { profile, updateProfile } = useProfile();
   const { toast } = useToast();
 
@@ -48,6 +51,9 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [userRoles, setUserRoles] = useState<any[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
 
   const roleOptions = [
     { value: "buyer_seller", label: "Property Buyer & Seller", icon: Home, color: "text-blue-600" },
@@ -70,26 +76,107 @@ const Profile = () => {
 
   useEffect(() => {
     if (profile) {
-      setFullName(profile.full_name || "");
-      setPhone(profile.phone || "");
+      setFullName(profile.fullName || "");
+      setPhone((profile as any).phone || "");
       setBio(profile.bio || "");
       setWebsite(profile.website || "");
-      setCompanyName(profile.company_name || "");
-      setBusinessType(profile.business_type || "");
-      setRole((profile.role as any) ?? "buyer_seller");
+      setCompanyName(profile.companyName || "");
+      setBusinessType(profile.businessType || "");
+      // Use activeRole from user data if available, otherwise fallback to currentRole or profile.role
+      const activeRole = user?.activeRole || user?.currentRole || (profile as any).activeRole || (profile as any).currentRole || profile.role;
+      setRole(activeRole as any ?? "buyer_seller");
     }
-  }, [profile]);
+  }, [profile, user]);
+
+  // Fetch user roles
+  useEffect(() => {
+    if (user) {
+      fetchUserRoles();
+    }
+  }, [user]);
+
+  const fetchUserRoles = async () => {
+    try {
+      setLoadingRoles(true);
+      const result = await apiClient.getMyRoles();
+      if (result.data) {
+        setUserRoles(result.data.roles || []);
+      }
+    } catch (error) {
+      console.error('Error fetching user roles:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch your roles",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
+  const handleRoleSwitch = async (newRole: string) => {
+    try {
+      const result = await apiClient.switchRole(newRole);
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      // Update local state with new active role
+      if (result.data.activeRole) {
+        console.log('Role switched to:', result.data.activeRole);
+        
+        // Refresh user data to update the active role in the context
+        await refreshUser();
+      }
+      
+      toast({
+        title: "Role Switched",
+        description: `Successfully switched to ${getRoleInfo(newRole).label}`,
+      });
+      
+      // Get the dashboard path for the new role
+      const dashboardPath = getRoleBasedPath(newRole);
+      
+      // Use navigate instead of window.location.href for better UX
+      navigate(dashboardPath);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to switch role",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getRoleBasedPath = (role: string): string => {
+    switch (role) {
+      case 'admin':
+        return '/admin/dashboard';
+      case 'buyer_seller':
+        return '/buyer-seller/dashboard';
+      case 'broker':
+        return '/broker/dashboard';
+      case 'developer':
+        return '/developer/dashboard';
+      case 'society_owner':
+        return '/society-owner/dashboard';
+      case 'society_member':
+        return '/society-member/dashboard';
+      default:
+        return '/';
+    }
+  };
 
   // Check for changes
   useEffect(() => {
     if (profile) {
       const hasFormChanges = 
-        fullName !== (profile.full_name || "") ||
-        phone !== (profile.phone || "") ||
+        fullName !== (profile.fullName || "") ||
+        phone !== ((profile as any).phone || "") ||
         bio !== (profile.bio || "") ||
         website !== (profile.website || "") ||
-        companyName !== (profile.company_name || "") ||
-        businessType !== (profile.business_type || "") ||
+        companyName !== (profile.companyName || "") ||
+        businessType !== (profile.businessType || "") ||
         role !== profile.role;
       
       setHasChanges(hasFormChanges);
@@ -132,14 +219,14 @@ const Profile = () => {
     
     try {
       const { error } = await updateProfile({
-        full_name: fullName.trim(),
+        fullName: fullName.trim(),
         phone: phone.trim(),
         bio: bio.trim(),
         website: website.trim(),
-        company_name: companyName.trim(),
-        business_type: businessType,
+        companyName: companyName.trim(),
+        businessType: businessType,
         role: role as any,
-      });
+      } as any);
       
       if (error) {
         toast({ 
@@ -204,64 +291,115 @@ const Profile = () => {
             <p className="text-muted-foreground text-lg">Manage your personal information and professional details</p>
           </div>
 
-          {/* Profile Overview Card */}
+          {/* Role Management Section - Moved to Top */}
           <Card className="shadow-soft border-0 bg-gradient-to-r from-estate-blue/5 to-estate-blue-lighter/5">
-            <CardContent className="p-8">
-              <div className="flex flex-col md:flex-row items-center gap-6">
-                <div className="relative">
-                  <Avatar className="h-24 w-24 border-4 border-white shadow-medium">
-                    <AvatarImage src={profile?.profile_picture || ""} />
-                    <AvatarFallback className="text-2xl font-semibold bg-estate-blue text-white">
-                      {fullName ? fullName.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <Button
-                    size="sm"
-                    className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-estate-blue hover:bg-estate-blue-light"
-                  >
-                    <Camera className="h-4 w-4" />
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-estate-blue" />
+                My Registered Roles
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loadingRoles ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-16 bg-muted/50 rounded-lg"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : userRoles.length > 0 ? (
+                <div className="space-y-3">
+                  {userRoles.map((userRole, index) => {
+                    const roleInfo = getRoleInfo(userRole.role);
+                    const IconComponent = roleInfo.icon;
+                    const isCurrentRole = userRole.role === role;
+                    
+                    return (
+                      <div
+                        key={userRole.role}
+                        className={`relative p-4 rounded-lg border transition-all duration-200 ${
+                          isCurrentRole 
+                            ? 'border-estate-blue bg-estate-blue/5 shadow-md' 
+                            : 'border-border hover:border-estate-blue/30 hover:shadow-sm'
+                        }`}
+                      >
+                        {isCurrentRole && (
+                          <div className="absolute -top-2 -right-2">
+                            <Badge className="bg-estate-blue text-white text-xs">
+                              Current
+                            </Badge>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className={`p-2 rounded-lg ${isCurrentRole ? 'bg-estate-blue/10' : 'bg-muted/50'}`}>
+                              <IconComponent className={`h-5 w-5 ${roleInfo.color}`} />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-foreground">
+                                {roleInfo.label}
+                              </h3>
+                              <div className="flex items-center gap-4 mt-1">
+                                <div className="flex items-center gap-1">
+                                  <div className={`w-2 h-2 rounded-full ${
+                                    userRole.status === 'active' ? 'bg-green-500' : 
+                                    userRole.status === 'pending_verification' ? 'bg-yellow-500' : 
+                                    'bg-red-500'
+                                  }`}></div>
+                                  <span className="text-xs text-muted-foreground capitalize">
+                                    {userRole.status.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <div className={`w-2 h-2 rounded-full ${
+                                    userRole.verificationStatus === 'verified' ? 'bg-green-500' : 
+                                    userRole.verificationStatus === 'pending' ? 'bg-yellow-500' : 
+                                    'bg-gray-400'
+                                  }`}></div>
+                                  <span className="text-xs text-muted-foreground capitalize">
+                                    {userRole.verificationStatus}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            {!isCurrentRole && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRoleSwitch(userRole.role)}
+                                className="hover:bg-estate-blue hover:text-white hover:border-estate-blue transition-colors"
+                              >
+                                Switch Role
+                              </Button>
+                            )}
+                            {isCurrentRole && (
+                              <Badge variant="secondary" className="text-xs">
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="font-medium text-foreground mb-2">No Roles Found</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    You don't have any registered roles yet.
+                  </p>
+                  <Button variant="outline" size="sm">
+                    Contact Support
                   </Button>
                 </div>
-                <div className="flex-1 text-center md:text-left">
-                  <h2 className="text-2xl font-bold mb-2">{fullName || "Your Name"}</h2>
-                  <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                    {(() => {
-                      const roleInfo = getRoleInfo(role);
-                      const IconComponent = roleInfo.icon;
-                      return (
-                        <>
-                          <IconComponent className={`h-4 w-4 ${roleInfo.color}`} />
-                          <span className="text-muted-foreground">{roleInfo.label}</span>
-                        </>
-                      );
-                    })()}
-                  </div>
-                  <div className="flex items-center justify-center md:justify-start gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {user.email}
-                    </div>
-                    {phone && (
-                      <div className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {phone}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Badge variant="secondary" className="w-fit">
-                    {profile?.verification_status === 'verified' ? (
-                      <><CheckCircle2 className="h-3 w-3 mr-1 text-green-600" />Verified</>
-                    ) : (
-                      <><AlertCircle className="h-3 w-3 mr-1 text-yellow-600" />Pending</>
-                    )}
-                  </Badge>
-                  <Badge variant="outline" className="w-fit">
-                    {profile?.status === 'active' ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -433,9 +571,37 @@ const Profile = () => {
 
             {/* Sidebar */}
             <div className="space-y-6">
-             
-
-           
+              {/* Role Statistics */}
+              {userRoles.length > 0 && (
+                <Card className="shadow-soft">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-estate-blue" />
+                      Role Statistics
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Total Roles</span>
+                        <span className="text-sm font-medium">{userRoles.length}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Active Roles</span>
+                        <span className="text-sm font-medium">
+                          {userRoles.filter(r => r.status === 'active').length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">Verified Roles</span>
+                        <span className="text-sm font-medium">
+                          {userRoles.filter(r => r.verificationStatus === 'verified').length}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
 

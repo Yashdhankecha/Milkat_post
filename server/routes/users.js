@@ -25,7 +25,7 @@ router.get('/profile',
   authenticate,
   catchAsync(async (req, res) => {
     const profile = await Profile.findOne({ user: req.user._id })
-      .populate('user', 'phone email isVerified lastLogin');
+      .populate('user', 'phone email isVerified lastLogin currentRole activeRole');
 
     if (!profile) {
       return res.status(404).json({
@@ -34,9 +34,14 @@ router.get('/profile',
       });
     }
 
+    // Add current and active role from user model to profile data
+    const profileData = profile.toObject();
+    profileData.currentRole = profile.user.currentRole;
+    profileData.activeRole = profile.user.activeRole;
+
     res.status(200).json({
       status: 'success',
-      data: { profile }
+      data: { profile: profileData }
     });
   })
 );

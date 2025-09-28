@@ -188,8 +188,13 @@ router.post('/verify-otp',
         });
       }
 
-      // Generate tokens
-      const token = generateToken(user._id);
+      // Set the selected role as both current and active role
+      user.currentRole = role;
+      user.activeRole = role;
+      await user.save();
+
+      // Generate tokens with current role
+      const token = generateToken(user._id, { currentRole: role, activeRole: role });
       const refreshToken = generateRefreshToken(user._id);
 
       // Save refresh token
@@ -203,7 +208,9 @@ router.post('/verify-otp',
             id: user._id,
             phone: user.phone,
             email: user.email,
-            isVerified: user.isVerified
+            isVerified: user.isVerified,
+            currentRole: role,
+            activeRole: role
           },
           profile: roleProfile,
           accessToken: token,

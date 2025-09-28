@@ -25,14 +25,10 @@ const Header = () => {
 
   const handleAuthRedirect = () => {
     if (user) {
-      // Check if a specific role is selected
-      const selectedRole = localStorage.getItem('selectedRole')
-      if (selectedRole) {
-        const path = getDashboardPathForRole(selectedRole as any)
-        navigate(path)
-      } else {
-        navigate(getDashboardPath())
-      }
+      // Always use the user's current active role for dashboard navigation
+      const dashboardPath = getDashboardPath()
+      console.log('[Header] Navigating to dashboard:', dashboardPath, 'for user role:', user.activeRole || user.currentRole || profile?.role)
+      navigate(dashboardPath)
     } else {
       navigate('/auth')
     }
@@ -159,9 +155,12 @@ const Header = () => {
   }
 
   const getDashboardPath = () => {
-    if (!profile) return '/'
+    if (!user) return '/'
     
-    switch (profile.role) {
+    // Use activeRole from user data if available, otherwise fallback to currentRole or profile.role
+    const activeRole = user.activeRole || user.currentRole || profile?.role;
+    
+    switch (activeRole) {
       case 'admin':
         return '/admin/dashboard'
       case 'buyer_seller':

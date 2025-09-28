@@ -1,132 +1,174 @@
 import express from 'express';
+import multer from 'multer';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { uploadSingle, uploadMultiple, processUploadedFiles, cleanupTempFiles } from '../middleware/upload.js';
 import { catchAsync } from '../middleware/errorHandler.js';
+import cloudinary from '../config/cloudinary.js';
+import Media from '../models/Media.js';
+import fs from 'fs';
+import path from 'path';
 
 const router = express.Router();
 
-// Upload single image
-router.post('/image',
+// Configure multer for temporary file storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'temp-uploads';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept both images and videos
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image and video files are allowed'), false);
+    }
+  }
+});
+
+// Helper function to upload file to Cloudinary
+const uploadToCloudinary = async (filePath, options = {}) => {
+  try {
+    const result = await cloudinary.uploader.upload(filePath, {
+      resource_type: 'auto', // Automatically detect image or video
+      folder: 'nestly_estate',
+      ...options
+    });
+    
+    // Delete temporary file
+    fs.unlinkSync(filePath);
+    
+    return result;
+  } catch (error) {
+    // Clean up temp file on error
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    throw error;
+  }
+};
+
+// Helper function to save media to database
+const saveMediaToDB = async (cloudinaryResult, userId, additionalData = {}) => {
+  const media = new Media({
+    url: cloudinaryResult.secure_url,
+    public_id: cloudinaryResult.public_id,
+    resource_type: cloudinaryResult.resource_type,
+    format: cloudinaryResult.format,
+    bytes: cloudinaryResult.bytes,
+    width: cloudinaryResult.width,
+    height: cloudinaryResult.height,
+    uploadedBy: userId,
+    ...additionalData
+  });
+  
+  return await media.save();
+};
+
+// Upload single file (image or video)
+router.post('/single',
   authenticate,
-  uploadSingle('image'),
-  processUploadedFiles,
-  cleanupTempFiles,
+  upload.single('file'),
   catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
+    if (!req.file) {
       return res.status(400).json({
-        status: 'error',
-        message: 'No image uploaded'
+        success: false,
+        message: 'No file uploaded'
       });
     }
 
-    const uploadedFile = req.uploadedFiles[0];
+    try {
+      // Upload to Cloudinary
+      const cloudinaryResult = await uploadToCloudinary(req.file.path);
+      
+      // Save to database
+      const media = await saveMediaToDB(cloudinaryResult, req.user._id);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Image uploaded successfully',
-      data: {
-        url: uploadedFile.url,
-        filename: uploadedFile.filename,
-        size: uploadedFile.size,
-        mimetype: uploadedFile.mimetype
-      }
-    });
+      res.status(200).json({
+        success: true,
+        media: {
+          id: media._id,
+          url: media.url,
+          public_id: media.public_id,
+          resource_type: media.resource_type,
+          format: media.format,
+          bytes: media.bytes,
+          width: media.width,
+          height: media.height,
+          createdAt: media.createdAt
+        }
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Upload failed',
+        error: error.message
+      });
+    }
   })
 );
 
-// Upload multiple images
-router.post('/images',
+// Upload multiple files (images and/or videos)
+router.post('/multiple',
   authenticate,
-  uploadMultiple('images', 10),
-  processUploadedFiles,
-  cleanupTempFiles,
+  upload.array('files', 10), // Max 10 files
   catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({
-        status: 'error',
-        message: 'No images uploaded'
+        success: false,
+        message: 'No files uploaded'
       });
     }
 
-    const uploadedFiles = req.uploadedFiles.map(file => ({
-      url: file.url,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype
-    }));
+    try {
+      const uploadPromises = req.files.map(file => 
+        uploadToCloudinary(file.path)
+      );
+      
+      const cloudinaryResults = await Promise.all(uploadPromises);
+      
+      const mediaPromises = cloudinaryResults.map(result => 
+        saveMediaToDB(result, req.user._id)
+      );
+      
+      const mediaResults = await Promise.all(mediaPromises);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Images uploaded successfully',
-      data: {
-        files: uploadedFiles,
-        count: uploadedFiles.length
-      }
-    });
-  })
-);
-
-// Upload document (PDF, etc.)
-router.post('/document',
-  authenticate,
-  uploadSingle('document'),
-  processUploadedFiles,
-  cleanupTempFiles,
-  catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No document uploaded'
+      res.status(200).json({
+        success: true,
+        media: mediaResults.map(media => ({
+          id: media._id,
+          url: media.url,
+          public_id: media.public_id,
+          resource_type: media.resource_type,
+          format: media.format,
+          bytes: media.bytes,
+          width: media.width,
+          height: media.height,
+          createdAt: media.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Upload failed',
+        error: error.message
       });
     }
-
-    const uploadedFile = req.uploadedFiles[0];
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Document uploaded successfully',
-      data: {
-        url: uploadedFile.url,
-        filename: uploadedFile.filename,
-        size: uploadedFile.size,
-        mimetype: uploadedFile.mimetype
-      }
-    });
-  })
-);
-
-// Upload profile picture
-router.post('/profile-picture',
-  authenticate,
-  uploadSingle('profilePicture'),
-  processUploadedFiles,
-  cleanupTempFiles,
-  catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No profile picture uploaded'
-      });
-    }
-
-    const uploadedFile = req.uploadedFiles[0];
-
-    // Update user profile with new picture URL
-    const Profile = (await import('../models/Profile.js')).default;
-    await Profile.findOneAndUpdate(
-      { user: req.user._id },
-      { profilePicture: uploadedFile.url },
-      { new: true }
-    );
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Profile picture uploaded successfully',
-      data: {
-        url: uploadedFile.url,
-        filename: uploadedFile.filename
-      }
-    });
   })
 );
 
@@ -134,166 +176,209 @@ router.post('/profile-picture',
 router.post('/property-images',
   authenticate,
   authorize('buyer_seller', 'broker', 'developer', 'society_owner'),
-  uploadMultiple('images', 20),
-  processUploadedFiles,
-  cleanupTempFiles,
+  upload.array('images', 20),
   catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({
-        status: 'error',
+        success: false,
         message: 'No images uploaded'
       });
     }
 
-    const uploadedFiles = req.uploadedFiles.map((file, index) => ({
-      url: file.url,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype,
-      isPrimary: index === 0 // First image is primary by default
-    }));
+    try {
+      const uploadPromises = req.files.map((file, index) => 
+        uploadToCloudinary(file.path, {
+          folder: 'nestly_estate/properties',
+          tags: ['property', `primary_${index === 0}`]
+        })
+      );
+      
+      const cloudinaryResults = await Promise.all(uploadPromises);
+      
+      const mediaPromises = cloudinaryResults.map((result, index) => 
+        saveMediaToDB(result, req.user._id, {
+          tags: ['property'],
+          alt: `Property image ${index + 1}`,
+          caption: `Property image ${index + 1}`
+        })
+      );
+      
+      const mediaResults = await Promise.all(mediaPromises);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Property images uploaded successfully',
-      data: {
-        images: uploadedFiles,
-        count: uploadedFiles.length
-      }
-    });
+      res.status(200).json({
+        success: true,
+        images: mediaResults.map((media, index) => ({
+          id: media._id,
+          url: media.url,
+          public_id: media.public_id,
+          resource_type: media.resource_type,
+          format: media.format,
+          bytes: media.bytes,
+          width: media.width,
+          height: media.height,
+          isPrimary: index === 0,
+          caption: media.caption,
+          createdAt: media.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error('Property images upload error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Property images upload failed',
+        error: error.message
+      });
+    }
   })
 );
 
-// Upload project images
-router.post('/project-images',
+// Upload profile picture
+router.post('/profile-picture',
   authenticate,
-  authorize('developer'),
-  uploadMultiple('images', 20),
-  processUploadedFiles,
-  cleanupTempFiles,
+  upload.single('profilePicture'),
   catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
+    if (!req.file) {
       return res.status(400).json({
-        status: 'error',
-        message: 'No images uploaded'
+        success: false,
+        message: 'No profile picture uploaded'
       });
     }
 
-    const uploadedFiles = req.uploadedFiles.map((file, index) => ({
-      url: file.url,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype,
-      isPrimary: index === 0 // First image is primary by default
-    }));
+    try {
+      // Upload to Cloudinary with specific folder and transformations
+      const cloudinaryResult = await uploadToCloudinary(req.file.path, {
+        folder: 'nestly_estate/profile_pictures',
+        transformation: [
+          { width: 400, height: 400, crop: 'fill', gravity: 'face' }
+        ],
+        tags: ['profile_picture']
+      });
+      
+      // Save to database
+      const media = await saveMediaToDB(cloudinaryResult, req.user._id, {
+        tags: ['profile_picture'],
+        alt: 'Profile picture'
+      });
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Project images uploaded successfully',
-      data: {
-        images: uploadedFiles,
-        count: uploadedFiles.length
-      }
-    });
+      // Update user profile with new picture URL
+      const Profile = (await import('../models/Profile.js')).default;
+      await Profile.findOneAndUpdate(
+        { user: req.user._id },
+        { profilePicture: media.url },
+        { new: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        media: {
+          id: media._id,
+          url: media.url,
+          public_id: media.public_id,
+          resource_type: media.resource_type,
+          format: media.format,
+          bytes: media.bytes,
+          width: media.width,
+          height: media.height,
+          createdAt: media.createdAt
+        }
+      });
+    } catch (error) {
+      console.error('Profile picture upload error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Profile picture upload failed',
+        error: error.message
+      });
+    }
   })
 );
 
-// Upload verification documents
-router.post('/verification-documents',
+// Delete media file
+router.delete('/:mediaId',
   authenticate,
-  uploadMultiple('documents', 5),
-  processUploadedFiles,
-  cleanupTempFiles,
   catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No documents uploaded'
+    const { mediaId } = req.params;
+    
+    try {
+      // Find media in database
+      const media = await Media.findById(mediaId);
+      
+      if (!media) {
+        return res.status(404).json({
+          success: false,
+          message: 'Media not found'
+        });
+      }
+      
+      // Check if user owns this media
+      if (media.uploadedBy.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only delete your own media'
+        });
+      }
+      
+      // Delete from Cloudinary
+      const deleteResult = await cloudinary.uploader.destroy(media.public_id, {
+        resource_type: media.resource_type
+      });
+      
+      if (deleteResult.result !== 'ok') {
+        console.warn('Cloudinary deletion warning:', deleteResult);
+      }
+      
+      // Delete from database
+      await Media.findByIdAndDelete(mediaId);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Media deleted successfully'
+      });
+    } catch (error) {
+      console.error('Delete media error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Delete failed',
+        error: error.message
       });
     }
-
-    const uploadedFiles = req.uploadedFiles.map(file => ({
-      url: file.url,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype
-    }));
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Verification documents uploaded successfully',
-      data: {
-        documents: uploadedFiles,
-        count: uploadedFiles.length
-      }
-    });
   })
 );
 
-// Upload society images
-router.post('/society-images',
+// Get user's media
+router.get('/my-media',
   authenticate,
-  authorize('society_owner'),
-  uploadMultiple('images', 15),
-  processUploadedFiles,
-  cleanupTempFiles,
   catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No images uploaded'
+    try {
+      const media = await Media.find({ uploadedBy: req.user._id })
+        .sort({ createdAt: -1 })
+        .limit(50);
+      
+      res.status(200).json({
+        success: true,
+        media: media.map(item => ({
+          id: item._id,
+          url: item.url,
+          public_id: item.public_id,
+          resource_type: item.resource_type,
+          format: item.format,
+          bytes: item.bytes,
+          width: item.width,
+          height: item.height,
+          tags: item.tags,
+          alt: item.alt,
+          caption: item.caption,
+          createdAt: item.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error('Get media error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to fetch media',
+        error: error.message
       });
     }
-
-    const uploadedFiles = req.uploadedFiles.map((file, index) => ({
-      url: file.url,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype,
-      isPrimary: index === 0 // First image is primary by default
-    }));
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Society images uploaded successfully',
-      data: {
-        images: uploadedFiles,
-        count: uploadedFiles.length
-      }
-    });
-  })
-);
-
-// Upload floor plans
-router.post('/floor-plans',
-  authenticate,
-  authorize('developer', 'society_owner'),
-  uploadMultiple('floorPlans', 10),
-  processUploadedFiles,
-  cleanupTempFiles,
-  catchAsync(async (req, res) => {
-    if (!req.uploadedFiles || req.uploadedFiles.length === 0) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'No floor plans uploaded'
-      });
-    }
-
-    const uploadedFiles = req.uploadedFiles.map(file => ({
-      url: file.url,
-      filename: file.filename,
-      size: file.size,
-      mimetype: file.mimetype
-    }));
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Floor plans uploaded successfully',
-      data: {
-        floorPlans: uploadedFiles,
-        count: uploadedFiles.length
-      }
-    });
   })
 );
 

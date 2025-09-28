@@ -231,32 +231,6 @@ class ApiClient {
     return this.request(`/inquiries${queryString}`);
   }
 
-  // Likes endpoints
-  async likeProperty(propertyId: string) {
-    return this.request('/likes', {
-      method: 'POST',
-      body: JSON.stringify({ propertyId }),
-    });
-  }
-
-  async unlikeProperty(propertyId: string) {
-    return this.request(`/likes/${propertyId}`, {
-      method: 'DELETE',
-    });
-  }
-
-  async checkIfLiked(propertyId: string) {
-    return this.request(`/likes/check/${propertyId}`);
-  }
-
-  async getLikeCount(propertyId: string) {
-    return this.request(`/likes/count/${propertyId}`);
-  }
-
-  async getMyLikes(params?: any) {
-    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
-    return this.request(`/likes/my-likes${queryString}`);
-  }
 
   // Shares endpoints
   async shareProperty(propertyId: string, shareMethod: string, sharedWith?: string) {
@@ -312,6 +286,86 @@ class ApiClient {
     return this.request('/notifications', {
       method: 'DELETE',
     });
+  }
+
+  // User Roles endpoints
+  async getMyRoles() {
+    return this.request('/user-roles/my-roles');
+  }
+
+  async getAvailableRoles(phone: string) {
+    return this.request('/user-roles/available-roles', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+  }
+
+  async switchRole(role: string) {
+    return this.request('/user-roles/switch-role', {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  async createRole(roleData: {
+    role: string;
+    fullName?: string;
+    companyName?: string;
+    businessType?: string;
+    bio?: string;
+    website?: string;
+  }) {
+    return this.request('/user-roles/create-role', {
+      method: 'POST',
+      body: JSON.stringify(roleData),
+    });
+  }
+
+  async getRoleStatistics() {
+    return this.request('/user-roles/statistics');
+  }
+
+  // Cloudinary upload methods
+  async uploadSingleFile(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.request('/upload/single', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async uploadMultipleFiles(files: File[]) {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    return this.request('/upload/multiple', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async uploadProfilePicture(file: File) {
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    return this.request('/upload/profile-picture', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async deleteMedia(mediaId: string) {
+    return this.request(`/upload/${mediaId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getMyMedia() {
+    return this.request('/upload/my-media');
   }
 
   async getProject(id: string) {

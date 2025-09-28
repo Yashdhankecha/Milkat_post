@@ -11,6 +11,7 @@ import { useProfile } from "@/hooks/useProfile";
 import SMSOTPVerification from "@/components/SMSOTPVerification";
 import { PhoneNumberInput } from "@/components/CountryCodeSelector";
 import { User, Building2, Shield, Home, Users, Briefcase } from "lucide-react";
+import apiClient from "@/lib/api";
 
 const Auth = () => {
   console.log('[Auth] Component initializing');
@@ -27,6 +28,8 @@ const Auth = () => {
   const [availableRoles, setAvailableRoles] = useState<Array<{role: string, full_name: string}>>([]);
   const [selectedLoginRole, setSelectedLoginRole] = useState("");
   const [showLoginRoleSelection, setShowLoginRoleSelection] = useState(false);
+  const [userAvailableRoles, setUserAvailableRoles] = useState<any[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -130,6 +133,20 @@ const Auth = () => {
     }
   }, [user, profile, profileLoading, showOTPVerification, showRoleSelection, navigate]);
 
+  // Fetch available roles when phone number changes (for login)
+  useEffect(() => {
+    if (isLogin && phone && phone.length >= 10) {
+      const timeoutId = setTimeout(() => {
+        fetchAvailableRoles(phone);
+      }, 500); // Debounce the API call
+      
+      return () => clearTimeout(timeoutId);
+    } else {
+      setUserAvailableRoles([]);
+      setShowLoginRoleSelection(false);
+    }
+  }, [phone, isLogin]);
+
   const getRoleBasedPath = (role: string): string => {
     switch (role) {
       case 'admin':
@@ -147,6 +164,45 @@ const Auth = () => {
       default:
         return '/';
     }
+  };
+
+  const fetchAvailableRoles = async (phoneNumber: string) => {
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setUserAvailableRoles([]);
+      return;
+    }
+
+    try {
+      setLoadingRoles(true);
+      const result = await apiClient.getAvailableRoles(phoneNumber);
+      if (result.data && result.data.roles) {
+        setUserAvailableRoles(result.data.roles);
+        if (result.data.roles.length > 0) {
+          setShowLoginRoleSelection(true);
+        }
+      } else {
+        setUserAvailableRoles([]);
+        setShowLoginRoleSelection(false);
+      }
+    } catch (error) {
+      console.error('Error fetching available roles:', error);
+      setUserAvailableRoles([]);
+      setShowLoginRoleSelection(false);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    const roleMap: Record<string, string> = {
+      'buyer_seller': 'Property Buyer & Seller',
+      'broker': 'Real Estate Broker',
+      'developer': 'Property Developer',
+      'society_owner': 'Society Owner/Secretary',
+      'society_member': 'Society Member',
+      'admin': 'Administrator'
+    };
+    return roleMap[role] || role;
   };
 
   // Show loading while checking authentication and profile
@@ -192,16 +248,6 @@ const Auth = () => {
       return;
     }
 
-    // For login, validate role selection
-    if (isLogin && !selectedLoginRole) {
-      toast({
-        title: "Role required",
-        description: "Please select your role to continue.",
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
 
     setLoading(true);
 
@@ -550,34 +596,6 @@ const Auth = () => {
                 </>
               )}
               
-              {isLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="loginRole" className="text-sm font-medium text-foreground">
-                    Select Your Role
-                  </Label>
-                  <Select value={selectedLoginRole} onValueChange={setSelectedLoginRole} required>
-                    <SelectTrigger className="h-11">
-                      <SelectValue placeholder="Choose your role to sign in" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map((role) => {
-                        const IconComponent = role.icon;
-                        return (
-                          <SelectItem key={role.value} value={role.value}>
-                            <div className="flex items-center gap-3 py-1">
-                              <IconComponent className={`h-4 w-4 ${role.color}`} />
-                              <div>
-                                <div className="font-medium">{role.label}</div>
-                                <div className="text-sm text-muted-foreground">{role.description}</div>
-                              </div>
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
               
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-sm font-medium text-foreground">
@@ -593,6 +611,46 @@ const Auth = () => {
                   We'll send you a verification code via SMS
                 </p>
               </div>
+
+              {/* Available Roles Selection for Login */}
+              {isLogin && showLoginRoleSelection && userAvailableRoles.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Select Role to Login
+                  </Label>
+                  <Select value={selectedLoginRole} onValueChange={setSelectedLoginRole}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Choose your role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userAvailableRoles.map((userRole) => (
+                        <SelectItem key={userRole.role} value={userRole.role}>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{getRoleDisplayName(userRole.role)}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ({userRole.status} • {userRole.verificationStatus})
+                              </span>
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {loadingRoles && (
+                    <p className="text-xs text-muted-foreground">Loading available roles...</p>
+                  )}
+                </div>
+              )}
+
+              {/* Show message if no roles found */}
+              {isLogin && phone && phone.length >= 10 && !loadingRoles && userAvailableRoles.length === 0 && (
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    No registered roles found for this phone number. Please register first.
+                  </p>
+                </div>
+              )}
 
               <Button
                 className="w-full h-11 bg-estate-blue hover:bg-estate-blue-light text-white font-medium"

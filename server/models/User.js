@@ -58,7 +58,17 @@ const userSchema = new mongoose.Schema({
     default: false
   },
   suspensionReason: String,
-  suspensionExpires: Date
+  suspensionExpires: Date,
+  currentRole: {
+    type: String,
+    enum: ['admin', 'buyer_seller', 'broker', 'developer', 'society_owner', 'society_member'],
+    default: 'buyer_seller'
+  },
+  activeRole: {
+    type: String,
+    enum: ['admin', 'buyer_seller', 'broker', 'developer', 'society_owner', 'society_member'],
+    default: 'buyer_seller'
+  }
 }, {
   timestamps: true
 });

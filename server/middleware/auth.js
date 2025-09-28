@@ -4,8 +4,9 @@ import Profile from '../models/Profile.js';
 import config from '../config-loader.js';
 
 // Generate JWT token
-export const generateToken = (userId) => {
-  return jwt.sign({ userId }, config.JWT_SECRET, {
+export const generateToken = (userId, additionalPayload = {}) => {
+  const payload = { userId, ...additionalPayload };
+  return jwt.sign(payload, config.JWT_SECRET, {
     expiresIn: config.JWT_EXPIRE
   });
 };

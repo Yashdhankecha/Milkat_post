@@ -8,6 +8,9 @@ export interface UserProfile extends Profile {
   companyName?: string;
   businessType?: string;
   website?: string;
+  phone?: string;
+  currentRole?: string;
+  activeRole?: string;
   socialMedia?: {
     facebook?: string;
     twitter?: string;
