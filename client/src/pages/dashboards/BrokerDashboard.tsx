@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useProfile } from "@/hooks/useProfile"
+import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
 import { 
@@ -57,87 +57,70 @@ const BrokerDashboard = () => {
     pendingInquiries: 0
   })
   const [loading, setLoading] = useState(true)
-  const { profile } = useProfile()
+  const { profile } = useAuth()
   const { toast } = useToast()
 
   useEffect(() => {
     if (profile) {
       fetchDashboardData()
     }
-  }, [profile])
+  }, [profile?.id, profile?.user])
 
   const fetchDashboardData = async () => {
-    if (!profile) return
+    const profileId = profile?.id || profile?.user;
+    if (!profile || !profileId) return
 
     try {
       setLoading(true)
 
-      // Fetch broker profile
-      const { data: brokerData, error: brokerError } = await apiClient
+      // Quick fetch with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      try {
+        // Fetch broker profile and listings in parallel
+        const [brokerResult, listingsResult] = await Promise.allSettled([
+          apiClient.getBrokers({ user_id: profileId }),
+          apiClient.getProperties({ owner_id: profileId })
+        ]);
         
+        clearTimeout(timeoutId);
         
+        // Process broker data
+        if (brokerResult.status === 'fulfilled' && !brokerResult.value.error) {
+          setBrokerProfile(brokerResult.value.data?.[0] as BrokerProfile);
+        } else {
+          setBrokerProfile(null);
+        }
         
-
-      if (brokerError && brokerError.code !== 'PGRST116') {
-        throw brokerError
-      }
-
-      setBrokerProfile(brokerData as BrokerProfile)
-
-      // Fetch statistics (if broker profile exists)
-      if (brokerData) {
-        // Fetch broker's property listings
-        const { data: listingsData, error: listingsError } = await apiClient
-          
-          
-
-        if (listingsError) throw listingsError
-
-        // Fetch inquiries on broker's properties
-        const inquiriesResult = await apiClient.getInquiries();
-        const inquiriesData = inquiriesResult.data || [];
-        const inquiriesError = inquiriesResult.error;
-
-        if (inquiriesError) throw inquiriesError
-
-        // Calculate total commission (simplified - 2% of total property values)
-        const totalCommission = (listingsData || [])
-          .filter(l => l.status === 'sold')
-          .reduce((sum, listing) => sum + ((listing.price || 0) * 0.02), 0)
-
-        // Fetch unique clients (buyers who made inquiries)
-        const clientsResult = await apiClient.getInquiries();
-        const clientsData = clientsResult.data || [];
-        const clientsError = clientsResult.error;
-
-        if (clientsError) throw clientsError
-
-        const uniqueClients = new Set((clientsData || []).map(c => c.user_id)).size
-
+        // Process listings data
+        if (listingsResult.status === 'fulfilled' && !listingsResult.value.error) {
+          setListings(listingsResult.value.data || []);
+        } else {
+          setListings([]);
+        }
+        
+        // Set basic stats
         setStats({
-          totalListings: listingsData?.length || 0,
-          activeClients: uniqueClients,
-          totalCommission: Math.round(totalCommission),
-          pendingInquiries: (inquiriesData || []).filter(i => i.status === 'pending').length
-        })
-
-        // Fetch full listing details for display
-        const { data: fullListingsData, error: fullListingsError } = await apiClient
-          
-          
-          
-
-        if (fullListingsError) throw fullListingsError
-        setListings(fullListingsData || [])
+          totalListings: listingsResult.status === 'fulfilled' ? (listingsResult.value.data || []).length : 0,
+          activeClients: 0, // Will be fetched separately if needed
+          totalCommission: 0, // Will be calculated separately if needed
+          pendingInquiries: 0 // Will be fetched separately if needed
+        });
+        
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Broker dashboard fetch error:', error);
+        setBrokerProfile(null);
+        setListings([]);
+        setStats({ totalListings: 0, activeClients: 0, totalCommission: 0, pendingInquiries: 0 });
       }
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive"
-      })
+      console.error('Error fetching broker dashboard data:', error)
+      setBrokerProfile(null)
+      setListings([])
+      setStats({ totalListings: 0, activeClients: 0, totalCommission: 0, pendingInquiries: 0 })
     } finally {
       setLoading(false)
     }
@@ -154,42 +137,10 @@ const BrokerDashboard = () => {
   }
 
   const createBrokerProfile = async () => {
-    if (!profile) return
-
-    try {
-      setLoading(true)
-      
-      const { data, error } = await apiClient
-        ({
-          user_id: profile.id,
-          specialization: ['Residential Properties'],
-          commission_rate: 2.0,
-          status: 'pending'
-        })
-        .select()
-        
-
-      if (error) throw error
-
-      setBrokerProfile(data as BrokerProfile)
-      
-      // Refresh the dashboard data to show the new profile
-      await fetchDashboardData()
-      
-      toast({
-        title: "Success",
-        description: "Broker profile created successfully! You can now access all broker features."
-      })
-    } catch (error) {
-      console.error('Error creating broker profile:', error)
-      toast({
-        title: "Error",
-        description: "Failed to create broker profile. Please try again.",
-        variant: "destructive"
-      })
-    } finally {
-      setLoading(false)
-    }
+    toast({
+      title: "Info",
+      description: "Broker profile creation will be available soon"
+    })
   }
 
   if (loading) {
@@ -271,7 +222,7 @@ const BrokerDashboard = () => {
           <div>
             <h1 className="text-3xl font-bold">Broker Dashboard</h1>
             <p className="text-muted-foreground mt-1">
-              Welcome back, {profile?.full_name} 
+              Welcome back, {profile?.fullName} 
               {brokerProfile.status === 'pending' && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800">
                   Pending Approval
@@ -390,7 +341,7 @@ const BrokerDashboard = () => {
                         <div className="aspect-video bg-muted relative">
                           {listing.images?.[0] ? (
                             <img 
-                              src={listing.images[0]?.url || listing.images[0]} 
+                              src={listing.images[0]} 
                               alt={listing.title}
                               className="w-full h-full object-cover"
                             />

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import DashboardNav from "@/components/DashboardNav";
 import { SocietyForm } from "@/components/SocietyForm";
 import { MemberManagement } from "@/components/MemberManagement";
@@ -93,14 +93,12 @@ const SocietyOwnerDashboard = () => {
     
     try {
       // Fetch societies owned by the current user
-      const { data: societiesData, error: societyError } = await apiClient
-        
-        ;
+      const { data: societiesData, error: societyError } = await apiClient.getSocieties();
 
       // Use the first society for now (TODO: Add society selector if multiple)
       const societyData = societiesData?.[0];
 
-      if (societyError && societyError.code !== 'PGRST116') {
+      if (societyError) {
         console.error('Society fetch error:', societyError);
         return;
       }
@@ -128,18 +126,14 @@ const SocietyOwnerDashboard = () => {
         }
 
         // Fetch society members
-        const { data: membersData, error: membersError } = await apiClient
-          
-          ;
+        const { data: membersData, error: membersError } = await apiClient.getUsers({ society_id: societyData.id });
 
         if (membersError) {
           console.error('Members fetch error:', membersError);
         } else if (membersData && membersData.length > 0) {
           // Fetch profiles separately to avoid relation issues
           const memberIds = membersData.map(member => member.user_id);
-          const { data: profilesData } = await apiClient
-            
-            ;
+          const { data: profilesData } = await apiClient.getUsers({ ids: memberIds.join(',') });
 
           // Combine the data
           const membersWithProfiles = membersData.map(member => {
@@ -156,10 +150,7 @@ const SocietyOwnerDashboard = () => {
         }
 
         // Fetch requirements
-        const { data: requirementsData, error: requirementsError } = await apiClient
-          
-          
-          ;
+        const { data: requirementsData, error: requirementsError } = await apiClient.getRequirements({ society_id: societyData.id });
 
         if (requirementsError) {
           console.error('Requirements fetch error:', requirementsError);
@@ -170,15 +161,7 @@ const SocietyOwnerDashboard = () => {
         // Fetch proposals for requirements
         const requirementIds = requirementsData?.map(req => req.id) || [];
         if (requirementIds.length > 0) {
-          const { data: proposalsData, error: proposalsError } = await apiClient
-            .select(`
-              *,
-              developers:developer_id (
-                company_name
-              )
-            `)
-            
-            ;
+          const { data: proposalsData, error: proposalsError } = await apiClient.getRequirements({ society_id: societyData.id });
 
           if (proposalsError) {
             console.error('Proposals fetch error:', proposalsError);
@@ -211,12 +194,10 @@ const SocietyOwnerDashboard = () => {
         .filter(doc => doc.status === 'completed' && doc.url)
         .map(doc => doc.url!);
 
-      const { error } = await apiClient
-        ({
-          registration_documents: registrationDocUrls,
-          flat_plan_documents: floorPlanDocUrls
-        })
-        ;
+      const { error } = await apiClient.updateSociety(society.id, {
+        registration_documents: registrationDocUrls,
+        flat_plan_documents: floorPlanDocUrls
+      });
 
       if (error) throw error;
 
@@ -271,6 +252,9 @@ const SocietyOwnerDashboard = () => {
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Society Profile</DialogTitle>
+                  <DialogDescription>
+                    Fill out the form below to create your society profile with all the necessary details.
+                  </DialogDescription>
                 </DialogHeader>
                 <SocietyForm 
                   onSuccess={() => {
@@ -303,6 +287,9 @@ const SocietyOwnerDashboard = () => {
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Create Society Profile</DialogTitle>
+                    <DialogDescription>
+                      Fill out the form below to create your society profile with all the necessary details.
+                    </DialogDescription>
                   </DialogHeader>
                   <SocietyForm 
                     onSuccess={() => {
@@ -407,6 +394,9 @@ const SocietyOwnerDashboard = () => {
                           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Edit Society Profile</DialogTitle>
+                              <DialogDescription>
+                                Update your society profile information below.
+                              </DialogDescription>
                             </DialogHeader>
                             <SocietyForm 
                               society={society} 
@@ -554,6 +544,9 @@ const SocietyOwnerDashboard = () => {
                       <DialogContent className="max-w-2xl">
                         <DialogHeader>
                           <DialogTitle>Create Redevelopment Requirement</DialogTitle>
+                          <DialogDescription>
+                            Submit a redevelopment requirement for your society.
+                          </DialogDescription>
                         </DialogHeader>
                         <RequirementForm 
                           societyId={society.id}

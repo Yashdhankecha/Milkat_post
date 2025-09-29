@@ -8,14 +8,21 @@ const router = express.Router();
 
 // Validation middleware
 const validateRequest = (req, res, next) => {
+  console.log('Running validation on request body:', JSON.stringify(req.body, null, 2));
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('Validation errors found:', errors.array());
     return res.status(400).json({
       status: 'error',
       message: 'Validation failed',
-      errors: errors.array()
+      errors: errors.array().map(error => ({
+        field: error.path,
+        message: error.msg,
+        value: error.value
+      }))
     });
   }
+  console.log('Validation passed successfully');
   next();
 };
 
@@ -73,7 +80,6 @@ router.get('/:id',
 // Create new society
 router.post('/',
   authenticate,
-  authorize('society_owner'),
   [
     body('name')
       .trim()
@@ -91,15 +97,186 @@ router.post('/',
       .trim()
       .isLength({ min: 2, max: 100 })
       .withMessage('State must be between 2 and 100 characters'),
-    body('totalFlats')
-      .isInt({ min: 1 })
-      .withMessage('Total flats must be a positive integer')
+    body('total_flats')
+      .isNumeric()
+      .withMessage('Total flats must be a number')
+      .custom((value) => {
+        const num = parseInt(value);
+        if (isNaN(num) || num < 1) {
+          throw new Error('Total flats must be a positive integer');
+        }
+        return true;
+      }),
+    body('society_type')
+      .optional()
+      .isIn(['Apartment', 'Villa', 'Row House', 'Bungalow', 'Duplex', 'Penthouse', 'Studio', 'Independent House'])
+      .withMessage('Invalid society type'),
+    body('number_of_blocks')
+      .optional()
+      .custom((value) => {
+        if (value === undefined || value === null || value === '') return true;
+        const num = parseInt(value);
+        if (isNaN(num) || num < 1) {
+          throw new Error('Number of blocks must be a positive integer');
+        }
+        return true;
+      }),
+    body('total_area')
+      .optional()
+      .custom((value) => {
+        if (value === undefined || value === null || value === '') return true;
+        const num = parseFloat(value);
+        if (isNaN(num) || num < 0) {
+          throw new Error('Total area must be a positive number');
+        }
+        return true;
+      }),
+    body('year_built')
+      .optional()
+      .custom((value) => {
+        if (value === undefined || value === null || value === '') return true;
+        const num = parseInt(value);
+        const currentYear = new Date().getFullYear();
+        if (isNaN(num) || num < 1900 || num > currentYear) {
+          throw new Error('Year built must be a valid year between 1900 and ' + currentYear);
+        }
+        return true;
+      }),
+    body('fsi')
+      .optional()
+      .custom((value) => {
+        if (value === undefined || value === null || value === '') return true;
+        const num = parseFloat(value);
+        if (isNaN(num) || num < 0) {
+          throw new Error('FSI must be a positive number');
+        }
+        return true;
+      }),
+    body('road_facing')
+      .optional()
+      .isIn(['main', 'arterial', 'collector', 'local', 'corner'])
+      .withMessage('Invalid road facing value'),
+    body('condition_status')
+      .optional()
+      .isIn(['excellent', 'good', 'fair', 'poor', 'critical'])
+      .withMessage('Invalid condition status'),
+    body('amenities')
+      .optional()
+      .isArray()
+      .withMessage('Amenities must be an array'),
+    body('flat_variants')
+      .optional()
+      .isArray()
+      .withMessage('Flat variants must be an array')
+      .custom((value) => {
+        if (!Array.isArray(value)) return true;
+        for (let i = 0; i < value.length; i++) {
+          const variant = value[i];
+          if (!variant.name || typeof variant.name !== 'string') {
+            throw new Error(`Flat variant ${i + 1} must have a valid name`);
+          }
+          if (variant.area !== undefined && variant.area !== null && variant.area !== '') {
+            const area = parseFloat(variant.area);
+            if (isNaN(area) || area < 0) {
+              throw new Error(`Flat variant ${i + 1} area must be a positive number`);
+            }
+          }
+          if (variant.bathrooms !== undefined && variant.bathrooms !== null && variant.bathrooms !== '') {
+            const bathrooms = parseInt(variant.bathrooms);
+            if (isNaN(bathrooms) || bathrooms < 0) {
+              throw new Error(`Flat variant ${i + 1} bathrooms must be a non-negative integer`);
+            }
+          }
+        }
+        return true;
+      }),
+    body('contact_person_name')
+      .optional()
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Contact person name must be between 2 and 100 characters'),
+    body('contact_phone')
+      .optional()
+      .custom((value) => {
+        if (value === undefined || value === null || value === '') return true;
+        // Basic phone number validation - allow various formats
+        const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+        if (!phoneRegex.test(value.replace(/[\s\-\(\)]/g, ''))) {
+          throw new Error('Contact phone must be a valid phone number');
+        }
+        return true;
+      }),
+    body('contact_email')
+      .optional()
+      .isEmail()
+      .withMessage('Contact email must be a valid email address'),
+    body('registration_documents')
+      .optional()
+      .isArray()
+      .withMessage('Registration documents must be an array'),
+    body('flat_plan_documents')
+      .optional()
+      .isArray()
+      .withMessage('Flat plan documents must be an array')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
+    console.log('Society creation request received:');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('User:', req.user ? req.user._id : 'No user');
+    
+    const userId = req.user._id;
+    
+    const Profile = (await import('../models/Profile.js')).default;
+    
+    // Check if user has society_owner role, if not create it
+    let profile = await Profile.findOne({ user: req.user._id, role: 'society_owner' });
+    
+    if (!profile) {
+      // Create society_owner role for the user
+      profile = new Profile({
+        user: req.user._id,
+        role: 'society_owner',
+        fullName: req.body.contact_person_name || req.user.phone,
+        companyName: req.body.name,
+        status: 'active',
+        verificationStatus: 'verified'
+      });
+      
+      await profile.save();
+      
+      // Update user's current role to society_owner
+      req.user.currentRole = 'society_owner';
+      req.user.activeRole = 'society_owner';
+      await req.user.save();
+      
+      console.log(`Created society_owner role for user ${req.user._id}`);
+    }
+
+    // Map frontend field names to backend model field names
     const societyData = {
-      ...req.body,
-      owner: req.user._id
+      name: req.body.name,
+      address: req.body.address,
+      city: req.body.city,
+      state: req.body.state,
+      pincode: req.body.pincode || null,
+      societyType: req.body.society_type || 'Apartment',
+      totalArea: req.body.total_area ? parseFloat(req.body.total_area) : null,
+      totalFlats: parseInt(req.body.total_flats),
+      numberOfBlocks: req.body.number_of_blocks ? parseInt(req.body.number_of_blocks) : null,
+      yearBuilt: req.body.year_built ? parseInt(req.body.year_built) : null,
+      registrationDate: req.body.registration_date ? new Date(req.body.registration_date) : null,
+      fsi: req.body.fsi ? parseFloat(req.body.fsi) : null,
+      roadFacing: req.body.road_facing || null,
+      conditionStatus: req.body.condition_status || 'good',
+      amenities: req.body.amenities || [],
+      contactPersonName: req.body.contact_person_name || null,
+      contactPhone: req.body.contact_phone || null,
+      contactEmail: req.body.contact_email || null,
+      flatVariants: req.body.flat_variants || [],
+      flatPlanDocuments: req.body.flat_plan_documents || [],
+      registrationDocuments: req.body.registration_documents || [],
+      owner: userId
     };
 
     const society = new Society(societyData);
@@ -108,7 +285,10 @@ router.post('/',
     res.status(201).json({
       status: 'success',
       message: 'Society created successfully',
-      data: { society }
+      data: { 
+        society,
+        roleCreated: !profile._id // Indicate if role was just created
+      }
     });
   })
 );

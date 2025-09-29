@@ -70,7 +70,7 @@ const SocietyMemberDashboard = () => {
         }
       }
 
-      if (membershipData) {
+      if (membershipData && membershipData.society_id) {
         console.log('Society ID from membership:', membershipData.society_id)
         
         // Now fetch society data separately
@@ -91,9 +91,8 @@ const SocietyMemberDashboard = () => {
           console.error('No society found for ID:', membershipData.society_id)
           setMembership(membershipData);
         }
-
         // Fetch society requirements
-        const requirementsResult = await apiClient.getSocieties({ society_id: membershipData.society_id });
+        const requirementsResult = await apiClient.getRequirements({ society_id: membershipData.society_id });
         const { data: requirementsData, error: requirementsError } = requirementsResult;
 
         if (requirementsError) {
@@ -101,12 +100,10 @@ const SocietyMemberDashboard = () => {
         } else {
           setRequirements(requirementsData || []);
         }
-
         // Fetch proposals for voting
         const result = await apiClient.getDevelopers();
         const proposalsData = result.data || [];
         const proposalsError = result.error;
-          
 
         if (proposalsError) {
           console.error('Error fetching proposals:', proposalsError);
@@ -114,7 +111,10 @@ const SocietyMemberDashboard = () => {
           setProposals(proposalsData || []);
         }
       } else {
-        console.log('No membership data found')
+        console.log('No membership data or society_id found');
+        setMembership(null);
+        setRequirements([]);
+        setProposals([]);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -277,7 +277,7 @@ const SocietyMemberDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {requirements.map((req) => (
+                      {Array.isArray(requirements) && requirements.map((req) => (
                         <div key={req.id} className="p-4 border rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="font-medium capitalize">{req.requirement_type}</h3>
@@ -293,7 +293,7 @@ const SocietyMemberDashboard = () => {
                           </div>
                         </div>
                       ))}
-                      {requirements.length === 0 && (
+                      {(!Array.isArray(requirements) || requirements.length === 0) && (
                         <div className="text-center py-8">
                           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                           <p className="text-muted-foreground">No active requirements at this time</p>
@@ -316,7 +316,7 @@ const SocietyMemberDashboard = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {proposals.map((proposal) => {
+                        {Array.isArray(proposals) && proposals.map((proposal) => {
                           const requirement = requirements.find(r => r.id === proposal.requirement_id);
                           return (
                             <div key={proposal.id} className="p-4 border rounded-lg">
@@ -359,7 +359,7 @@ const SocietyMemberDashboard = () => {
                             </div>
                           );
                         })}
-                        {proposals.length === 0 && (
+                        {(!Array.isArray(proposals) || proposals.length === 0) && (
                           <div className="text-center py-8">
                             <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                             <p className="text-muted-foreground">No proposals available yet</p>

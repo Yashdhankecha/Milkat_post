@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useProfile } from "@/hooks/useProfile"
+import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
 import { 
@@ -49,7 +49,7 @@ const SellerDashboard = () => {
   const [properties, setProperties] = useState<UserProperty[]>([])
   const [inquiries, setInquiries] = useState<PropertyInquiry[]>([])
   const [loading, setLoading] = useState(true)
-  const { profile } = useProfile()
+  const { profile } = useAuth()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -136,7 +136,7 @@ const SellerDashboard = () => {
       if (error) throw error
 
       // Remove property from local state
-      setProperties(prev => prev.filter(p => p.id !== propertyId))
+      setProperties(prev => Array.isArray(prev) ? prev.filter(p => p.id !== propertyId) : [])
       
       toast({
         title: "Success",
@@ -188,7 +188,7 @@ const SellerDashboard = () => {
                 <Home className="h-8 w-8 text-blue-500" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Total Properties</p>
-                  <div className="text-2xl font-bold">{properties.length}</div>
+                  <div className="text-2xl font-bold">{Array.isArray(properties) ? properties.length : 0}</div>
                 </div>
               </div>
             </CardContent>
@@ -201,7 +201,7 @@ const SellerDashboard = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Active Listings</p>
                   <div className="text-2xl font-bold">
-                    {properties.filter(p => p.status === 'available').length}
+                    {Array.isArray(properties) ? properties.filter(p => p.status === 'available').length : 0}
                   </div>
                 </div>
               </div>
@@ -215,7 +215,7 @@ const SellerDashboard = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">New Inquiries</p>
                   <div className="text-2xl font-bold">
-                    {inquiries.filter(inq => inq.status === 'pending').length}
+                    {Array.isArray(inquiries) ? inquiries.filter(inq => inq.status === 'pending').length : 0}
                   </div>
                 </div>
               </div>
@@ -251,7 +251,7 @@ const SellerDashboard = () => {
                 <CardDescription>Manage your property listings</CardDescription>
               </CardHeader>
               <CardContent>
-                {properties.length === 0 ? (
+                {!Array.isArray(properties) || properties.length === 0 ? (
                   <div className="text-center py-8">
                     <Home className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No properties listed yet</h3>
@@ -262,7 +262,7 @@ const SellerDashboard = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {properties.map((property) => (
+                    {Array.isArray(properties) && properties.map((property) => (
                       <Card key={property.id} className="overflow-hidden">
                         <div className="aspect-video bg-muted relative">
                           {property.images?.[0] ? (

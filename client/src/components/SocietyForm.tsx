@@ -1,5 +1,6 @@
 import apiClient from '@/lib/api';
 import { useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -52,6 +53,7 @@ interface FlatVariant {
 }
 
 export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFormProps) => {
+  const { user } = useAuth()
   const [name, setName] = useState(society?.name || '')
   const [societyType, setSocietyType] = useState(society?.society_type || '')
   const [numberOfBlocks, setNumberOfBlocks] = useState(society?.number_of_blocks?.toString() || '')
@@ -116,19 +118,25 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
   })
 
   const handleConditionChange = (condition: string, checked: boolean) => {
-    if (checked) {
-      setConditionStatus([condition])
-    } else {
-      setConditionStatus([])
-    }
+    // Defer state update to avoid flushSync warning
+    setTimeout(() => {
+      if (checked) {
+        setConditionStatus([condition])
+      } else {
+        setConditionStatus([])
+      }
+    }, 0)
   }
 
   const handleAmenityChange = (amenity: string, checked: boolean) => {
-    if (checked) {
-      setAmenities([...amenities, amenity])
-    } else {
-      setAmenities(amenities.filter(a => a !== amenity))
-    }
+    // Defer state update to avoid flushSync warning
+    setTimeout(() => {
+      if (checked) {
+        setAmenities([...amenities, amenity])
+      } else {
+        setAmenities(amenities.filter(a => a !== amenity))
+      }
+    }, 0)
   }
 
   const addFlatVariant = () => {
@@ -203,19 +211,14 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         contact_email: contactEmail || null,
         registration_documents: allDocumentUrls.length > 0 ? allDocumentUrls : null,
         flat_plan_documents: allFlatPlanUrls.length > 0 ? allFlatPlanUrls : null,
-        ...(!isEditing && { owner_id: (await apiClient.auth.getUser()).data.user?.id })
+        ...(!isEditing && { owner_id: user?.id })
       }
 
       let result
       if (isEditing && society) {
-        result = await apiClient
-          (societyData)
-          
-          .select()
+        result = await apiClient.updateSociety(society.id, societyData)
       } else {
-        result = await apiClient
-          (societyData)
-          .select()
+        result = await apiClient.createSociety(societyData)
       }
 
       if (result.error) throw result.error

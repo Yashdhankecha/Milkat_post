@@ -57,41 +57,40 @@ export const useProfile = () => {
       return;
     }
 
-    if (mockEnabled) {
-      // In mock mode, use the profile from auth context
-      if (authProfile) {
-        const mockProfile: UserProfile = {
-          ...authProfile,
-          bio: 'Mock user bio',
-          profilePicture: null,
-          companyName: authProfile.role === 'developer' ? 'Mock Development Company' : undefined,
-          businessType: authProfile.role === 'broker' ? 'Real Estate Brokerage' : undefined,
-          website: 'https://mock-website.com',
-          socialMedia: {
-            facebook: 'https://facebook.com/mockuser',
-            twitter: 'https://twitter.com/mockuser',
-            linkedin: 'https://linkedin.com/in/mockuser',
+    // Use profile from auth context (both mock and real mode)
+    if (authProfile) {
+      const extendedProfile: UserProfile = {
+        ...authProfile,
+        bio: authProfile.bio || 'User bio',
+        profilePicture: authProfile.profilePicture || null,
+        companyName: authProfile.companyName,
+        businessType: authProfile.businessType,
+        website: authProfile.website || 'https://example.com',
+        socialMedia: {
+          facebook: '',
+          twitter: '',
+          linkedin: '',
+        },
+        preferences: {
+          notifications: {
+            email: true,
+            sms: true,
+            push: true,
           },
-          preferences: {
-            notifications: {
-              email: true,
-              sms: true,
-              push: true,
-            },
-            privacy: {
-              showPhone: false,
-              showEmail: false,
-              showProfile: true,
-            },
+          privacy: {
+            showPhone: false,
+            showEmail: false,
+            showProfile: true,
           },
-          lastActive: new Date().toISOString(),
-        };
-        setProfile(mockProfile);
-      }
+        },
+        lastActive: new Date().toISOString(),
+      };
+      setProfile(extendedProfile);
       setLoading(false);
       return;
     }
 
+    // If no auth profile, try to fetch from API
     fetchProfile();
   }, [user, authProfile]);
 

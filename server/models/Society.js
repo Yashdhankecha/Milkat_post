@@ -9,7 +9,6 @@ const societySchema = new mongoose.Schema({
   },
   societyCode: {
     type: String,
-    required: true,
     unique: true,
     trim: true,
     uppercase: true
@@ -39,8 +38,8 @@ const societySchema = new mongoose.Schema({
   },
   societyType: {
     type: String,
-    enum: ['residential', 'commercial', 'mixed_use', 'cooperative_housing'],
-    default: 'residential'
+    enum: ['Apartment', 'Villa', 'Row House', 'Bungalow', 'Duplex', 'Penthouse', 'Studio', 'Independent House'],
+    default: 'Apartment'
   },
   totalArea: {
     type: Number,
@@ -69,23 +68,19 @@ const societySchema = new mongoose.Schema({
   },
   roadFacing: {
     type: String,
-    enum: ['north', 'south', 'east', 'west', 'north_east', 'north_west', 'south_east', 'south_west']
+    enum: ['main', 'arterial', 'collector', 'local', 'corner']
   },
   conditionStatus: {
     type: String,
-    enum: ['excellent', 'good', 'average', 'poor', 'needs_renovation'],
+    enum: ['excellent', 'good', 'fair', 'poor', 'critical'],
     default: 'good'
   },
   amenities: [{
     type: String,
     enum: [
-      'parking', 'security', 'gym', 'swimming_pool', 'garden', 'playground',
-      'clubhouse', 'power_backup', 'water_supply', 'elevator', 'balcony',
-      'terrace', 'modular_kitchen', 'wardrobe', 'ac', 'furnished', 'semi_furnished',
-      'conference_room', 'business_center', 'retail_shops', 'restaurant', 'spa',
-      'tennis_court', 'basketball_court', 'badminton_court', 'cricket_net',
-      'jogging_track', 'cycling_track', 'amphitheater', 'library', 'kids_play_area',
-      'senior_citizen_area', 'pet_area', 'visitor_parking', 'cctv', 'intercom'
+      'Indoor Game Room', 'Swimming Pool', 'Garden Area', 'Gym', 'Playground', 'Parking', 'Security', 
+      'Club House', 'Power Backup', 'Water Supply', 'Elevator', 'CCTV',
+      'Maintenance Staff', 'Visitor Parking', 'Intercom', 'Fire Safety'
     ]
   }],
   contactPersonName: {
@@ -107,49 +102,25 @@ const societySchema = new mongoose.Schema({
     required: true
   },
   flatVariants: [{
-    type: {
+    name: {
       type: String,
-      enum: ['1bhk', '2bhk', '3bhk', '4bhk', '5bhk', 'penthouse', 'villa', 'duplex', 'studio'],
-      required: true
-    },
-    count: {
-      type: Number,
       required: true,
-      min: 0
+      trim: true
     },
     area: {
       type: Number,
-      required: true,
       min: 0
     },
-    price: {
+    bathrooms: {
       type: Number,
       min: 0
     }
   }],
   flatPlanDocuments: [{
-    type: {
-      type: String,
-      enum: ['floor_plan', 'layout_plan', 'site_plan', 'elevation', 'other']
-    },
-    url: String,
-    name: String,
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
+    type: String
   }],
   registrationDocuments: [{
-    type: {
-      type: String,
-      enum: ['registration_certificate', 'byelaws', 'noc', 'approval_documents', 'other']
-    },
-    url: String,
-    name: String,
-    uploadedAt: {
-      type: Date,
-      default: Date.now
-    }
+    type: String
   }],
   images: [{
     url: {

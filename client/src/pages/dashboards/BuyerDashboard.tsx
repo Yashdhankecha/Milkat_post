@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useProfile } from "@/hooks/useProfile"
+import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
 import { 
@@ -54,72 +54,53 @@ const BuyerDashboard = () => {
   const [savedProperties, setSavedProperties] = useState<SavedProperty[]>([])
   const [inquiries, setInquiries] = useState<UserInquiry[]>([])
   const [loading, setLoading] = useState(true)
-  const { profile } = useProfile()
+  const { profile } = useAuth()
   const { toast } = useToast()
 
   useEffect(() => {
     if (profile) {
       fetchDashboardData()
     }
-  }, [profile])
+  }, [profile?.id, profile?.user])
 
   const fetchDashboardData = async () => {
-    if (!profile) return
+    const profileId = profile?.id || profile?.user;
+    if (!profile || !profileId) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true)
+      setLoading(true);
+      
+      // Quick API calls with 2 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const [likesResult, inquiriesResult] = await Promise.allSettled([
+        apiClient.getLikes(),
+        apiClient.getInquiries({ user_id: profileId })
+      ]);
+      
+      clearTimeout(timeoutId);
 
-      // Fetch saved properties
-      const { data: savedData, error: savedError } = await apiClient
-        .select(`
-          id,
-          created_at,
-          property_id,
-          properties (
-            id,
-            title,
-            location,
-            city,
-            price,
-            property_type,
-            images,
-            status
-          )
-        `)
-        
-        
-
-      if (savedError) throw savedError
-      setSavedProperties(savedData || [])
-
-      // Fetch user inquiries
-      const { data: inquiryData, error: inquiryError } = await apiClient
-        .select(`
-          id,
-          subject,
-          message,
-          inquiry_type,
-          status,
-          created_at,
-          property_id,
-          properties (
-            title,
-            location
-          )
-        `)
-        
-        
-
-      if (inquiryError) throw inquiryError
-      setInquiries(inquiryData || [])
+      // Process results quickly
+      if (likesResult.status === 'fulfilled' && !likesResult.value.error) {
+        setSavedProperties(likesResult.value.data || []);
+      } else {
+        setSavedProperties([]);
+      }
+      
+      if (inquiriesResult.status === 'fulfilled' && !inquiriesResult.value.error) {
+        setInquiries(inquiriesResult.value.data || []);
+      } else {
+        setInquiries([]);
+      }
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive"
-      })
+      setSavedProperties([])
+      setInquiries([])
     } finally {
       setLoading(false)
     }
@@ -127,9 +108,7 @@ const BuyerDashboard = () => {
 
   const removeSavedProperty = async (savedPropertyId: string) => {
     try {
-      const { error } = await apiClient
-        .delete()
-        
+      const { error } = await apiClient.unlikeProperty(savedPropertyId);
 
       if (error) throw error
 
@@ -172,7 +151,7 @@ const BuyerDashboard = () => {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Welcome back, {profile?.full_name}</h1>
+            <h1 className="text-3xl font-bold">Welcome back, {profile?.fullName}</h1>
             <p className="text-muted-foreground mt-1">Find your dream property with MilkatPost</p>
           </div>
           <div className="flex gap-2">

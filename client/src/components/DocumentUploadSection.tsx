@@ -13,6 +13,7 @@ import { Upload, FileText, X, Eye, Download, Trash2, CheckCircle2, AlertCircle, 
 export interface DocumentFile {
   file?: File;
   url?: string;
+  mediaId?: string;
   name: string;
   size?: number;
   uploadProgress?: number;
@@ -109,24 +110,17 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
     updateDocumentStatus(index, 'uploading', 0);
 
     try {
-      const fileExt = document.file.name.split('.').pop();
-      const filePath = `${folderPath}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await apiClient.storage
-        .from(bucketName)
-        .upload(filePath, document.file);
+      // Use our API client's upload method
+      const { data, error: uploadError } = await apiClient.uploadSingleFile(document.file);
 
       if (uploadError) throw uploadError;
-
-      const { data } = apiClient.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
 
       // Update document with completed status
       const updatedDocuments = [...documents];
       updatedDocuments[index] = {
         ...document,
-        url: data.publicUrl,
+        url: data.media.url,
+        mediaId: data.media.id,
         status: 'completed',
         uploadProgress: 100
       };
@@ -170,16 +164,11 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
     if (!document.url) return;
 
     try {
-      // Extract file path from URL - get the part after the bucket name
-      const urlParts = document.url.split('/');
-      const bucketIndex = urlParts.findIndex(part => part === bucketName);
-      const filePath = urlParts.slice(bucketIndex + 1).join('/');
-
-      const { error } = await apiClient.storage
-        .from(bucketName)
-        .remove([filePath]);
-
-      if (error) throw error;
+      // Use our API client's delete method if we have a mediaId
+      if (document.mediaId) {
+        const { error } = await apiClient.deleteMedia(document.mediaId);
+        if (error) throw error;
+      }
 
       removeDocument(index);
 

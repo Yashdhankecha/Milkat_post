@@ -104,11 +104,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const savedUser = localStorage.getItem('auth_user');
       const savedProfile = localStorage.getItem('auth_profile');
 
-      if (savedSession && savedUser && savedProfile) {
+      console.log('[AuthProvider] localStorage check:', {
+        savedSession: !!savedSession,
+        savedUser: !!savedUser,
+        savedProfile: !!savedProfile,
+        savedProfileContent: savedProfile ? JSON.parse(savedProfile) : null
+      });
+
+      if (savedSession && savedUser) {
         try {
           const sessionData = JSON.parse(savedSession);
           const userData = JSON.parse(savedUser);
-          const profileData = JSON.parse(savedProfile);
+          const profileData = savedProfile ? JSON.parse(savedProfile) : null;
 
           // Check if session is still valid
           const now = Date.now();
@@ -124,12 +131,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           if (isValid) {
             console.log('[AuthProvider] Restored valid session');
+            console.log('[AuthProvider] Profile data from localStorage:', profileData);
+            console.log('[AuthProvider] Profile data from session:', sessionData.profile);
+            
             if (isMounted) {
               setUser(userData);
-              setProfile(profileData);
               setSession(sessionData);
               apiClient.setToken(sessionData.accessToken);
-              setLoading(false);
+              
+              // Try profile from localStorage first, then from session
+              const finalProfile = profileData || sessionData.profile;
+              console.log('[AuthProvider] Setting profile to:', finalProfile);
+              
+              if (finalProfile) {
+                setProfile(finalProfile);
+                setLoading(false);
+              } else {
+                // If no profile found, try to fetch it from API
+                console.log('[AuthProvider] No profile found, fetching from API...');
+                try {
+                  const profileResult = await apiClient.getProfile();
+                  if (profileResult.data && !profileResult.error) {
+                    console.log('[AuthProvider] Profile fetched from API:', profileResult.data);
+                    setProfile(profileResult.data);
+                  } else {
+                    console.error('[AuthProvider] Failed to fetch profile:', profileResult.error);
+                  }
+                } catch (error) {
+                  console.error('[AuthProvider] Error fetching profile:', error);
+                }
+                setLoading(false);
+              }
             }
             return;
           } else {

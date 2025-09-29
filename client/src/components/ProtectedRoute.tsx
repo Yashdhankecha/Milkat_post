@@ -1,14 +1,13 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
-import { useProfile, UserProfile } from '@/hooks/useProfile'
+import { useAuth, Profile } from '@/hooks/useAuth'
 import { Loader2 } from 'lucide-react'
 import SuspendedUserMessage from './SuspendedUserMessage'
 import apiClient from '@/lib/api'
 
 interface ProtectedRouteProps {
   children: ReactNode
-  requiredRole?: UserProfile['role'] | UserProfile['role'][]
+  requiredRole?: Profile['role'] | Profile['role'][]
   requireAuth?: boolean
 }
 
@@ -17,17 +16,26 @@ export const ProtectedRoute = ({
   requiredRole, 
   requireAuth = true 
 }: ProtectedRouteProps) => {
-  const { user, loading: authLoading, isUserSuspended } = useAuth()
-  const { profile, loading: profileLoading, hasRole, userRoles } = useProfile()
+  const { user, profile, loading: authLoading, isUserSuspended } = useAuth()
   const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true'
   const navigate = useNavigate()
   const [loadingRoles, setLoadingRoles] = useState(false)
 
+  // Simple hasRole function
+  const hasRole = (role: Profile['role'] | Profile['role'][]) => {
+    if (!profile) return false;
+    if (Array.isArray(role)) {
+      return role.includes(profile.role);
+    }
+    return profile.role === role;
+  };
+
   console.log('[ProtectedRoute] Render - User state:', {
     user: !!user,
     userId: user?.id,
+    profile: !!profile,
+    profileRole: profile?.role,
     authLoading,
-    profileLoading,
     isUserSuspended,
     requireAuth,
     requiredRole
@@ -36,10 +44,10 @@ export const ProtectedRoute = ({
   // Check if user has multiple roles and needs to select one
   useEffect(() => {
     const checkUserRoles = async () => {
-      console.log('[ProtectedRoute] Checking user roles, user:', !!user, 'profileLoading:', profileLoading, 'profile:', !!profile);
+      console.log('[ProtectedRoute] Checking user roles, user:', !!user, 'authLoading:', authLoading, 'profile:', !!profile);
       
       // Only run this check if we have a user but no profile yet
-      if (user && !profileLoading && !profile) {
+      if (user && !authLoading && !profile) {
         setLoadingRoles(true)
         try {
           // Check if a role has already been selected
@@ -92,10 +100,10 @@ export const ProtectedRoute = ({
     }
     
     checkUserRoles()
-  }, [user, profileLoading, profile, mockEnabled, navigate])
+  }, [user, authLoading, profile, mockEnabled, navigate])
 
   // Show loading spinner while checking authentication
-  if (authLoading || profileLoading || loadingRoles) {
+  if (authLoading || loadingRoles) {
     console.log('[ProtectedRoute] Showing loading spinner');
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -121,7 +129,7 @@ export const ProtectedRoute = ({
   // Check role-based access
   if (requiredRole && profile && !hasRole(requiredRole)) {
     const redirectPath = getRoleBasedPath(profile.role)
-    console.log('[ProtectedRoute] Role mismatch, redirecting to:', redirectPath)
+    console.log('[ProtectedRoute] Role mismatch - Current role:', profile.role, 'Required role:', requiredRole, 'Redirecting to:', redirectPath)
     return <Navigate to={redirectPath} replace />
   }
 
@@ -129,7 +137,8 @@ export const ProtectedRoute = ({
   return <>{children}</>
 }
 
-const getRoleBasedPath = (role: UserProfile['role']): string => {
+const getRoleBasedPath = (role: Profile['role']): string => {
+  console.log('[ProtectedRoute] getRoleBasedPath called with role:', role, 'Type:', typeof role);
   switch (role) {
     case 'admin':
       return '/admin/dashboard'
@@ -144,6 +153,7 @@ const getRoleBasedPath = (role: UserProfile['role']): string => {
     case 'society_member':
       return '/society-member/dashboard'
     default:
+      console.log('[ProtectedRoute] Unknown role, redirecting to home:', role);
       return '/'
   }
 }

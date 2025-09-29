@@ -1,13 +1,23 @@
 // Configuration loader that handles environment variables properly
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get the directory of the current module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables from .env file
-dotenv.config({ path: path.join(process.cwd(), '.env') });
+const envPath = path.join(__dirname, '.env');
+console.log('Looking for .env file at:', envPath);
 
-// Also try loading from the current directory if the above doesn't work
-if (!process.env.MONGODB_URI) {
+const result = dotenv.config({ path: envPath });
+if (result.error) {
+  console.log('Error loading .env file:', result.error);
+  // Try loading from the current working directory
   dotenv.config();
+} else {
+  console.log('✅ .env file loaded successfully');
 }
 
 // If still no MONGODB_URI, set it directly for development
@@ -21,6 +31,10 @@ console.log('Environment check:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
 console.log('MONGODB_URI value:', process.env.MONGODB_URI ? 'Set' : 'Not set');
+console.log('CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME);
+console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY);
+console.log('CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'Set' : 'Not set');
+console.log('All env vars with CLOUDINARY:', Object.keys(process.env).filter(key => key.includes('CLOUDINARY')));
 console.log('Working directory:', process.cwd());
 
 const config = {

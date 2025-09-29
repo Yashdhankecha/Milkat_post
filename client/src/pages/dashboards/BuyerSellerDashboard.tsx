@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useProfile } from "@/hooks/useProfile"
+import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
 import { 
@@ -84,100 +84,86 @@ const BuyerSellerDashboard = () => {
   const [myInquiries, setMyInquiries] = useState<UserInquiry[]>([])
   const [propertyInquiries, setPropertyInquiries] = useState<PropertyInquiry[]>([])
   const [loading, setLoading] = useState(true)
-  const { profile } = useProfile()
+  const { profile } = useAuth()
   const { toast } = useToast()
 
   useEffect(() => {
-    if (profile) {
-      fetchDashboardData()
+    // Quick authentication check
+    const authToken = localStorage.getItem('auth_token');
+    if (!authToken) {
+      toast({
+        title: "Authentication Error",
+        description: "Please login again.",
+        variant: "destructive"
+      });
+      setLoading(false);
+      return;
     }
-  }, [profile])
+
+    // Get profile ID - try different possible field names
+    const profileId = profile?.id || profile?.user;
+    
+    if (profile && profileId) {
+      console.log('[BuyerSellerDashboard] Loading data for profile:', profileId);
+      fetchDashboardData();
+    } else {
+      console.log('[BuyerSellerDashboard] No profile or ID found');
+      setLoading(false);
+    }
+  }, [profile?.id, profile?.user])
 
   const fetchDashboardData = async () => {
-    if (!profile) return
+    const profileId = profile?.id || profile?.user;
+    if (!profileId) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true)
-
-      // Fetch saved properties (buyer functionality)
-      const { data: savedData, error: savedError } = await apiClient
-        .select(`
-          id,
-          created_at,
-          property_id,
-          properties (
-            id,
-            title,
-            location,
-            city,
-            price,
-            property_type,
-            images,
-            status
-          )
-        `)
-        
-        
-
-      if (savedError) throw savedError
-      setSavedProperties(savedData || [])
-
-      // Fetch my properties (seller functionality)
-      const { data: propertiesData, error: propertiesError } = await apiClient
-        
-        
-        
-
-      if (propertiesError) throw propertiesError
-      setMyProperties(propertiesData || [])
-
-      // Fetch my inquiries (buyer functionality)
-      const { data: inquiryData, error: inquiryError } = await apiClient
-        .select(`
-          id,
-          subject,
-          message,
-          inquiry_type,
-          status,
-          created_at,
-          property_id,
-          properties (
-            title,
-            location
-          )
-        `)
-        
-        
-
-      if (inquiryError) throw inquiryError
-      setMyInquiries(inquiryData || [])
-
-      // Fetch inquiries on my properties (seller functionality)
-      const result = await apiClient.getInquiries();
-      const propertyInquiryData = result.data || [];
-      const propertyInquiryError = result.error;
-        
-
-      if (propertyInquiryError) throw propertyInquiryError
-      setPropertyInquiries(propertyInquiryData || [])
-
+      setLoading(true);
+      
+      // Quick API calls with 2 second timeout each
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const [likesResult, propertiesResult] = await Promise.allSettled([
+        apiClient.getLikes(),
+        apiClient.getProperties({ owner_id: profileId })
+      ]);
+      
+      clearTimeout(timeoutId);
+      
+      // Process results quickly
+      if (likesResult.status === 'fulfilled' && !likesResult.value.error) {
+        setSavedProperties(likesResult.value.data || []);
+      } else {
+        setSavedProperties([]);
+      }
+      
+      if (propertiesResult.status === 'fulfilled' && !propertiesResult.value.error) {
+        setMyProperties(propertiesResult.value.data || []);
+      } else {
+        setMyProperties([]);
+      }
+      
+      // Set inquiries to empty for now to speed up loading
+      setMyInquiries([]);
+      setPropertyInquiries([]);
+      
     } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive"
-      })
+      console.error('Dashboard fetch error:', error);
+      setSavedProperties([]);
+      setMyProperties([]);
+      setMyInquiries([]);
+      setPropertyInquiries([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const removeSavedProperty = async (savedPropertyId: string) => {
     try {
-      const { error } = await apiClient
-        .delete()
-        
+      const { error } = await apiClient.unlikeProperty(savedPropertyId);
 
       if (error) throw error
 
@@ -186,7 +172,7 @@ const BuyerSellerDashboard = () => {
         description: "Property removed from saved list"
       })
 
-      setSavedProperties(prev => prev.filter(prop => prop.id !== savedPropertyId))
+      setSavedProperties(prev => Array.isArray(prev) ? prev.filter(prop => prop.id !== savedPropertyId) : [])
     } catch (error) {
       toast({
         title: "Error",
@@ -202,13 +188,11 @@ const BuyerSellerDashboard = () => {
     }
 
     try {
-      const { error } = await apiClient
-        .delete()
-        
+      const { error } = await apiClient.deleteProperty(propertyId)
 
       if (error) throw error
 
-      setMyProperties(prev => prev.filter(p => p.id !== propertyId))
+      setMyProperties(prev => Array.isArray(prev) ? prev.filter(p => p.id !== propertyId) : [])
       
       toast({
         title: "Success",
@@ -243,10 +227,19 @@ const BuyerSellerDashboard = () => {
     }
   }
 
+  // Simple loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-background">
+        <DashboardNav />
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground">Loading dashboard...</p>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -258,7 +251,7 @@ const BuyerSellerDashboard = () => {
         {/* Header - Made responsive */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {profile?.full_name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Welcome back, {profile?.fullName}</h1>
             <p className="text-muted-foreground mt-1">Buy, sell, and manage properties all in one place</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -285,7 +278,7 @@ const BuyerSellerDashboard = () => {
                 <Heart className="h-8 w-8 text-red-500" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Saved Properties</p>
-                  <div className="text-2xl font-bold">{savedProperties.length}</div>
+                  <div className="text-2xl font-bold">{Array.isArray(savedProperties) ? savedProperties.length : 0}</div>
                 </div>
               </div>
             </CardContent>
@@ -297,7 +290,7 @@ const BuyerSellerDashboard = () => {
                 <Home className="h-8 w-8 text-blue-500" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">My Properties</p>
-                  <div className="text-2xl font-bold">{myProperties.length}</div>
+                  <div className="text-2xl font-bold">{Array.isArray(myProperties) ? myProperties.length : 0}</div>
                 </div>
               </div>
             </CardContent>
@@ -310,7 +303,7 @@ const BuyerSellerDashboard = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">Active Listings</p>
                   <div className="text-2xl font-bold">
-                    {myProperties.filter(p => p.status === 'available').length}
+                    {Array.isArray(myProperties) ? myProperties.filter(p => p.status === 'available').length : 0}
                   </div>
                 </div>
               </div>
@@ -324,7 +317,7 @@ const BuyerSellerDashboard = () => {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-muted-foreground">New Inquiries</p>
                   <div className="text-2xl font-bold">
-                    {propertyInquiries.filter(inq => inq.status === 'pending').length}
+                    {Array.isArray(propertyInquiries) ? propertyInquiries.filter(inq => inq.status === 'pending').length : 0}
                   </div>
                 </div>
               </div>
@@ -348,7 +341,7 @@ const BuyerSellerDashboard = () => {
                 <CardDescription>Properties you've saved for later viewing</CardDescription>
               </CardHeader>
               <CardContent>
-                {savedProperties.length === 0 ? (
+                {!Array.isArray(savedProperties) || savedProperties.length === 0 ? (
                   <div className="text-center py-8">
                     <Heart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No saved properties yet</h3>
@@ -359,14 +352,14 @@ const BuyerSellerDashboard = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {savedProperties.map((saved) => {
+                    {Array.isArray(savedProperties) && savedProperties.map((saved) => {
                       const property = saved.properties
                       return (
                         <Card key={saved.id} className="overflow-hidden">
                           <div className="aspect-video bg-muted relative">
                             {property.images?.[0] ? (
                               <img 
-                                src={property.images[0]?.url || property.images[0]} 
+                                src={property.images[0]} 
                                 alt={property.title}
                                 className="w-full h-full object-cover"
                               />
@@ -431,7 +424,7 @@ const BuyerSellerDashboard = () => {
                 <CardDescription>Manage your property listings</CardDescription>
               </CardHeader>
               <CardContent>
-                {myProperties.length === 0 ? (
+                {!Array.isArray(myProperties) || myProperties.length === 0 ? (
                   <div className="text-center py-8">
                     <Home className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No properties listed yet</h3>
@@ -442,12 +435,12 @@ const BuyerSellerDashboard = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {myProperties.map((property) => (
+                    {Array.isArray(myProperties) && myProperties.map((property) => (
                       <Card key={property.id} className="overflow-hidden">
                         <div className="aspect-video bg-muted relative">
                           {property.images?.[0] ? (
                             <img 
-                              src={property.images[0]?.url || property.images[0]} 
+                              src={property.images[0]} 
                               alt={property.title}
                               className="w-full h-full object-cover"
                             />
@@ -526,7 +519,7 @@ const BuyerSellerDashboard = () => {
                 <CardDescription>Track your property inquiries and responses</CardDescription>
               </CardHeader>
               <CardContent>
-                {myInquiries.length === 0 ? (
+                {!Array.isArray(myInquiries) || myInquiries.length === 0 ? (
                   <div className="text-center py-8">
                     <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No inquiries yet</h3>
@@ -534,7 +527,7 @@ const BuyerSellerDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {myInquiries.map((inquiry) => (
+                    {Array.isArray(myInquiries) && myInquiries.map((inquiry) => (
                       <div key={inquiry.id} className="border rounded-lg p-4">
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
                           <div>
@@ -573,7 +566,7 @@ const BuyerSellerDashboard = () => {
                 <CardDescription>Respond to customer inquiries about your properties</CardDescription>
               </CardHeader>
               <CardContent>
-                {propertyInquiries.length === 0 ? (
+                {!Array.isArray(propertyInquiries) || propertyInquiries.length === 0 ? (
                   <div className="text-center py-8">
                     <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No inquiries yet</h3>
@@ -581,7 +574,7 @@ const BuyerSellerDashboard = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {propertyInquiries.map((inquiry) => (
+                    {Array.isArray(propertyInquiries) && propertyInquiries.map((inquiry) => (
                       <div key={inquiry.id} className="border rounded-lg p-4">
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
                           <div>

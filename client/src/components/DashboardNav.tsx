@@ -222,7 +222,7 @@ const DashboardNav = () => {
 
           {/* Right side - User Profile Dropdown */}
           <div className="flex items-center space-x-4">
-            {profile && (
+            {profile && profile.role && (
               <div className="flex items-center space-x-2">
                 <Badge className={getRoleColor(profile.role)}>
                   {profile.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -232,7 +232,7 @@ const DashboardNav = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center space-x-2">
                       <User className="w-4 h-4" />
-                      <span>{profile.full_name || 'User'}</span>
+                      <span>{profile.fullName || 'User'}</span>
                       <ChevronDown className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>

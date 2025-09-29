@@ -30,29 +30,83 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Accept both images and videos
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+    // Accept images, videos, and documents
+    if (file.mimetype.startsWith('image/') || 
+        file.mimetype.startsWith('video/') ||
+        file.mimetype === 'application/pdf' ||
+        file.mimetype === 'application/msword' ||
+        file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        file.mimetype === 'application/vnd.ms-excel' ||
+        file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
       cb(null, true);
     } else {
-      cb(new Error('Only image and video files are allowed'), false);
+      cb(new Error('Only image, video, and document files are allowed'), false);
     }
   }
 });
 
-// Helper function to upload file to Cloudinary
+// Helper function to upload file to Cloudinary or save locally for development
 const uploadToCloudinary = async (filePath, options = {}) => {
   try {
-    const result = await cloudinary.uploader.upload(filePath, {
-      resource_type: 'auto', // Automatically detect image or video
-      folder: 'nestly_estate',
-      ...options
-    });
+    console.log('Uploading file:', { filePath, options });
     
-    // Delete temporary file
-    fs.unlinkSync(filePath);
+    // Check if Cloudinary is properly configured
+    const config = (await import('../config-loader.js')).default;
+    const isCloudinaryConfigured = config.CLOUDINARY_CLOUD_NAME && 
+                                   config.CLOUDINARY_CLOUD_NAME !== 'your-cloudinary-cloud-name' &&
+                                   config.CLOUDINARY_API_KEY && 
+                                   config.CLOUDINARY_API_KEY !== 'your-cloudinary-api-key';
     
-    return result;
+    if (isCloudinaryConfigured) {
+      // Use Cloudinary if properly configured
+      const result = await cloudinary.uploader.upload(filePath, {
+        resource_type: 'auto', // Automatically detect image or video
+        folder: 'nestly_estate',
+        ...options
+      });
+      
+      console.log('Cloudinary upload successful:', result.public_id);
+      
+      // Delete temporary file
+      fs.unlinkSync(filePath);
+      
+      return result;
+    } else {
+      // For development: save file locally and return mock Cloudinary response
+      console.log('Cloudinary not configured, saving file locally for development');
+      
+      const stats = fs.statSync(filePath);
+      const fileName = path.basename(filePath);
+      const publicId = `local_${Date.now()}_${Math.round(Math.random() * 1E9)}`;
+      
+      // Create a mock Cloudinary response
+      const mockResult = {
+        public_id: publicId,
+        secure_url: `http://localhost:5000/uploads/${fileName}`,
+        url: `http://localhost:5000/uploads/${fileName}`,
+        resource_type: 'image', // Default to image
+        format: path.extname(fileName).substring(1),
+        bytes: stats.size,
+        width: null,
+        height: null,
+        created_at: new Date().toISOString()
+      };
+      
+      // Move file to uploads directory for serving
+      const uploadsDir = 'uploads';
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      const finalPath = path.join(uploadsDir, fileName);
+      fs.renameSync(filePath, finalPath);
+      
+      console.log('File saved locally:', finalPath);
+      
+      return mockResult;
+    }
   } catch (error) {
+    console.error('Upload error:', error);
     // Clean up temp file on error
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -63,19 +117,28 @@ const uploadToCloudinary = async (filePath, options = {}) => {
 
 // Helper function to save media to database
 const saveMediaToDB = async (cloudinaryResult, userId, additionalData = {}) => {
-  const media = new Media({
-    url: cloudinaryResult.secure_url,
-    public_id: cloudinaryResult.public_id,
-    resource_type: cloudinaryResult.resource_type,
-    format: cloudinaryResult.format,
-    bytes: cloudinaryResult.bytes,
-    width: cloudinaryResult.width,
-    height: cloudinaryResult.height,
-    uploadedBy: userId,
-    ...additionalData
-  });
-  
-  return await media.save();
+  try {
+    console.log('Saving media to database:', { userId, additionalData });
+    
+    const media = new Media({
+      url: cloudinaryResult.secure_url,
+      public_id: cloudinaryResult.public_id,
+      resource_type: cloudinaryResult.resource_type,
+      format: cloudinaryResult.format,
+      bytes: cloudinaryResult.bytes,
+      width: cloudinaryResult.width,
+      height: cloudinaryResult.height,
+      uploadedBy: userId,
+      ...additionalData
+    });
+    
+    const savedMedia = await media.save();
+    console.log('Media saved to database:', savedMedia._id);
+    return savedMedia;
+  } catch (error) {
+    console.error('Error saving media to database:', error);
+    throw error;
+  }
 };
 
 // Upload single file (image or video)
@@ -178,7 +241,13 @@ router.post('/property-images',
   authorize('buyer_seller', 'broker', 'developer', 'society_owner'),
   upload.array('images', 20),
   catchAsync(async (req, res) => {
+    console.log('Property images upload request received');
+    console.log('Request body:', req.body);
+    console.log('Request files:', req.files ? req.files.length : 'No files');
+    console.log('User:', req.user ? req.user._id : 'No user');
+    
     if (!req.files || req.files.length === 0) {
+      console.log('No files uploaded');
       return res.status(400).json({
         success: false,
         message: 'No images uploaded'
@@ -223,10 +292,18 @@ router.post('/property-images',
       });
     } catch (error) {
       console.error('Property images upload error:', error);
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        name: error.name
+      });
       res.status(500).json({
         success: false,
         message: 'Property images upload failed',
-        error: error.message
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   })
@@ -381,5 +458,20 @@ router.get('/my-media',
     }
   })
 );
+
+// Serve uploaded files (for development mode when not using Cloudinary)
+router.get('/uploads/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join('uploads', filename);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(path.resolve(filePath));
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'File not found'
+    });
+  }
+});
 
 export default router;

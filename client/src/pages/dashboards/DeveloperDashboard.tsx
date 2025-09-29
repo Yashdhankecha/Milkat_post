@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useProfile } from "@/hooks/useProfile"
+import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
 import DeveloperProfileForm from "@/components/DeveloperProfileForm";
@@ -126,133 +126,75 @@ const DeveloperDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)
-  const { profile } = useProfile()
+  const { profile } = useAuth()
   const { toast } = useToast()
 
   useEffect(() => {
     if (profile) {
       fetchDashboardData()
-      
-      // Set up real-time subscription for developer profile changes
-      const subscription = apiClient
-        .channel('developer_profile_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'developers',
-            filter: `user_id=eq.${profile.id}`
-          },
-          (payload) => {
-            console.log('Developer profile updated:', payload)
-            // Refresh the dashboard data when verification status changes
-            fetchDashboardData()
-          }
-        )
-        .subscribe()
-
-      return () => {
-        subscription.unsubscribe()
-      }
     }
-  }, [profile])
+  }, [profile?.id, profile?.user])
 
   const fetchDashboardData = async () => {
-    if (!profile) return
+    const profileId = profile?.id || profile?.user;
+    if (!profile || !profileId) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true)
-
-      // Fetch developer profile with fresh data
-      const { data: developerData, error: developerError } = await apiClient
-        
-        
-        
-
-      if (developerError && developerError.code !== 'PGRST116') {
-        throw developerError
+      setLoading(true);
+      
+      // Quick API calls with 2 second timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const [developerResult, projectsResult] = await Promise.allSettled([
+        apiClient.getDevelopers({ user_id: profileId }),
+        apiClient.getProjects({ owner_id: profileId })
+      ]);
+      
+      clearTimeout(timeoutId);
+      
+      // Process results quickly
+      if (developerResult.status === 'fulfilled' && !developerResult.value.error) {
+        setDeveloperProfile(developerResult.value.data?.[0] as DeveloperProfile || null);
+      } else {
+        setDeveloperProfile(null);
       }
-
-        console.log('Developer profile status:', developerData?.verification_status)
-        console.log('User profile:', profile)
-
-        // Set the developer profile in state
-        if (developerData) {
-          setDeveloperProfile(developerData as DeveloperProfile)
-        }
-
-      // Fetch projects if developer profile exists
-      if (developerData) {
-        const { data: projectsData, error: projectsError } = await apiClient
-          
-          
-          
-
-        if (projectsError) throw projectsError
-        setProjects(projectsData || [])
-
-        // Fetch properties for this developer
-        const { data: propertiesData, error: propertiesError } = await apiClient
-          
-          
-          
-
-        if (propertiesError) throw propertiesError
-        setProperties(propertiesData || [])
-
-        // Fetch redevelopment requirements
-        console.log('Fetching redevelopment requirements...')
-        const { data: requirementsData, error: requirementsError } = await apiClient
-          .select(`
-            *,
-            societies!inner(name, address, city, total_flats)
-          `)
-          
-          
-
-        console.log('Requirements query result:', { requirementsData, requirementsError })
-
-        if (requirementsError) throw requirementsError
-        setRequirements(requirementsData || [])
-
-        // Fetch developer's proposals
-        const { data: proposalsData, error: proposalsError } = await apiClient
-          .select(`
-            *,
-            requirement:redevelopment_requirements(
-              requirement_type,
-              societies!inner(name, city)
-            )
-          `)
-          
-          
-
-        if (proposalsError) throw proposalsError
-        setProposals(proposalsData || [])
-
-        // Calculate stats
-        const activeProjects = (projectsData || []).filter(p => p.status === 'ongoing').length
-        const completedProjects = (projectsData || []).filter(p => p.status === 'completed').length
-        const acceptedProposals = (proposalsData || []).filter(p => p.status === 'accepted').length
-
-        setStats({
-          totalProjects: (projectsData || []).length,
-          totalProperties: (propertiesData || []).length,
-          activeProjects,
-          completedProjects,
-          totalInquiries: 0, // Would need to query inquiries table
-          totalProposals: (proposalsData || []).length,
-          acceptedProposals
-        })
+      
+      if (projectsResult.status === 'fulfilled' && !projectsResult.value.error) {
+        setProjects(projectsResult.value.data || []);
+      } else {
+        setProjects([]);
       }
+      
+      // Set basic stats
+      setStats({
+        totalProjects: projectsResult.status === 'fulfilled' ? (projectsResult.value.data || []).length : 0,
+        activeProjects: 0,
+        totalProperties: 0,
+        totalInquiries: 0,
+        completedProjects: 0,
+        totalProposals: 0,
+        acceptedProposals: 0
+      });
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive"
+      console.error('Error fetching developer dashboard data:', error)
+      setDeveloperProfile(null)
+      setProjects([])
+      setProperties([])
+      setRequirements([])
+      setProposals([])
+      setStats({
+        totalProjects: 0,
+        totalProperties: 0,
+        activeProjects: 0,
+        completedProjects: 0,
+        totalInquiries: 0,
+        totalProposals: 0,
+        acceptedProposals: 0
       })
     } finally {
       setLoading(false)
@@ -263,14 +205,12 @@ const DeveloperDashboard = () => {
     if (!profile) return
 
     try {
-      const { data, error } = await apiClient
-        ({
-          user_id: profile.id,
-          company_name: profile.company_name || 'My Development Company',
-          verification_status: 'pending',
-          status: 'active'
-        })
-        .select()
+      const { data, error } = await apiClient.createDeveloper({
+        user_id: profile.id,
+        company_name: profile.companyName || 'My Development Company',
+        verification_status: 'pending',
+        status: 'active'
+      })
         
 
       if (error) throw error
@@ -315,8 +255,7 @@ const DeveloperDashboard = () => {
     }
 
     try {
-      const { error } = await apiClient
-        .delete()
+      const { error } = await apiClient.deleteProperty(propertyId)
         
 
       if (error) throw error
@@ -595,7 +534,7 @@ const DeveloperDashboard = () => {
                         <div className="aspect-video bg-muted relative">
                           {project.images?.[0] ? (
                             <img 
-                              src={project.images[0]?.url || project.images[0]} 
+                              src={project.images[0]} 
                               alt={project.name}
                               className="w-full h-full object-cover"
                             />
@@ -678,7 +617,7 @@ const DeveloperDashboard = () => {
                         <div className="aspect-video bg-muted relative">
                           {property.images?.[0] ? (
                             <img 
-                              src={property.images[0]?.url || property.images[0]} 
+                              src={property.images[0]} 
                               alt={property.title}
                               className="w-full h-full object-cover"
                             />

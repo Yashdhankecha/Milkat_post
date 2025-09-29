@@ -153,11 +153,11 @@ const AdminDashboard = () => {
         brokersResult,
         developersResult
       ] = await Promise.all([
-        apiClient.getProfile(),
+        apiClient.getUsers(),
         apiClient.getProperties(),
-        apiClient.createInquiry(),
-        apiClient.getProfile(),
-        apiClient.getProfile(),
+        apiClient.getInquiries(),
+        apiClient.getSupportTickets(),
+        apiClient.getUsers({ status: 'pending_verification' }),
         apiClient.getProjects(),
         apiClient.getBrokers(),
         apiClient.getDevelopers()
@@ -190,20 +190,15 @@ const AdminDashboard = () => {
       })
 
       // Fetch users
-      const { data: usersData } = await apiClient
-        
-        
+      const { data: usersData } = await apiClient.getUsers();
 
       setUsers(usersData || [])
 
       // Fetch all properties first
-      const { data: propertiesData } = await apiClient
-        
-        
+      const { data: propertiesData } = await apiClient.getProperties();
 
       // Fetch all profiles to get owner names
-      const { data: profilesData } = await apiClient
-        
+      const { data: profilesData } = await apiClient.getUsers();
 
       const profilesMap = (profilesData || []).reduce((acc, profile) => {
         acc[profile.id] = profile.full_name
@@ -216,16 +211,12 @@ const AdminDashboard = () => {
       })))
 
       // Fetch projects
-      const { data: projectsData } = await apiClient
-        
-        
+      const { data: projectsData } = await apiClient.getProjects();
 
       setProjects(projectsData || [])
 
       // Fetch developers  
-      const { data: developersData } = await apiClient
-        
-        
+      const { data: developersData } = await apiClient.getDevelopers();
 
       setDevelopers((developersData || []).map(dev => ({
         ...dev,
@@ -233,9 +224,7 @@ const AdminDashboard = () => {
       })))
 
       // Fetch support tickets
-      const { data: ticketsData } = await apiClient
-        
-        
+      const { data: ticketsData } = await apiClient.getSupportTickets();
 
       setSupportTickets((ticketsData || []).map(ticket => ({
         ...ticket,
@@ -257,9 +246,7 @@ const AdminDashboard = () => {
   const updateUserStatus = async (userId: string, status: string, verificationType: 'status' | 'verification') => {
     try {
       const updateField = verificationType === 'status' ? 'status' : 'verification_status'
-      const { error } = await apiClient
-        ({ [updateField]: status })
-        
+      const { error } = await apiClient.updateUser(userId, { [updateField]: status });
 
       if (error) throw error
 
@@ -280,9 +267,7 @@ const AdminDashboard = () => {
 
   const updatePropertyStatus = async (propertyId: string, status: string) => {
     try {
-      const { error } = await apiClient
-        ({ status })
-        
+      const { error } = await apiClient.updateProperty(propertyId, { status });
 
       if (error) throw error
 
@@ -303,9 +288,7 @@ const AdminDashboard = () => {
 
   const deleteProperty = async (propertyId: string) => {
     try {
-      const { error } = await apiClient
-        .delete()
-        
+      const { error } = await apiClient.deleteProperty(propertyId);
 
       if (error) throw error
 
@@ -326,9 +309,7 @@ const AdminDashboard = () => {
 
   const updateProjectStatus = async (projectId: string, status: string) => {
     try {
-      const { error } = await apiClient
-        ({ status })
-        
+      const { error } = await apiClient.updateProject(projectId, { status });
 
       if (error) throw error
 
@@ -352,9 +333,7 @@ const AdminDashboard = () => {
       console.log(`Updating developer ${developerId} ${verificationType} to ${status}`)
       
       const updateField = verificationType === 'status' ? 'status' : 'verification_status'
-      const { error } = await apiClient
-        ({ [updateField]: status })
-        
+      const { error } = await apiClient.updateDeveloper(developerId, { [updateField]: status });
 
       if (error) {
         console.error('Database update error:', error)
@@ -381,9 +360,7 @@ const AdminDashboard = () => {
 
   const updateTicketStatus = async (ticketId: string, status: string) => {
     try {
-      const { error } = await apiClient
-        ({ status })
-        
+      const { error } = await apiClient.updateSupportTicket(ticketId, { status });
 
       if (error) throw error
 

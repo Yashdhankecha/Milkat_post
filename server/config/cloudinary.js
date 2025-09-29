@@ -9,13 +9,23 @@ cloudinary.config({
   secure: true
 });
 
-// Test Cloudinary connection
-cloudinary.api.ping()
-  .then(result => {
-    console.log('✅ Cloudinary connection successful:', result);
-  })
-  .catch(error => {
-    console.error('❌ Cloudinary connection failed:', error);
-  });
+// Test Cloudinary connection only if properly configured
+const cloudinaryConfig = (await import('../config-loader.js')).default;
+const isCloudinaryConfigured = cloudinaryConfig.CLOUDINARY_CLOUD_NAME && 
+                               cloudinaryConfig.CLOUDINARY_CLOUD_NAME !== 'your-cloudinary-cloud-name' &&
+                               cloudinaryConfig.CLOUDINARY_API_KEY && 
+                               cloudinaryConfig.CLOUDINARY_API_KEY !== 'your-cloudinary-api-key';
+
+if (isCloudinaryConfigured) {
+  cloudinary.api.ping()
+    .then(result => {
+      console.log('✅ Cloudinary connection successful:', result);
+    })
+    .catch(error => {
+      console.error('❌ Cloudinary connection failed:', error);
+    });
+} else {
+  console.log('⚠️  Cloudinary not configured - using local file storage for development');
+}
 
 export default cloudinary;

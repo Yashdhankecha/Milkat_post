@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 interface ApiResponse<T = any> {
   data?: T;
   error?: string;
+  errors?: any;
   message?: string;
   status?: string;
 }
@@ -41,20 +42,44 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const headers: Record<string, string> = {};
+    
+    // Copy existing headers if they exist
+    if (options.headers) {
+      if (options.headers instanceof Headers) {
+        options.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+      } else if (Array.isArray(options.headers)) {
+        options.headers.forEach(([key, value]) => {
+          headers[key] = value;
+        });
+      } else {
+        Object.assign(headers, options.headers);
+      }
+    }
+
+    // Only set Content-Type for JSON requests (not for FormData)
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
     }
 
     try {
+      // Add 3 second timeout for all requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -231,6 +256,26 @@ class ApiClient {
     return this.request(`/inquiries${queryString}`);
   }
 
+  // Likes endpoints
+  async getLikes(params?: any) {
+    // Use the my-likes endpoint for getting user's likes (backend gets user from token)
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/likes/my-likes${queryString}`);
+  }
+
+  async likeProperty(propertyId: string) {
+    return this.request('/likes', {
+      method: 'POST',
+      body: JSON.stringify({ propertyId }),
+    });
+  }
+
+  async unlikeProperty(propertyId: string) {
+    return this.request(`/likes/${propertyId}`, {
+      method: 'DELETE',
+    });
+  }
+
 
   // Shares endpoints
   async shareProperty(propertyId: string, shareMethod: string, sharedWith?: string) {
@@ -325,6 +370,48 @@ class ApiClient {
     return this.request('/user-roles/statistics');
   }
 
+  // User management methods
+  async getUsers(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/users${queryString}`);
+  }
+
+  async updateUser(id: string, updates: any) {
+    return this.request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  // Project management methods
+  async updateProject(id: string, updates: any) {
+    return this.request(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  // Developer management methods
+  async updateDeveloper(id: string, updates: any) {
+    return this.request(`/developers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  // Support ticket methods
+  async getSupportTickets(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/support/tickets${queryString}`);
+  }
+
+  async updateSupportTicket(id: string, updates: any) {
+    return this.request(`/support/tickets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
   // Cloudinary upload methods
   async uploadSingleFile(file: File) {
     const formData = new FormData();
@@ -402,18 +489,14 @@ class ApiClient {
     return this.request(`/developers/${id}`);
   }
 
-  // Inquiries endpoints
-  async createInquiry(inquiry: any) {
-    return this.request('/inquiries', {
+  async createDeveloper(developer: any) {
+    return this.request('/developers', {
       method: 'POST',
-      body: JSON.stringify(inquiry),
+      body: JSON.stringify(developer),
     });
   }
 
-  async getInquiries() {
-    return this.request('/inquiries');
-  }
-
+  // Inquiries endpoints
   // Upload endpoints
   async uploadFile(file: File) {
     const formData = new FormData();
@@ -516,6 +599,27 @@ class ApiClient {
       message: data.message,
       status: data.status || 'success'
     };
+  }
+
+  // Society management methods
+  async createSociety(societyData: any) {
+    return this.request('/societies', {
+      method: 'POST',
+      body: JSON.stringify(societyData),
+    });
+  }
+
+  async updateSociety(id: string, updates: any) {
+    return this.request(`/societies/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteSociety(id: string) {
+    return this.request(`/societies/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 
