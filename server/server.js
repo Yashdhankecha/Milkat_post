@@ -32,6 +32,9 @@ import userRoleRoutes from './routes/userRoles.js';
 import redevelopmentRoutes from './routes/redevelopment.js';
 import developerProposalRoutes from './routes/developerProposals.js';
 import invitationRoutes from './routes/invitations.js';
+import memberVoteRoutes from './routes/memberVotes.js';
+import queryRoutes from './routes/queries.js';
+import globalRedevelopmentRoutes from './routes/globalRedevelopment.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -138,6 +141,9 @@ app.use('/api/user-roles', userRoleRoutes);
 app.use('/api/redevelopment-projects', redevelopmentRoutes);
 app.use('/api/developer-proposals', developerProposalRoutes);
 app.use('/api/invitations', invitationRoutes);
+app.use('/api/member-votes', memberVoteRoutes);
+app.use('/api/queries', queryRoutes);
+app.use('/api/global-redevelopment', globalRedevelopmentRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -22,7 +22,33 @@ const notificationSchema = new mongoose.Schema({
       'property_update',
       'price_change',
       'status_change',
-      'invitation'
+      'invitation',
+      'invitation_accepted',
+      'invitation_declined',
+      'member_query_submitted',
+      'query_response',
+      'query_resolved',
+      'society_announcement',
+      // Redevelopment notifications
+      'redevelopment_project_created',
+      'redevelopment_project_updated',
+      'redevelopment_status_changed',
+      'developer_proposal_submitted',
+      'developer_proposal_shortlisted',
+      'developer_proposal_selected',
+      'voting_opened',
+      'voting_reminder',
+      'voting_closed',
+      'voting_results_published',
+      'project_milestone_completed',
+      'project_document_uploaded',
+      'project_query_raised',
+      'project_query_responded',
+      'project_update_posted',
+      'agreement_signed',
+      'construction_started',
+      'construction_milestone',
+      'project_completed'
     ],
     required: true
   },
@@ -44,6 +70,22 @@ const notificationSchema = new mongoose.Schema({
     inquiryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Inquiry'
+    },
+    redevelopmentProjectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RedevelopmentProject'
+    },
+    proposalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'DeveloperProposal'
+    },
+    voteId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MemberVote'
+    },
+    societyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Society'
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed

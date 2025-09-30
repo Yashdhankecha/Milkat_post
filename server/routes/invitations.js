@@ -7,6 +7,7 @@ import Society from '../models/Society.js';
 import User from '../models/User.js';
 import Profile from '../models/Profile.js';
 import Notification from '../models/Notification.js';
+import SocietyMember from '../models/SocietyMember.js';
 
 const router = express.Router();
 
@@ -119,8 +120,13 @@ router.post('/send',
     body('society_id').isMongoId().withMessage('Invalid society ID'),
     body('invitedPhone').isLength({ min: 10, max: 16 }).withMessage('Invalid phone number'),
     body('invitationType').isIn(['society_member', 'broker', 'developer']).withMessage('Invalid invitation type'),
-    body('invitedName').optional().trim().isLength({ min: 2, max: 100 }).withMessage('Name must be between 2-100 characters'),
-    body('invitedEmail').optional().isEmail().withMessage('Invalid email address'),
+    body('invitedName').optional().trim().isLength({ min: 1, max: 100 }).withMessage('Name must be between 1-100 characters'),
+    body('invitedEmail').optional().custom((value) => {
+      if (value && value.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+        throw new Error('Invalid email address');
+      }
+      return true;
+    }),
     body('message').optional().trim().isLength({ max: 500 }).withMessage('Message must be less than 500 characters')
   ],
   validateRequest,
@@ -128,6 +134,8 @@ router.post('/send',
     const { society_id, invitedPhone, invitationType, invitedName, invitedEmail, message } = req.body;
     const invitedBy = req.user._id;
 
+    console.log('/api/invitations/send - headers:', req.headers);
+    console.log('/api/invitations/send - body:', req.body);
     console.log('Send invitation - User ID:', req.user._id);
     console.log('Send invitation - Society ID:', society_id);
     
@@ -188,7 +196,12 @@ router.post('/send',
       return res.status(400).json({
         status: 'error',
         message: 'User has already been invited to this society',
-        data: { invitationId: existingInvitation._id }
+        errorCode: 'ALREADY_INVITED',
+        data: { 
+          invitationId: existingInvitation._id,
+          invitedPhone: invitedPhone,
+          societyId: society_id
+        }
       });
     }
 
@@ -202,7 +215,13 @@ router.post('/send',
     if (existingMember) {
       return res.status(400).json({
         status: 'error',
-        message: 'User is already a member of this society'
+        message: 'User is already a member of this society',
+        errorCode: 'ALREADY_MEMBER',
+        data: { 
+          invitedPhone: invitedPhone,
+          societyId: society_id,
+          memberProfileId: existingMember._id
+        }
       });
     }
 
@@ -245,15 +264,18 @@ router.post('/send',
       console.log('User is registered, creating notification...');
       // Send notification to registered user
       const notification = new Notification({
-        user: registeredUser._id,
+        recipient: registeredUser._id,
+        sender: req.user._id,
         type: 'invitation',
         title: `Invitation to join ${society.name}`,
         message: message || `You have been invited to join ${society.name} as a ${invitationType.replace('_', ' ')}.`,
         data: {
-          invitationId: invitation._id,
-          societyId: society_id,
-          invitationType,
-          societyName: society.name
+          metadata: {
+            invitationId: invitation._id,
+            societyId: society_id,
+            invitationType,
+            societyName: society.name
+          }
         },
         priority: 'high'
       });
@@ -460,14 +482,17 @@ router.post('/:id/accept',
     const society = await Society.findById(invitation.society);
     if (society && society.owner) {
       const notification = new Notification({
-        user: society.owner,
+        recipient: society.owner,
+        sender: req.user._id,
         type: 'invitation_accepted',
         title: 'Invitation Accepted',
         message: `${req.user.phone} has accepted your invitation to join ${society.name}`,
         data: {
-          invitationId: invitation._id,
-          acceptedBy: req.user._id,
-          societyId: invitation.society
+          metadata: {
+            invitationId: invitation._id,
+            acceptedBy: req.user._id,
+            societyId: invitation.society
+          }
         }
       });
       await notification.save();
@@ -524,14 +549,17 @@ router.post('/:id/decline',
     const society = await Society.findById(invitation.society);
     if (society && society.owner) {
       const notification = new Notification({
-        user: society.owner,
+        recipient: society.owner,
+        sender: req.user._id,
         type: 'invitation_declined',
         title: 'Invitation Declined',
         message: `${req.user.phone} has declined your invitation to join ${society.name}`,
         data: {
-          invitationId: invitation._id,
-          declinedBy: req.user._id,
-          societyId: invitation.society
+          metadata: {
+            invitationId: invitation._id,
+            declinedBy: req.user._id,
+            societyId: invitation.society
+          }
         }
       });
       await notification.save();
@@ -588,6 +616,292 @@ router.post('/:id/cancel',
       status: 'success',
       message: 'Invitation cancelled successfully',
       data: { invitation }
+    });
+  })
+);
+
+// GET /api/invitations/member/:userId - Get all invitations for a specific user (member)
+router.get(
+  '/member/:userId',
+  authenticate,
+  [
+    param('userId').isMongoId().withMessage('Invalid user ID'),
+    query('status').optional().isIn(['pending', 'sent', 'accepted', 'declined', 'expired', 'cancelled']).withMessage('Invalid status')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { userId } = req.params;
+    const { status } = req.query;
+
+    // Check if user is requesting their own invitations
+    if (req.user._id.toString() !== userId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You can only view your own invitations'
+      });
+    }
+
+    // Find user to get phone number
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+
+    // Build query
+    const query = {
+      invitedPhone: user.phone,
+      isUserRegistered: true,
+      registeredUserId: userId
+    };
+
+    // Filter by status if provided, otherwise get pending and sent invitations
+    if (status) {
+      query.status = status;
+    } else {
+      query.status = { $in: ['pending', 'sent'] };
+    }
+
+    // Fetch invitations
+    const invitations = await Invitation.find(query)
+      .populate('society', 'name address city state societyCode totalFlats')
+      .populate('invitedBy', 'phone fullName')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Invitations fetched successfully',
+      data: {
+        invitations,
+        count: invitations.length
+      }
+    });
+  })
+);
+
+// POST /api/invitations/respond - Respond to an invitation (accept or reject)
+router.post(
+  '/respond',
+  authenticate,
+  [
+    body('invitationId').isMongoId().withMessage('Invalid invitation ID'),
+    body('response').isIn(['accept', 'reject']).withMessage('Response must be either "accept" or "reject"')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { invitationId, response } = req.body;
+    const userId = req.user._id;
+
+    console.log(`Responding to invitation ${invitationId} with ${response} by user ${userId}`);
+
+    // Find invitation
+    const invitation = await Invitation.findById(invitationId).populate('society');
+    
+    if (!invitation) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Invitation not found'
+      });
+    }
+
+    // Check if invitation belongs to the user
+    if (invitation.registeredUserId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'This invitation does not belong to you'
+      });
+    }
+
+    // Check if invitation is already responded to
+    if (invitation.status === 'accepted' || invitation.status === 'declined') {
+      return res.status(400).json({
+        status: 'error',
+        message: `Invitation has already been ${invitation.status}`,
+        errorCode: 'ALREADY_RESPONDED',
+        data: { currentStatus: invitation.status }
+      });
+    }
+
+    // Check if invitation has expired
+    if (invitation.status === 'expired' || (invitation.expiresAt && new Date() > invitation.expiresAt)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invitation has expired',
+        errorCode: 'INVITATION_EXPIRED'
+      });
+    }
+
+    // Handle response
+    if (response === 'accept') {
+      // Update invitation status
+      invitation.status = 'accepted';
+      invitation.respondedAt = new Date();
+      await invitation.save();
+
+      // Add user to society members
+      try {
+        const memberData = {
+          role: invitation.invitationType,
+          metadata: {
+            invitationId: invitation._id,
+            addedBy: invitation.invitedBy,
+            addedAt: new Date()
+          }
+        };
+
+        // Check if member already exists
+        const existingMember = await SocietyMember.findOne({
+          society: invitation.society._id,
+          user: userId
+        });
+
+        let societyMember;
+        if (existingMember) {
+          // Reactivate if removed
+          if (existingMember.status === 'removed') {
+            existingMember.status = 'active';
+            existingMember.removedAt = null;
+            existingMember.joinedAt = new Date();
+            societyMember = await existingMember.save();
+          } else {
+            return res.status(409).json({
+              status: 'error',
+              message: 'You are already a member of this society',
+              errorCode: 'ALREADY_MEMBER'
+            });
+          }
+        } else {
+          societyMember = await SocietyMember.create({
+            society: invitation.society._id,
+            user: userId,
+            ...memberData,
+            status: 'active'
+          });
+        }
+
+        console.log(`Member added to society: ${societyMember._id}`);
+
+        // Create notification for society owner
+        const notification = new Notification({
+          recipient: invitation.invitedBy,
+          sender: userId,
+          type: 'invitation_accepted',
+          title: 'Invitation Accepted',
+          message: `${req.user.phone} has accepted your invitation to join ${invitation.society.name}`,
+          data: {
+            invitationId: invitation._id,
+            acceptedBy: userId,
+            societyId: invitation.society._id,
+            societyMemberId: societyMember._id
+          }
+        });
+        await notification.save();
+
+        console.log(`Notification sent to society owner: ${notification._id}`);
+
+        res.status(200).json({
+          status: 'success',
+          message: `You have successfully joined ${invitation.society.name}`,
+          data: {
+            invitation,
+            societyMember
+          }
+        });
+
+      } catch (error) {
+        // Rollback invitation status if member creation fails
+        invitation.status = 'sent';
+        invitation.respondedAt = null;
+        await invitation.save();
+        
+        console.error('Error adding member to society:', error);
+        throw error;
+      }
+
+    } else if (response === 'reject') {
+      // Update invitation status
+      invitation.status = 'declined';
+      invitation.respondedAt = new Date();
+      await invitation.save();
+
+      console.log(`Invitation declined: ${invitation._id}`);
+
+      // Create notification for society owner
+      const notification = new Notification({
+        recipient: invitation.invitedBy,
+        sender: userId,
+        type: 'invitation_declined',
+        title: 'Invitation Declined',
+        message: `${req.user.phone} has declined your invitation to join ${invitation.society.name}`,
+        data: {
+          invitationId: invitation._id,
+          declinedBy: userId,
+          societyId: invitation.society._id
+        }
+      });
+      await notification.save();
+
+      console.log(`Notification sent to society owner: ${notification._id}`);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Invitation declined successfully',
+        data: { invitation }
+      });
+    }
+  })
+);
+
+// GET /api/invitations/my - Get current user's invitations (authenticated)
+router.get(
+  '/my',
+  authenticate,
+  [
+    query('status').optional().isIn(['pending', 'sent', 'accepted', 'declined', 'expired', 'cancelled']).withMessage('Invalid status')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { status } = req.query;
+    const userId = req.user._id;
+
+    // Find user to get phone number
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+
+    // Build query
+    const query = {
+      invitedPhone: user.phone
+    };
+
+    // Filter by status if provided, otherwise get pending and sent invitations
+    if (status) {
+      query.status = status;
+    } else {
+      query.status = { $in: ['pending', 'sent'] };
+    }
+
+    // Fetch invitations
+    const invitations = await Invitation.find(query)
+      .populate('society', 'name address city state societyCode totalFlats amenities images')
+      .populate('invitedBy', 'phone fullName')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Your invitations fetched successfully',
+      data: {
+        invitations,
+        count: invitations.length
+      }
     });
   })
 );

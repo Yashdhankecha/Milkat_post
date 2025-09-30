@@ -34,6 +34,7 @@ import BrokerDashboard from "./pages/dashboards/BrokerDashboard";
 import DeveloperDashboard from "./pages/dashboards/DeveloperDashboard";
 import SocietyOwnerDashboard from "./pages/dashboards/SocietyOwnerDashboard";
 import SocietyMemberDashboard from "./pages/dashboards/SocietyMemberDashboard";
+import SocietyDetails from "./pages/SocietyDetails";
 
 // Lazy load additional pages
 const Careers = lazy(() => import("./pages/Careers"));
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/property/:id" element={<PropertyDetails />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/project/:id" element={<ProjectDetails />} />
+            <Route path="/societies/:id" element={<SocietyDetails />} />
             <Route path="/rent" element={<Rent />} />
             <Route path="/brokers" element={<Brokers />} />
             <Route path="/blog" element={<Blog />} />

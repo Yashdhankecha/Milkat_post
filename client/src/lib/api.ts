@@ -759,8 +759,12 @@ class ApiClient {
   }
 
   async getSocietyMembers(societyId: string) {
-    return this.request(`/societies/${societyId}/members`, {
+    return this.request(`/societies/${societyId}/members?_t=${Date.now()}`, {
       method: 'GET',
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
     });
   }
 
@@ -774,10 +778,19 @@ class ApiClient {
     message?: string;
   }) {
     console.log('Sending invitation with data:', data);
-    return this.request('/invitations/send', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    
+    try {
+      const response = await this.request('/invitations/send', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      console.log('Invitation response:', response);
+      return response;
+    } catch (error) {
+      console.error('Invitation request failed:', error);
+      throw error;
+    }
   }
 
   async getSentInvitations(params?: string) {
@@ -790,6 +803,21 @@ class ApiClient {
   async getReceivedInvitations(params?: string) {
     return this.request(`/invitations/received${params || ''}`, {
       method: 'GET',
+    });
+  }
+
+  async getMyInvitations(status?: string) {
+    const queryParam = status ? `?status=${status}` : '';
+    return this.request(`/invitations/my${queryParam}`, {
+      method: 'GET',
+    });
+  }
+
+  async respondToInvitation(invitationId: string, response: 'accept' | 'reject') {
+    console.log(`Responding to invitation ${invitationId} with ${response}`);
+    return this.request('/invitations/respond', {
+      method: 'POST',
+      body: JSON.stringify({ invitationId, response }),
     });
   }
 
@@ -813,12 +841,6 @@ class ApiClient {
     });
   }
 
-  // Notification methods
-  async getNotifications(params?: string) {
-    return this.request(`/notifications${params || ''}`, {
-      method: 'GET',
-    });
-  }
 
   async markNotificationAsRead(notificationId: string) {
     return this.request(`/notifications/${notificationId}/read`, {
@@ -939,6 +961,91 @@ class ApiClient {
 
   async getProposalComparison(projectId: string) {
     return this.request(`/developer-proposals/project/${projectId}/comparison`);
+  }
+
+  // Member Voting methods
+  async submitMemberVote(voteData: any) {
+    return this.request('/member-votes', {
+      method: 'POST',
+      body: JSON.stringify(voteData),
+    });
+  }
+
+  async getProjectVotes(projectId: string, session?: string) {
+    const queryParams = session ? `?session=${session}` : '';
+    return this.request(`/member-votes/project/${projectId}${queryParams}`);
+  }
+
+  async getMyVote(projectId: string, session: string) {
+    return this.request(`/member-votes/my-vote/${projectId}/${session}`);
+  }
+
+  async getMyVotingHistory() {
+    return this.request('/member-votes/my-votes');
+  }
+
+  async getVotingStatistics(projectId: string, session?: string) {
+    const queryParams = session ? `?session=${session}` : '';
+    return this.request(`/member-votes/project/${projectId}/statistics${queryParams}`);
+  }
+
+  async verifyVote(voteId: string) {
+    return this.request(`/member-votes/${voteId}/verify`, {
+      method: 'POST',
+    });
+  }
+
+  // Member Queries methods
+  async submitQuery(queryData: {
+    societyId: string;
+    queryText: string;
+    category?: string;
+    priority?: string;
+  }) {
+    return this.request('/queries', {
+      method: 'POST',
+      body: JSON.stringify(queryData),
+    });
+  }
+
+  async getMyQueries(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/queries/my${queryString}`);
+  }
+
+  async getSocietyQueries(societyId: string, params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/queries/society/${societyId}${queryString}`);
+  }
+
+  async respondToQuery(queryId: string, responseText: string) {
+    return this.request(`/queries/${queryId}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ responseText }),
+    });
+  }
+
+  async updateQueryStatus(queryId: string, status: string) {
+    return this.request(`/queries/${queryId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async getQueryStatistics(societyId: string) {
+    return this.request(`/queries/society/${societyId}/statistics`);
+  }
+
+  async upvoteQuery(queryId: string) {
+    return this.request(`/queries/${queryId}/upvote`, {
+      method: 'POST',
+    });
+  }
+
+  async removeUpvote(queryId: string) {
+    return this.request(`/queries/${queryId}/upvote`, {
+      method: 'DELETE',
+    });
   }
 }
 

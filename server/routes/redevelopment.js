@@ -109,9 +109,13 @@ router.get('/:id',
 
     // Check if user has access to this project
     const isOwner = project.owner.toString() === req.user._id.toString();
-    const isSocietyMember = await Profile.findOne({
+    
+    // Check if user is a society member
+    const SocietyMember = (await import('../models/SocietyMember.js')).default;
+    const isSocietyMember = await SocietyMember.findOne({
       user: req.user._id,
-      companyName: project.society._id.toString()
+      society: project.society._id,
+      status: 'active'
     });
 
     if (!isOwner && !isSocietyMember) {
@@ -419,9 +423,13 @@ router.get('/:id/voting-results',
 
     // Check if user has access to voting results
     const isOwner = project.owner.toString() === req.user._id.toString();
-    const isMember = await Profile.findOne({
+    
+    // Check if user is a society member
+    const SocietyMember = (await import('../models/SocietyMember.js')).default;
+    const isMember = await SocietyMember.findOne({
       user: req.user._id,
-      companyName: project.society.toString()
+      society: project.society,
+      status: 'active'
     });
 
     if (!isOwner && !isMember) {

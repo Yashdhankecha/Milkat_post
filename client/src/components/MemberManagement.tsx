@@ -20,10 +20,14 @@ interface Member {
   userId: string;
   phone: string;
   email: string;
+  fullName?: string;
   role: string;
   status: string;
   joinedAt: string;
   isOwner: boolean;
+  flatNumber?: string;
+  blockNumber?: string;
+  membershipRole?: string;
 }
 
 export const MemberManagement = ({ societyId }: MemberManagementProps) => {
@@ -121,7 +125,25 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
 
       const { data, error } = await apiClient.sendInvitation(invitationData)
 
-      if (error) throw error
+      if (error) {
+        // Handle specific error cases
+        if (error.includes('already been invited')) {
+          toast({
+            title: "Already Invited",
+            description: "This user has already been invited to the society",
+            variant: "destructive",
+          })
+        } else if (error.includes('already a member')) {
+          toast({
+            title: "Already a Member",
+            description: "This user is already a member of the society",
+            variant: "destructive",
+          })
+        } else {
+          throw error
+        }
+        return
+      }
 
       toast({
         title: "Success",
@@ -270,69 +292,81 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
             </CardHeader>
             <CardContent>
               {members.length === 0 ? (
-                <div className="text-center py-8">
-                  <UserPlus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Members Yet</h3>
-                  <p className="text-muted-foreground">
+                <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg">
+                  <UserPlus className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">No Members Yet</h3>
+                  <p className="text-muted-foreground mb-4">
                     Start by inviting members to your society
                   </p>
+                  <Button onClick={() => setOpen(true)} className="gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Invite First Member
+                  </Button>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Member</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Joined</TableHead>
-                      <TableHead>Contact</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getRoleIcon(member.role)}
-                            <div>
-                              <div className="font-medium">
-                                {member.phone}
-                                {member.isOwner && (
-                                  <Badge variant="secondary" className="ml-2 text-xs">
-                                    Owner
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
+                <div className="space-y-3">
+                  {members.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-all duration-200 hover:border-primary/50"
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* Avatar */}
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                          member.isOwner ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                        }`}>
+                          {member.phone?.charAt(0) || 'U'}
+                        </div>
+
+                        {/* Member Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-base truncate">
+                              {(member as any).fullName || member.phone}
+                            </p>
+                            {member.isOwner && (
+                              <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0 gap-1">
+                                <Crown className="h-3 w-3" />
+                                Owner
+                              </Badge>
+                            )}
+                            <Badge 
+                              variant="outline"
+                              className="text-xs"
+                            >
+                              {member.role.replace('_', ' ')}
+                            </Badge>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {member.role.replace('_', ' ').toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(member.status)}>
+                          
+                          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              <span>{member.phone}</span>
+                            </div>
+                            {member.email && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                <span className="truncate max-w-[200px]">{member.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status and Date */}
+                        <div className="hidden md:flex flex-col items-end gap-2">
+                          <Badge 
+                            className={`${getStatusColor(member.status)}`}
+                          >
                             {member.status.toUpperCase()}
                           </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(member.joinedAt)}</TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1 text-sm">
-                              <Phone className="h-3 w-3" />
-                              {member.phone}
-                            </div>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <Mail className="h-3 w-3" />
-                              {member.email}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          <p className="text-xs text-muted-foreground">
+                            Joined {formatDate(member.joinedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>

@@ -40,6 +40,10 @@ import RedevelopmentVotingSystem from './RedevelopmentVotingSystem';
 import ProjectTimeline from './ProjectTimeline';
 import DocumentVault from './DocumentVault';
 import MemberQueries from './MemberQueries';
+// New enhanced components
+import VotingPanel from './VotingPanel';
+import ProposalVotingComparison from './ProposalVotingComparison';
+import RedevelopmentDocumentVault from './RedevelopmentDocumentVault';
 
 interface RedevelopmentProject {
   _id: string;
@@ -453,16 +457,48 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
             </TabsContent>
 
             <TabsContent value="voting" className="space-y-6">
-              <RedevelopmentVotingSystem 
-                project={selectedProject}
-                proposals={proposals}
-                onVoteSubmit={(voteData) => {
-                  // Handle vote submission
-                  console.log('Vote submitted:', voteData);
-                  fetchProjects(); // Refresh to get updated voting results
-                }}
-                canVote={!isOwner}
-              />
+              {proposals.length > 0 ? (
+                <>
+                  {/* Enhanced Proposal Comparison & Voting */}
+                  <ProposalVotingComparison
+                    proposals={proposals}
+                    projectId={selectedProject._id}
+                    votingSession="initial_approval"
+                    userRole={isOwner ? 'society_owner' : 'society_member'}
+                    votingDeadline={selectedProject.votingDeadline}
+                    isVotingOpen={selectedProject.status === 'voting'}
+                  />
+                  
+                  {/* Simple Voting Panel for Project Approval */}
+                  {selectedProject.status === 'voting' && !isOwner && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Project Approval Vote</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <VotingPanel
+                          projectId={selectedProject._id}
+                          session="project_approval"
+                          userRole="society_member"
+                          votingDeadline={selectedProject.votingDeadline}
+                          isVotingOpen={true}
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <RedevelopmentVotingSystem 
+                  project={selectedProject}
+                  proposals={proposals}
+                  onVoteSubmit={(voteData) => {
+                    // Handle vote submission
+                    console.log('Vote submitted:', voteData);
+                    fetchProjects(); // Refresh to get updated voting results
+                  }}
+                  canVote={!isOwner}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="timeline" className="space-y-6">
@@ -470,12 +506,12 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
             </TabsContent>
 
             <TabsContent value="documents" className="space-y-6">
-              <DocumentVault 
-                project={selectedProject}
-                onDocumentUpload={(document) => {
-                  // Handle document upload
-                  console.log('Document uploaded:', document);
-                }}
+              {/* Enhanced Document Vault */}
+              <RedevelopmentDocumentVault
+                projectId={selectedProject._id}
+                userRole={isOwner ? 'society_owner' : 'society_member'}
+                canUpload={isOwner}
+                canDelete={isOwner}
               />
             </TabsContent>
 

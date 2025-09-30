@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const invitationSchema = new mongoose.Schema({
   // Invitation Details
@@ -134,7 +135,7 @@ invitationSchema.methods.declineInvitation = function(responseMessage) {
 
 // Static method to generate invitation token
 invitationSchema.statics.generateInvitationToken = function() {
-  return require('crypto').randomBytes(32).toString('hex');
+  return crypto.randomBytes(32).toString('hex');
 };
 
 // Static method to find pending invitations for a phone number

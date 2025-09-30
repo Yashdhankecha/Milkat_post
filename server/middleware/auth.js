@@ -130,10 +130,13 @@ export const authorize = (...roles) => {
       });
     }
 
-    if (!roles.includes(req.profile.role)) {
+    // Flatten roles array in case it's nested
+    const flatRoles = roles.flat();
+    
+    if (!flatRoles.includes(req.profile.role)) {
       return res.status(403).json({
         status: 'error',
-        message: `Access denied. Required role: ${roles.join(' or ')}, but user has role: ${req.profile.role}`,
+        message: `Access denied. Required role: ${flatRoles.join(' or ')}, but user has role: ${req.profile.role}`,
         debug: {
           userProfiles: req.allProfiles.map(p => ({
             role: p.role,

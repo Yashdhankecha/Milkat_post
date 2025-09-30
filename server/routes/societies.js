@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import Society from '../models/Society.js';
 import Profile from '../models/Profile.js';
 import User from '../models/User.js';
+import SocietyMember from '../models/SocietyMember.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { catchAsync } from '../middleware/errorHandler.js';
 
@@ -449,7 +450,7 @@ router.delete('/:id',
   })
 );
 
-// Get user's societies
+// Get user's societies (owned + member)
 router.get('/my/societies',
   authenticate,
   catchAsync(async (req, res) => {
@@ -457,17 +458,72 @@ router.get('/my/societies',
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const societies = await Society.find({ owner: req.user._id })
+    // Get societies where user is owner
+    const ownedSocieties = await Society.find({ owner: req.user._id })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+      .lean();
 
-    const total = await Society.countDocuments({ owner: req.user._id });
+    // Get societies where user is a member
+    const memberRecords = await SocietyMember.find({ 
+      user: req.user._id,
+      status: 'active'
+    })
+      .populate('society')
+      .sort({ joinedAt: -1 })
+      .lean();
+
+    // Extract society objects from member records
+    const memberSocieties = memberRecords
+      .filter(record => record.society) // Filter out null societies
+      .map(record => ({
+        ...record.society,
+        membershipRole: record.role, // Add membership role info
+        joinedAt: record.joinedAt
+      }));
+
+    // Combine both arrays and remove duplicates (in case user owns a society they're also a member of)
+    const societyMap = new Map();
+    
+    // Add owned societies first
+    ownedSocieties.forEach(society => {
+      societyMap.set(society._id.toString(), {
+        ...society,
+        isOwner: true
+      });
+    });
+
+    // Add member societies (won't override if already exists as owner)
+    memberSocieties.forEach(society => {
+      const societyId = society._id.toString();
+      if (!societyMap.has(societyId)) {
+        societyMap.set(societyId, {
+          ...society,
+          isOwner: false,
+          isMember: true
+        });
+      } else {
+        // User is both owner and member, update the record
+        const existing = societyMap.get(societyId);
+        societyMap.set(societyId, {
+          ...existing,
+          isMember: true,
+          membershipRole: society.membershipRole
+        });
+      }
+    });
+
+    // Convert map to array and sort by creation date
+    const allSocieties = Array.from(societyMap.values())
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Apply pagination
+    const total = allSocieties.length;
+    const paginatedSocieties = allSocieties.slice(skip, skip + limit);
 
     res.status(200).json({
       status: 'success',
       data: {
-        societies,
+        societies: paginatedSocieties,
         pagination: {
           page,
           limit,

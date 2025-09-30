@@ -13,7 +13,38 @@ import { RequirementForm } from "@/components/RequirementForm";
 import { DocumentUploadSection, type DocumentFile } from "@/components/DocumentUploadSection";
 import RedevelopmentModule from "@/components/RedevelopmentModule";
 import InvitationManagement from "@/components/InvitationManagement";
-import { Building2, Users, FileText, Plus, Settings, Eye, X, Upload, CheckCircle2, RefreshCw, Building, UserPlus, Mail, Bell } from "lucide-react";
+import QueryManagement from "@/components/QueryManagement";
+import { 
+  Building2, 
+  Users, 
+  FileText, 
+  Plus, 
+  Settings, 
+  Eye, 
+  X, 
+  Upload, 
+  CheckCircle2, 
+  RefreshCw, 
+  Building, 
+  UserPlus, 
+  Mail, 
+  Bell,
+  Sparkles,
+  TrendingUp,
+  Calendar,
+  MapPin,
+  Phone,
+  Mail as MailIcon,
+  User,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  ArrowRight,
+  BarChart3,
+  Shield,
+  Home,
+  Layers
+} from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -272,13 +303,16 @@ const SocietyOwnerDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-950 dark:to-indigo-950">
         <DashboardNav />
-        <div className="container mx-auto px-6 py-8">
+        <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-              <p className="text-muted-foreground mt-4">Loading dashboard...</p>
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
+                <Sparkles className="h-6 w-6 text-blue-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+              </div>
+              <p className="text-gray-600 dark:text-gray-400 mt-6 text-lg font-medium">Loading your society dashboard...</p>
             </div>
           </div>
         </div>
@@ -289,23 +323,31 @@ const SocietyOwnerDashboard = () => {
   console.log('Dashboard render - society:', society, 'showSocietyForm:', showSocietyForm, 'loading:', loading);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-950 dark:to-indigo-950 text-gray-900 dark:text-gray-100">
       <DashboardNav />
       
-      <main className="container mx-auto px-6 py-8">
-        <div className="flex justify-between items-center mb-8">
+      <main className="container mx-auto px-4 py-8">
+        <div className="space-y-8">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Society Management Dashboard</h1>
-            <p className="text-muted-foreground">Manage your society and members</p>
+              <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 flex items-center gap-3">
+                <Sparkles className="h-10 w-10 text-blue-500 animate-pulse" />
+                Society Management Dashboard
+              </h1>
+              <p className="text-lg text-gray-600 dark:text-gray-400 mt-2 animate-fade-in">
+                Welcome back, <span className="font-semibold">{user?.phone}</span>! Manage your society with confidence.
+              </p>
           </div>
-          <div className="flex gap-2">
+            <div className="flex items-center gap-3">
             <Button 
-              variant="outline" 
+                variant="ghost"
+                size="sm"
               onClick={fetchSocietyData}
               disabled={loading}
-              size="sm"
+                className="px-4 py-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-lg hover:bg-white/70 dark:hover:bg-gray-700/70 transition-all duration-300 group"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 mr-2 group-hover:rotate-180 transition-transform duration-500 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
             {!society && (
@@ -316,10 +358,11 @@ const SocietyOwnerDashboard = () => {
                       console.log('Opening society form dialog');
                       setShowSocietyForm(true);
                     }}
-                    className="bg-primary hover:bg-primary/90"
+                      className="px-6 py-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-300 group"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
                     Create Society Profile
+                      <ArrowRight className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -342,15 +385,21 @@ const SocietyOwnerDashboard = () => {
         </div>
 
         {!society ? (
-          <Card>
-            <CardHeader className="text-center">
-              <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <CardTitle>No Society Profile Found</CardTitle>
-              <CardDescription>
-                Create your society profile to start managing members and redevelopment requirements.
+          <Card className="relative overflow-hidden rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-gray-900">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-900/20 dark:to-indigo-900/20 opacity-70 blur-3xl pointer-events-none"></div>
+            <CardHeader className="text-center p-12">
+              <div className="relative mb-6">
+                <Building2 className="h-20 w-20 text-blue-500 mx-auto animate-bounce-slow" />
+                <div className="absolute -top-2 -right-2 h-6 w-6 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <Sparkles className="h-3 w-3 text-yellow-800 animate-pulse" />
+                </div>
+              </div>
+              <CardTitle className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-3">No Society Profile Found</CardTitle>
+              <CardDescription className="text-lg text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                Create your society profile to start managing members and redevelopment requirements with our comprehensive tools.
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent className="text-center p-8">
               <Dialog open={showSocietyForm} onOpenChange={setShowSocietyForm}>
                 <DialogTrigger asChild>
                   <Button 
@@ -359,9 +408,11 @@ const SocietyOwnerDashboard = () => {
                       console.log('Opening society form dialog from main content');
                       setShowSocietyForm(true);
                     }}
+                    className="px-8 py-4 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-300 group text-lg font-semibold"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Plus className="h-5 w-5 mr-3 group-hover:scale-110 transition-transform" />
                     Create Society Profile
+                    <ArrowRight className="h-5 w-5 ml-3 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -384,91 +435,181 @@ const SocietyOwnerDashboard = () => {
         ) : (
           <>
             {/* Enhanced Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-blue-600 font-medium">Total Flats</p>
-                      <p className="text-3xl font-bold text-blue-800">{society.total_flats}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-white" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+              {/* Stat Card 1: Total Flats */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-blue-500/40">
+                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-blue-400/20 dark:bg-blue-600/20 blur-xl animate-pulse-slow"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Total Flats</p>
+                    <div className="p-2 rounded-full bg-blue-500/20 dark:bg-blue-700/30 backdrop-blur-sm">
+                      <Building2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                     </div>
                   </div>
+                  <p className="text-5xl font-extrabold text-blue-900 dark:text-blue-100 leading-none">
+                    {society.total_flats}
+                  </p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">Residential units</p>
                 </CardContent>
               </Card>
 
-              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-green-600 font-medium">Active Members</p>
-                      <p className="text-3xl font-bold text-green-800">{members.length}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
-                      <Users className="h-6 w-6 text-white" />
+              {/* Stat Card 2: Active Members */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-green-500/40">
+                <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-green-400/20 dark:bg-green-600/20 blur-xl animate-pulse-slow delay-100"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200">Active Members</p>
+                    <div className="p-2 rounded-full bg-green-500/20 dark:bg-green-700/30 backdrop-blur-sm">
+                      <Users className="h-6 w-6 text-green-600 dark:text-green-400" />
                     </div>
                   </div>
+                  <p className="text-5xl font-extrabold text-green-900 dark:text-green-100 leading-none">
+                    {members.length}
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-2">Society residents</p>
                 </CardContent>
               </Card>
 
-              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-purple-600 font-medium">Total Blocks</p>
-                      <p className="text-3xl font-bold text-purple-800">{society.number_of_blocks || 'N/A'}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-white" />
+              {/* Stat Card 3: Total Blocks */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-purple-500/40">
+                <div className="absolute -top-8 -left-8 h-24 w-24 rounded-full bg-purple-400/20 dark:bg-purple-600/20 blur-xl animate-pulse-slow delay-200"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-purple-800 dark:text-purple-200">Total Blocks</p>
+                    <div className="p-2 rounded-full bg-purple-500/20 dark:bg-purple-700/30 backdrop-blur-sm">
+                      <Layers className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                     </div>
                   </div>
+                  <p className="text-5xl font-extrabold text-purple-900 dark:text-purple-100 leading-none">
+                    {society.number_of_blocks || 'N/A'}
+                  </p>
+                  <p className="text-sm text-purple-700 dark:text-purple-300 mt-2">Building blocks</p>
                 </CardContent>
               </Card>
 
-              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-orange-600 font-medium">Requirements</p>
-                      <p className="text-3xl font-bold text-orange-800">{requirements && Array.isArray(requirements) ? requirements.length : 0}</p>
-                    </div>
-                    <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
-                      <FileText className="h-6 w-6 text-white" />
+              {/* Stat Card 4: Requirements */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-orange-500/40">
+                <div className="absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-orange-400/20 dark:bg-orange-600/20 blur-xl animate-pulse-slow delay-300"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Requirements</p>
+                    <div className="p-2 rounded-full bg-orange-500/20 dark:bg-orange-700/30 backdrop-blur-sm">
+                      <FileText className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                     </div>
                   </div>
+                  <p className="text-5xl font-extrabold text-orange-900 dark:text-orange-100 leading-none">
+                    {requirements && Array.isArray(requirements) ? requirements.length : 0}
+                  </p>
+                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-2">Active requests</p>
                 </CardContent>
               </Card>
 
+              {/* Stat Card 5: Pending Approvals */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-red-500/40">
+                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-red-400/20 dark:bg-red-600/20 blur-xl animate-pulse-slow delay-400"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200">Pending Approvals</p>
+                    <div className="p-2 rounded-full bg-red-500/20 dark:bg-red-700/30 backdrop-blur-sm">
+                      <Clock className="h-6 w-6 text-red-600 dark:text-red-400" />
+                    </div>
+                  </div>
+                  <p className="text-5xl font-extrabold text-red-900 dark:text-red-100 leading-none">
+                    {proposals && Array.isArray(proposals) ? proposals.filter(p => p.status === 'submitted').length : 0}
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-2">Awaiting review</p>
+                </CardContent>
+              </Card>
 
+              {/* Stat Card 6: Document Status */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-indigo-500/40">
+                <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-indigo-400/20 dark:bg-indigo-600/20 blur-xl animate-pulse-slow delay-500"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-indigo-800 dark:text-indigo-200">Document Status</p>
+                    <div className="p-2 rounded-full bg-indigo-500/20 dark:bg-indigo-700/30 backdrop-blur-sm">
+                      <Shield className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                  </div>
+                  <p className="text-5xl font-extrabold text-indigo-900 dark:text-indigo-100 leading-none">
+                    {registrationDocuments.length + floorPlanDocuments.length}
+                  </p>
+                  <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-2">Files uploaded</p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Main Content Tabs */}
             <Tabs defaultValue="society" className="space-y-6">
-       <TabsList>
-         <TabsTrigger value="society">Society Details</TabsTrigger>
-         <TabsTrigger value="members">Members ({members && Array.isArray(members) ? members.length : 0})</TabsTrigger>
-         <TabsTrigger value="invitations">Invitations</TabsTrigger>
-         <TabsTrigger value="requirements">Requirements ({requirements && Array.isArray(requirements) ? requirements.length : 0})</TabsTrigger>
-         <TabsTrigger value="proposals">Proposals ({proposals && Array.isArray(proposals) ? proposals.length : 0})</TabsTrigger>
-         <TabsTrigger value="redevelopment">Redevelopment</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-7 h-auto p-1 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-gray-700/20 dark:to-gray-800/20 rounded-xl shadow-inner border border-gray-200 dark:border-gray-700">
+                <TabsTrigger
+                  value="society"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-blue-400 dark:data-[state=active]:border-blue-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-300"
+                >
+                  <Building2 className="h-4 w-4 mr-2" /> Society Details
+                </TabsTrigger>
+                <TabsTrigger
+                  value="members"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-green-400 dark:data-[state=active]:border-green-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-300"
+                >
+                  <Users className="h-4 w-4 mr-2" /> Members ({members && Array.isArray(members) ? members.length : 0})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="invitations"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-purple-400 dark:data-[state=active]:border-purple-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-300"
+                >
+                  <Mail className="h-4 w-4 mr-2" /> Invitations
+                </TabsTrigger>
+                <TabsTrigger
+                  value="requirements"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-orange-400 dark:data-[state=active]:border-orange-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-300"
+                >
+                  <FileText className="h-4 w-4 mr-2" /> Requirements ({requirements && Array.isArray(requirements) ? requirements.length : 0})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="proposals"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-indigo-400 dark:data-[state=active]:border-indigo-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-300"
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" /> Proposals ({proposals && Array.isArray(proposals) ? proposals.length : 0})
+                </TabsTrigger>
+                <TabsTrigger
+                  value="redevelopment"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-teal-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-emerald-400 dark:data-[state=active]:border-emerald-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-300"
+                >
+                  <TrendingUp className="h-4 w-4 mr-2" /> Redevelopment
+                </TabsTrigger>
+                <TabsTrigger
+                  value="queries"
+                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-orange-400 dark:data-[state=active]:border-orange-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-300"
+                >
+                  <FileText className="h-4 w-4 mr-2" /> Queries
+                </TabsTrigger>
        </TabsList>
 
               <TabsContent value="society">
                 <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
+                  <Card className="relative overflow-hidden rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-gray-900">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-900/20 dark:to-indigo-900/20 opacity-70 blur-3xl pointer-events-none"></div>
+                    <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                         <div>
-                          <CardTitle>{society.name}</CardTitle>
-                          <CardDescription>{society.address}, {society.city}, {society.state}</CardDescription>
+                        <CardTitle className="flex items-center gap-3 text-2xl font-bold text-gray-800 dark:text-gray-100">
+                          <Building2 className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+                          {society.name}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 mt-2 text-gray-600 dark:text-gray-400">
+                          <MapPin className="h-4 w-4" />
+                          {society.address}, {society.city}, {society.state}
+                        </CardDescription>
                         </div>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="outline">
-                              <Settings className="h-4 w-4 mr-2" />
+                          <Button 
+                            variant="outline"
+                            className="mt-4 md:mt-0 px-6 py-2 rounded-full text-blue-600 dark:text-blue-300 border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-800/50 shadow-lg transition-all duration-300 group"
+                          >
+                            <Settings className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
                               Edit Society
+                            <ArrowRight className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -485,66 +626,111 @@ const SocietyOwnerDashboard = () => {
                             />
                           </DialogContent>
                         </Dialog>
-                      </div>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Society Type</p>
-                        <p className="font-medium">{society.society_type}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Total Blocks</p>
-                        <p className="font-medium">{society.number_of_blocks}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Total Area</p>
-                        <p className="font-medium">{society.total_area} sq ft</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Year Built</p>
-                        <p className="font-medium">{society.year_built}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Registration Date</p>
-                        <p className="font-medium">{new Date(society.registration_date).toLocaleDateString()}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">FSI</p>
-                        <p className="font-medium">{society.fsi}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Road Facing</p>
-                        <p className="font-medium">{society.road_facing}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Condition Status</p>
-                        <Badge variant="secondary">{society.condition_status}</Badge>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Contact Person</p>
-                        <p className="font-medium">{society.contact_person_name}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Contact Email</p>
-                        <p className="font-medium">{society.contact_email}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-muted-foreground">Contact Phone</p>
-                        <p className="font-medium">{society.contact_phone}</p>
+                    <CardContent className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Building className="h-4 w-4 text-blue-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Society Type</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.society_type}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Layers className="h-4 w-4 text-purple-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Blocks</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.number_of_blocks}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4 text-green-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Area</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.total_area} sq ft</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-orange-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Year Built</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.year_built}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-indigo-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Registration Date</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{new Date(society.registration_date).toLocaleDateString()}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-red-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">FSI</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.fsi}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-teal-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Road Facing</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.road_facing}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-yellow-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Condition Status</p>
+                          </div>
+                          <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0">
+                            {society.condition_status}
+                          </Badge>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-pink-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Person</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.contact_person_name}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <MailIcon className="h-4 w-4 text-cyan-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Email</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.contact_email}</p>
+                        </div>
+                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-emerald-500" />
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Phone</p>
+                          </div>
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.contact_phone}</p>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
 
                   {/* Amenities */}
                   {society.amenities && society.amenities.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Amenities</CardTitle>
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-green-50 dark:from-gray-800 dark:to-gray-900">
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-emerald-500/10 dark:from-green-900/20 dark:to-emerald-900/20 opacity-70 blur-3xl pointer-events-none"></div>
+                      <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800 dark:text-gray-100">
+                          <Home className="h-6 w-6 text-green-600 dark:text-green-400" />
+                          Amenities
+                        </CardTitle>
                       </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-wrap gap-2">
+                      <CardContent className="p-6">
+                        <div className="flex flex-wrap gap-3">
                           {society.amenities.map((amenity, index) => (
-                            <Badge key={index} variant="outline">{amenity}</Badge>
+                            <Badge 
+                              key={index} 
+                              className="px-4 py-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
+                            >
+                              {amenity}
+                            </Badge>
                           ))}
                         </div>
                       </CardContent>
@@ -553,17 +739,32 @@ const SocietyOwnerDashboard = () => {
 
                   {/* Flat Variants */}
                   {society.flat_variants && society.flat_variants.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Flat Variants</CardTitle>
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-gray-900">
+                      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 dark:from-purple-900/20 dark:to-pink-900/20 opacity-70 blur-3xl pointer-events-none"></div>
+                      <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800 dark:text-gray-100">
+                          <Layers className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                          Flat Variants
+                        </CardTitle>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {society.flat_variants.map((variant: any, index: number) => (
-                            <div key={index} className="p-4 border rounded-lg">
-                              <h4 className="font-semibold">{variant.name}</h4>
-                              <p className="text-sm text-muted-foreground">Area: {variant.area} sq ft</p>
-                              <p className="text-sm text-muted-foreground">Bathrooms: {variant.bathrooms}</p>
+                            <div 
+                              key={index} 
+                              className="p-6 rounded-xl bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+                            >
+                              <h4 className="font-semibold text-lg text-gray-800 dark:text-gray-100 mb-3">{variant.name}</h4>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <BarChart3 className="h-4 w-4 text-purple-500" />
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">Area: <span className="font-medium text-gray-800 dark:text-gray-200">{variant.area} sq ft</span></p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Home className="h-4 w-4 text-purple-500" />
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">Bathrooms: <span className="font-medium text-gray-800 dark:text-gray-200">{variant.bathrooms}</span></p>
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -595,9 +796,13 @@ const SocietyOwnerDashboard = () => {
                     />
 
                     <div className="flex justify-end">
-                      <Button onClick={updateSocietyDocuments}>
-                        <Upload className="h-4 w-4 mr-2" />
+                      <Button 
+                        onClick={updateSocietyDocuments}
+                        className="px-6 py-3 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-indigo-500/30 transition-all duration-300 group"
+                      >
+                        <Upload className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
                         Update Society Documents
+                        <ArrowRight className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
                       </Button>
                     </div>
                   </div>
@@ -619,13 +824,20 @@ const SocietyOwnerDashboard = () => {
 
               <TabsContent value="requirements">
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold">Redevelopment Requirements</h2>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                      <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
+                        <FileText className="h-8 w-8 text-orange-500" />
+                        Redevelopment Requirements
+                      </h2>
+                      <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your society's redevelopment needs and track progress</p>
+                    </div>
                     <Dialog open={showRequirementForm} onOpenChange={setShowRequirementForm}>
                       <DialogTrigger asChild>
-                        <Button>
-                          <Plus className="h-4 w-4 mr-2" />
+                        <Button className="px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg hover:shadow-orange-500/30 transition-all duration-300 group">
+                          <Plus className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
                           Create Requirement
+                          <ArrowRight className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
                         </Button>
                       </DialogTrigger>
                       <DialogContent className="max-w-2xl">
@@ -647,33 +859,57 @@ const SocietyOwnerDashboard = () => {
                   </div>
 
                   {!requirements || !Array.isArray(requirements) || requirements.length === 0 ? (
-                    <Card>
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-gray-900">
+                      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-red-500/10 dark:from-orange-900/20 dark:to-red-900/20 opacity-70 blur-3xl pointer-events-none"></div>
                       <CardContent className="text-center py-12">
-                        <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">No Requirements Posted</h3>
-                        <p className="text-muted-foreground">Create a redevelopment requirement to start receiving proposals from developers.</p>
+                        <div className="relative mb-6">
+                          <FileText className="h-16 w-16 text-orange-500 mx-auto animate-bounce-slow" />
+                          <div className="absolute -top-2 -right-2 h-6 w-6 bg-yellow-400 rounded-full flex items-center justify-center">
+                            <Sparkles className="h-3 w-3 text-yellow-800 animate-pulse" />
+                          </div>
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">No Requirements Posted</h3>
+                        <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                          Create a redevelopment requirement to start receiving proposals from developers and transform your society.
+                        </p>
                       </CardContent>
                     </Card>
                   ) : (
                     <div className="grid gap-6">
                       {requirements && Array.isArray(requirements) && requirements.map((requirement) => (
-                        <Card key={requirement._id || requirement.id}>
-                          <CardHeader>
+                        <Card key={requirement._id || requirement.id} className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-gray-900 transform transition-all duration-300 hover:scale-[1.01] hover:shadow-lg">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500/5 to-transparent opacity-50 animate-gradient-pulse"></div>
+                          <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex justify-between items-start">
                               <div>
-                                <CardTitle>{requirement.requirement_type}</CardTitle>
-                                <CardDescription>{requirement.description}</CardDescription>
+                                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                  <FileText className="h-5 w-5 text-orange-500" />
+                                  {requirement.requirement_type}
+                                </CardTitle>
+                                <CardDescription className="text-gray-600 dark:text-gray-400 mt-2">{requirement.description}</CardDescription>
                               </div>
-                              <Badge variant={requirement.status === 'active' ? 'default' : 'secondary'}>
+                              <Badge className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                requirement.status === 'active' 
+                                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                                  : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
+                              }`}>
                                 {requirement.status}
                               </Badge>
                             </div>
                           </CardHeader>
-                          <CardContent>
-                            <p><strong>Budget Range:</strong> {requirement.budget_range}</p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                              Created on {new Date(requirement.created_at).toLocaleDateString()}
-                            </p>
+                          <CardContent className="p-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <BarChart3 className="h-4 w-4 text-orange-500" />
+                                <span className="text-sm text-gray-600 dark:text-gray-400">Budget Range:</span>
+                                <span className="font-semibold text-gray-800 dark:text-gray-200">{requirement.budget_range}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-orange-500" />
+                                <span className="text-sm text-gray-600 dark:text-gray-400">Created on</span>
+                                <span className="font-semibold text-gray-800 dark:text-gray-200">{new Date(requirement.created_at).toLocaleDateString()}</span>
+                              </div>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -684,37 +920,72 @@ const SocietyOwnerDashboard = () => {
 
               <TabsContent value="proposals">
                 <div className="space-y-6">
-                  <h2 className="text-2xl font-bold">Developer Proposals</h2>
+                  <div>
+                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
+                      <BarChart3 className="h-8 w-8 text-indigo-500" />
+                      Developer Proposals
+                    </h2>
+                    <p className="text-gray-600 dark:text-gray-400 mt-2">Review and manage proposals from developers for your redevelopment projects</p>
+                  </div>
                   
                   {!proposals || !Array.isArray(proposals) || proposals.length === 0 ? (
-                    <Card>
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-gray-900">
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 dark:from-indigo-900/20 dark:to-blue-900/20 opacity-70 blur-3xl pointer-events-none"></div>
                       <CardContent className="text-center py-12">
-                        <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">No Proposals Yet</h3>
-                        <p className="text-muted-foreground">Proposals from developers will appear here once they respond to your requirements.</p>
+                        <div className="relative mb-6">
+                          <BarChart3 className="h-16 w-16 text-indigo-500 mx-auto animate-bounce-slow" />
+                          <div className="absolute -top-2 -right-2 h-6 w-6 bg-yellow-400 rounded-full flex items-center justify-center">
+                            <Sparkles className="h-3 w-3 text-yellow-800 animate-pulse" />
+                          </div>
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">No Proposals Yet</h3>
+                        <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                          Proposals from developers will appear here once they respond to your requirements. Create requirements to get started!
+                        </p>
                       </CardContent>
                     </Card>
                   ) : (
                     <div className="grid gap-6">
                       {proposals && Array.isArray(proposals) && proposals.map((proposal) => (
-                        <Card key={proposal._id || proposal.id}>
-                          <CardHeader>
+                        <Card key={proposal._id || proposal.id} className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-gray-900 transform transition-all duration-300 hover:scale-[1.01] hover:shadow-lg">
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/5 to-transparent opacity-50 animate-gradient-pulse"></div>
+                          <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex justify-between items-start">
                               <div>
-                                <CardTitle>{proposal.title}</CardTitle>
-                                <CardDescription>By {proposal.developers?.company_name}</CardDescription>
+                                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                  <BarChart3 className="h-5 w-5 text-indigo-500" />
+                                  {proposal.title}
+                                </CardTitle>
+                                <CardDescription className="text-gray-600 dark:text-gray-400 mt-2 flex items-center gap-2">
+                                  <Building className="h-4 w-4" />
+                                  By {proposal.developers?.company_name}
+                                </CardDescription>
                               </div>
-                              <Badge variant={proposal.status === 'submitted' ? 'default' : 'secondary'}>
+                              <Badge className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                proposal.status === 'submitted' 
+                                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                                  : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
+                              }`}>
                                 {proposal.status}
                               </Badge>
                             </div>
                           </CardHeader>
-                          <CardContent>
-                            <p className="mb-2">{proposal.description}</p>
-                            <p><strong>Budget Estimate:</strong> ₹{proposal.budget_estimate?.toLocaleString()}</p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                              Submitted on {new Date(proposal.submitted_at).toLocaleDateString()}
-                            </p>
+                          <CardContent className="p-6">
+                            <div className="space-y-4">
+                              <p className="text-gray-700 dark:text-gray-300">{proposal.description}</p>
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <TrendingUp className="h-4 w-4 text-indigo-500" />
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">Budget Estimate:</span>
+                                  <span className="font-semibold text-gray-800 dark:text-gray-200">₹{proposal.budget_estimate?.toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-indigo-500" />
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">Submitted on</span>
+                                  <span className="font-semibold text-gray-800 dark:text-gray-200">{new Date(proposal.submitted_at).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -729,9 +1000,16 @@ const SocietyOwnerDashboard = () => {
                   isOwner={true}
                 />
               </TabsContent>
+
+              <TabsContent value="queries">
+                <QueryManagement 
+                  societyId={getSocietyId(society) || ''} 
+                />
+              </TabsContent>
             </Tabs>
           </>
         )}
+        </div>
       </main>
     </div>
   );
