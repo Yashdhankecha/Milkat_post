@@ -50,12 +50,14 @@ const uploadToCloudinary = async (filePath, options = {}) => {
   try {
     console.log('Uploading file:', { filePath, options });
     
-    // Check if Cloudinary is properly configured
-    const config = (await import('../config-loader.js')).default;
-    const isCloudinaryConfigured = config.CLOUDINARY_CLOUD_NAME && 
-                                   config.CLOUDINARY_CLOUD_NAME !== 'your-cloudinary-cloud-name' &&
-                                   config.CLOUDINARY_API_KEY && 
-                                   config.CLOUDINARY_API_KEY !== 'your-cloudinary-api-key';
+     // Check if Cloudinary is properly configured
+     const config = (await import('../config-loader.js')).default;
+     const isCloudinaryConfigured = config.CLOUDINARY_CLOUD_NAME && 
+                                    config.CLOUDINARY_CLOUD_NAME !== 'your-cloudinary-cloud-name' &&
+                                    config.CLOUDINARY_API_KEY && 
+                                    config.CLOUDINARY_API_KEY !== 'your-cloudinary-api-key' &&
+                                    config.CLOUDINARY_API_SECRET &&
+                                    config.CLOUDINARY_API_SECRET !== 'your-cloudinary-api-secret';
     
     if (isCloudinaryConfigured) {
       // Use Cloudinary if properly configured
@@ -154,32 +156,80 @@ router.post('/single',
     }
 
     try {
+      console.log('Single file upload request received');
+      console.log('File:', req.file.originalname, 'Size:', req.file.size);
+      console.log('User:', req.user._id);
+      
+      // Determine upload folder based on context
+      let uploadOptions = {
+        folder: 'nestly_estate/general'
+      };
+      
+      // Check if this is a society document upload (based on request headers or body)
+      if (req.headers['x-upload-type'] === 'society-document') {
+        const documentType = req.body.documentType || 'general';
+        uploadOptions.folder = `nestly_estate/society_documents/${documentType}`;
+        uploadOptions.tags = ['society_document', documentType];
+      }
+      
       // Upload to Cloudinary
-      const cloudinaryResult = await uploadToCloudinary(req.file.path);
+      const cloudinaryResult = await uploadToCloudinary(req.file.path, uploadOptions);
       
       // Save to database
-      const media = await saveMediaToDB(cloudinaryResult, req.user._id);
+      const media = await saveMediaToDB(cloudinaryResult, req.user._id, {
+        documentType: req.body.documentType || 'general'
+      });
 
       res.status(200).json({
         success: true,
-        media: {
-          id: media._id,
-          url: media.url,
-          public_id: media.public_id,
-          resource_type: media.resource_type,
-          format: media.format,
-          bytes: media.bytes,
-          width: media.width,
-          height: media.height,
-          createdAt: media.createdAt
-        }
+        data: {
+          media: {
+            id: media._id,
+            url: media.url,
+            public_id: media.public_id,
+            resource_type: media.resource_type,
+            format: media.format,
+            bytes: media.bytes,
+            width: media.width,
+            height: media.height,
+            createdAt: media.createdAt
+          }
+        },
+        message: 'File uploaded successfully'
       });
     } catch (error) {
       console.error('Upload error:', error);
+      
+      // Handle specific error types
+      if (error.message.includes('File too large')) {
+        return res.status(413).json({
+          success: false,
+          message: 'File too large',
+          error: 'File size exceeds the maximum allowed limit of 10MB'
+        });
+      }
+      
+      if (error.message.includes('Invalid file type')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid file type',
+          error: 'Only image, video, and document files are allowed'
+        });
+      }
+      
+      if (error.message.includes('Cloudinary')) {
+        return res.status(503).json({
+          success: false,
+          message: 'Upload service unavailable',
+          error: 'File upload service is temporarily unavailable. Please try again later.'
+        });
+      }
+      
       res.status(500).json({
         success: false,
         message: 'Upload failed',
-        error: error.message
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   })
@@ -302,6 +352,79 @@ router.post('/property-images',
       res.status(500).json({
         success: false,
         message: 'Property images upload failed',
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
+  })
+);
+
+// Upload society documents
+router.post('/society-documents',
+  authenticate,
+  upload.array('documents', 20),
+  catchAsync(async (req, res) => {
+    console.log('Society documents upload request received');
+    console.log('Request body:', req.body);
+    console.log('Request files:', req.files ? req.files.length : 'No files');
+    console.log('User:', req.user ? req.user._id : 'No user');
+    
+    if (!req.files || req.files.length === 0) {
+      console.log('No files uploaded');
+      return res.status(400).json({
+        success: false,
+        message: 'No documents uploaded'
+      });
+    }
+
+    try {
+      const uploadPromises = req.files.map((file, index) => 
+        uploadToCloudinary(file.path, {
+          folder: 'nestly_estate/society_documents',
+          tags: ['society_document', req.body.type || 'general']
+        })
+      );
+      
+      const cloudinaryResults = await Promise.all(uploadPromises);
+      
+      const mediaPromises = cloudinaryResults.map((result, index) => 
+        saveMediaToDB(result, req.user._id, {
+          tags: ['society_document'],
+          alt: `Society document ${index + 1}`,
+          caption: `Society document ${index + 1}`,
+          documentType: req.body.type || 'general'
+        })
+      );
+      
+      const mediaResults = await Promise.all(mediaPromises);
+
+      res.status(200).json({
+        success: true,
+        documents: mediaResults.map((media, index) => ({
+          id: media._id,
+          url: media.url,
+          public_id: media.public_id,
+          resource_type: media.resource_type,
+          format: media.format,
+          bytes: media.bytes,
+          width: media.width,
+          height: media.height,
+          documentType: media.documentType,
+          createdAt: media.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error('Society documents upload error:', error);
+      console.error('Error stack:', error.stack);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        statusCode: error.statusCode,
+        name: error.name
+      });
+      res.status(500).json({
+        success: false,
+        message: 'Society documents upload failed',
         error: error.message,
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });

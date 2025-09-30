@@ -1,5 +1,8 @@
 // API client for Nestly Estate backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.DEV ? 'http://localhost:5000/api' : '/api');
+
+console.log('API Base URL configured as:', API_BASE_URL);
 
 interface ApiResponse<T = any> {
   data?: T;
@@ -28,6 +31,23 @@ class ApiClient {
     }
   }
 
+  // Check if server is reachable
+  async checkServerConnection(): Promise<boolean> {
+    try {
+      console.log('Checking server connection to:', `${this.baseURL.replace('/api', '')}/health`);
+      const response = await fetch(`${this.baseURL.replace('/api', '')}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000) // 5 second timeout for health check
+      });
+      const isOk = response.ok;
+      console.log('Server connection check result:', isOk ? 'SUCCESS' : 'FAILED');
+      return isOk;
+    } catch (error) {
+      console.error('Server connection check failed:', error);
+      return false;
+    }
+  }
+
   setRefreshToken(refreshToken: string | null) {
     if (refreshToken) {
       localStorage.setItem('auth_refresh_token', refreshToken);
@@ -40,9 +60,16 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
-    const url = `${this.baseURL}${endpoint}`;
-    
-    const headers: Record<string, string> = {};
+      const url = `${this.baseURL}${endpoint}`;
+      
+      console.log('API Request:', {
+        url,
+        method: options.method || 'GET',
+        hasToken: !!this.token,
+        bodyType: options.body ? (options.body instanceof FormData ? 'FormData' : 'JSON') : 'none'
+      });
+      
+      const headers: Record<string, string> = {};
     
     // Copy existing headers if they exist
     if (options.headers) {
@@ -69,9 +96,9 @@ class ApiClient {
     }
 
     try {
-      // Add 3 second timeout for all requests
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
+        // Add 30 second timeout for all requests (increased for file uploads)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
       
       const response = await fetch(url, {
         ...options,
@@ -79,9 +106,16 @@ class ApiClient {
         signal: controller.signal,
       });
       
-      clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-      const data = await response.json();
+        console.log('API Response:', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+
+        const data = await response.json();
 
       if (!response.ok) {
         return {
@@ -96,12 +130,17 @@ class ApiClient {
         message: data.message,
         status: data.status || 'success'
       };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Network error',
-        status: 'error'
-      };
-    }
+      } catch (error) {
+        console.error('API Request Error:', {
+          url,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          type: error instanceof Error ? error.constructor.name : 'Unknown'
+        });
+        return {
+          error: error instanceof Error ? error.message : 'Network error',
+          status: 'error'
+        };
+      }
   }
 
   // Auth endpoints
@@ -117,14 +156,17 @@ class ApiClient {
   }
 
   async verifyOTP(phone: string, otp: string, role?: string) {
-    const body: any = { phone, otp };
-    if (role) {
-      body.role = role;
-    }
-    return this.request('/auth/verify-otp', {
+    console.log('API Client: Verifying OTP for phone:', phone, 'with OTP:', otp, 'and role:', role);
+    const requestData = { phone, otp, role };
+    console.log('API Client: Request data:', requestData);
+    
+    const result = await this.request('/auth/verify-otp', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestData),
     });
+    
+    console.log('API Client: OTP verification result:', result);
+    return result;
   }
 
   async register(phone: string, otp: string, fullName: string, role: string) {
@@ -413,14 +455,87 @@ class ApiClient {
   }
 
   // Cloudinary upload methods
-  async uploadSingleFile(file: File) {
+  async uploadSingleFile(file: File, documentType?: string) {
+    // First check if server is reachable
+    const isServerReachable = await this.checkServerConnection();
+    if (!isServerReachable) {
+      return {
+        error: 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5000',
+        status: 'error'
+      };
+    }
+
     const formData = new FormData();
     formData.append('file', file);
+    if (documentType) {
+      formData.append('documentType', documentType);
+    }
 
-    return this.request('/upload/single', {
-      method: 'POST',
-      body: formData,
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+    if (documentType) {
+      headers['X-Upload-Type'] = 'society-document';
+    }
+
+    // Don't set Content-Type header - let browser set it for FormData
+    const url = `${this.baseURL}/upload/single`;
+    
+    console.log('Upload request details:', {
+      url,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      documentType,
+      hasToken: !!this.token
     });
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+
+      console.log('Upload response status:', response.status, response.statusText);
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('Upload response data:', data);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        return {
+          error: 'Invalid response from server',
+          status: 'error'
+        };
+      }
+
+      if (!response.ok) {
+        console.error('Upload failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          data
+        });
+        return {
+          error: data.message || data.error || `Upload failed with status ${response.status}`,
+          status: 'error'
+        };
+      }
+
+      return {
+        data: data.data || data,
+        message: data.message,
+        status: data.status || 'success'
+      };
+    } catch (error) {
+      console.error('Upload network error:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Network error',
+        status: 'error'
+      };
+    }
   }
 
   async uploadMultipleFiles(files: File[]) {
@@ -440,6 +555,19 @@ class ApiClient {
     formData.append('profilePicture', file);
 
     return this.request('/upload/profile-picture', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async uploadSocietyDocuments(files: File[], documentType: string = 'general') {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('documents', file);
+    });
+    formData.append('type', documentType);
+
+    return this.request('/upload/society-documents', {
       method: 'POST',
       body: formData,
     });
@@ -467,6 +595,11 @@ class ApiClient {
 
   async getSociety(id: string) {
     return this.request(`/societies/${id}`);
+  }
+
+  async getMySocieties(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/societies/my/societies${queryString}`);
   }
 
   // Brokers endpoints
@@ -502,33 +635,10 @@ class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const headers: HeadersInit = {};
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-    // Don't set Content-Type for FormData, let browser set it with boundary
-
-    const url = `${this.baseURL}/upload`;
-    const response = await fetch(url, {
+    return this.request('/upload/single', {
       method: 'POST',
-      headers,
       body: formData,
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return {
-        error: data.message || data.error || 'Upload failed',
-        status: 'error'
-      };
-    }
-
-    return {
-      data: data.data || data,
-      message: data.message,
-      status: data.status || 'success'
-    };
   }
 
   // Upload multiple property images
@@ -601,8 +711,34 @@ class ApiClient {
     };
   }
 
+  // Convenience methods for HTTP verbs
+  async get(endpoint: string) {
+    return this.request(endpoint, { method: 'GET' });
+  }
+
+  async post(endpoint: string, data?: any) {
+    return this.request(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put(endpoint: string, data?: any) {
+    return this.request(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete(endpoint: string) {
+    return this.request(endpoint, { method: 'DELETE' });
+  }
+
   // Society management methods
   async createSociety(societyData: any) {
+    console.log('Creating society - API URL:', `${this.baseURL}/societies`);
+    console.log('Society data being sent:', societyData);
+    
     return this.request('/societies', {
       method: 'POST',
       body: JSON.stringify(societyData),
@@ -620,6 +756,189 @@ class ApiClient {
     return this.request(`/societies/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async getSocietyMembers(societyId: string) {
+    return this.request(`/societies/${societyId}/members`, {
+      method: 'GET',
+    });
+  }
+
+  // Invitation methods
+  async sendInvitation(data: {
+    society_id: string;
+    invitedPhone: string;
+    invitedName?: string;
+    invitedEmail?: string;
+    invitationType: 'society_member' | 'broker' | 'developer';
+    message?: string;
+  }) {
+    console.log('Sending invitation with data:', data);
+    return this.request('/invitations/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getSentInvitations(params?: string) {
+    console.log('Getting sent invitations with params:', params);
+    return this.request(`/invitations/sent${params || ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async getReceivedInvitations(params?: string) {
+    return this.request(`/invitations/received${params || ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async acceptInvitation(invitationId: string, responseMessage?: string) {
+    return this.request(`/invitations/${invitationId}/accept`, {
+      method: 'POST',
+      body: JSON.stringify({ responseMessage }),
+    });
+  }
+
+  async declineInvitation(invitationId: string, responseMessage?: string) {
+    return this.request(`/invitations/${invitationId}/decline`, {
+      method: 'POST',
+      body: JSON.stringify({ responseMessage }),
+    });
+  }
+
+  async cancelInvitation(invitationId: string) {
+    return this.request(`/invitations/${invitationId}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  // Notification methods
+  async getNotifications(params?: string) {
+    return this.request(`/notifications${params || ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async markNotificationAsRead(notificationId: string) {
+    return this.request(`/notifications/${notificationId}/read`, {
+      method: 'PUT',
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return this.request('/notifications/mark-all-read', {
+      method: 'PUT',
+    });
+  }
+
+  async deleteNotification(notificationId: string) {
+    return this.request(`/notifications/${notificationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Redevelopment project methods
+  async getRedevelopmentProjects(queryParams?: string) {
+    const endpoint = queryParams ? `/redevelopment-projects${queryParams}` : '/redevelopment-projects';
+    return this.request(endpoint);
+  }
+
+  async getRedevelopmentProject(id: string) {
+    return this.request(`/redevelopment-projects/${id}`);
+  }
+
+  async createRedevelopmentProject(projectData: any) {
+    return this.request('/redevelopment-projects', {
+      method: 'POST',
+      body: JSON.stringify(projectData),
+    });
+  }
+
+  async updateRedevelopmentProject(id: string, updates: any) {
+    return this.request(`/redevelopment-projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteRedevelopmentProject(id: string) {
+    return this.request(`/redevelopment-projects/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addProjectUpdate(id: string, updateData: any) {
+    return this.request(`/redevelopment-projects/${id}/updates`, {
+      method: 'POST',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  async addProjectQuery(id: string, queryData: any) {
+    return this.request(`/redevelopment-projects/${id}/queries`, {
+      method: 'POST',
+      body: JSON.stringify(queryData),
+    });
+  }
+
+  async submitVote(id: string, voteData: any) {
+    return this.request(`/redevelopment-projects/${id}/vote`, {
+      method: 'POST',
+      body: JSON.stringify(voteData),
+    });
+  }
+
+  async getVotingResults(id: string, session?: string) {
+    const queryParams = session ? `?session=${session}` : '';
+    return this.request(`/redevelopment-projects/${id}/voting-results${queryParams}`);
+  }
+
+  // Developer proposal methods
+  async getDeveloperProposals(queryParams?: string) {
+    const endpoint = queryParams ? `/developer-proposals${queryParams}` : '/developer-proposals';
+    return this.request(endpoint);
+  }
+
+  async getDeveloperProposal(id: string) {
+    return this.request(`/developer-proposals/${id}`);
+  }
+
+  async createDeveloperProposal(proposalData: any) {
+    return this.request('/developer-proposals', {
+      method: 'POST',
+      body: JSON.stringify(proposalData),
+    });
+  }
+
+  async updateDeveloperProposal(id: string, updates: any) {
+    return this.request(`/developer-proposals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteDeveloperProposal(id: string) {
+    return this.request(`/developer-proposals/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async evaluateProposal(id: string, evaluationData: any) {
+    return this.request(`/developer-proposals/${id}/evaluate`, {
+      method: 'POST',
+      body: JSON.stringify(evaluationData),
+    });
+  }
+
+  async selectProposal(id: string) {
+    return this.request(`/developer-proposals/${id}/select`, {
+      method: 'POST',
+    });
+  }
+
+  async getProposalComparison(projectId: string) {
+    return this.request(`/developer-proposals/project/${projectId}/comparison`);
   }
 }
 

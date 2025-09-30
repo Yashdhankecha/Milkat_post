@@ -21,7 +21,8 @@ const notificationSchema = new mongoose.Schema({
       'system_alert',
       'property_update',
       'price_change',
-      'status_change'
+      'status_change',
+      'invitation'
     ],
     required: true
   },

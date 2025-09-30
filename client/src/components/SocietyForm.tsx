@@ -1,5 +1,5 @@
 import apiClient from '@/lib/api';
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +62,7 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
   const [address, setAddress] = useState(society?.address || '')
   const [city, setCity] = useState(society?.city || '')
   const [state, setState] = useState(society?.state || '')
+  const [pincode, setPincode] = useState(society?.pincode || '')
   const [totalFlats, setTotalFlats] = useState(society?.total_flats?.toString() || '')
   const [yearBuilt, setYearBuilt] = useState(society?.year_built?.toString() || '')
   const [conditionStatus, setConditionStatus] = useState<string[]>(
@@ -80,12 +81,33 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
   const [registrationDocuments, setRegistrationDocuments] = useState<DocumentFile[]>([])
   const [floorPlanDocuments, setFloorPlanDocuments] = useState<DocumentFile[]>([])
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
   
   const { toast } = useToast()
 
   // Load existing society data for editing
-  useState(() => {
+  useEffect(() => {
     if (isEditing && society) {
+      // Load existing form data
+      setName(society.name || '')
+      setSocietyType(society.society_type || '')
+      setNumberOfBlocks(society.number_of_blocks?.toString() || '')
+      setTotalArea(society.total_area?.toString() || '')
+      setRegistrationDate(society.registration_date ? new Date(society.registration_date) : undefined)
+      setAddress(society.address || '')
+      setCity(society.city || '')
+      setState(society.state || '')
+      setPincode(society.pincode || '')
+      setTotalFlats(society.total_flats?.toString() || '')
+      setYearBuilt(society.year_built?.toString() || '')
+      setConditionStatus(society.condition_status ? [society.condition_status] : [])
+      setAmenities(society.amenities || [])
+      setFsi(society.fsi?.toString() || '')
+      setRoadFacing(society.road_facing || '')
+      setContactPersonName(society.contact_person_name || '')
+      setContactPhone(society.contact_phone || '')
+      setContactEmail(society.contact_email || '')
+      
       // Load existing documents
       if (society.registration_documents && Array.isArray(society.registration_documents)) {
         const existingRegDocs: DocumentFile[] = society.registration_documents.map((url: string) => ({
@@ -115,7 +137,7 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         })))
       }
     }
-  })
+  }, [isEditing, society])
 
   const handleConditionChange = (condition: string, checked: boolean) => {
     // Defer state update to avoid flushSync warning
@@ -159,8 +181,63 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
     updateFlatVariant(variantId, 'documents', files)
   }
 
+  const validateForm = () => {
+    const errors: string[] = []
+
+    // Required field validations
+    if (!name.trim()) errors.push("Society name is required")
+    if (!societyType) errors.push("Society type is required")
+    if (!totalFlats || parseInt(totalFlats) < 1) errors.push("Total flats must be a positive number")
+    if (!address.trim()) errors.push("Address is required")
+    if (!city.trim()) errors.push("City is required")
+    if (!state.trim()) errors.push("State is required")
+
+    // Optional field validations
+    if (numberOfBlocks && parseInt(numberOfBlocks) < 1) errors.push("Number of blocks must be a positive number")
+    if (totalArea && parseFloat(totalArea) < 0) errors.push("Total area must be a positive number")
+    if (yearBuilt) {
+      const year = parseInt(yearBuilt)
+      const currentYear = new Date().getFullYear()
+      if (year < 1900 || year > currentYear) errors.push(`Year built must be between 1900 and ${currentYear}`)
+    }
+    if (fsi && parseFloat(fsi) < 0) errors.push("FSI must be a positive number")
+
+    // Flat variants validation
+    const validVariants = flatVariants.filter(variant => variant.name.trim())
+    if (validVariants.length > 0) {
+      validVariants.forEach((variant, index) => {
+        if (variant.area && parseFloat(variant.area) < 0) {
+          errors.push(`Flat variant ${index + 1}: Area must be a positive number`)
+        }
+        if (variant.bathrooms && parseInt(variant.bathrooms) < 0) {
+          errors.push(`Flat variant ${index + 1}: Bathrooms must be a non-negative number`)
+        }
+      })
+    }
+
+    // Contact information validation
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      errors.push("Please enter a valid email address")
+    }
+
+    return errors
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Form validation
+    const validationErrors = validateForm()
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => {
+        toast({
+          title: "Validation Error",
+          description: error,
+          variant: "destructive",
+        })
+      })
+      return
+    }
     
     if (!declaration) {
       toast({
@@ -183,6 +260,13 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         .filter(doc => doc.status === 'completed' && doc.url)
         .map(doc => doc.url!)
 
+      console.log('Document URLs being saved:', { 
+        registrationDocuments: allDocumentUrls, 
+        floorPlanDocuments: allFlatPlanUrls,
+        registrationCount: registrationDocuments.length,
+        floorPlanCount: floorPlanDocuments.length
+      })
+
       // Prepare flat variants data
       const flatVariantsData = flatVariants.map(variant => ({
         name: variant.name,
@@ -199,6 +283,7 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         address,
         city,
         state,
+        pincode: pincode || null,
         total_flats: parseInt(totalFlats),
         year_built: yearBuilt ? parseInt(yearBuilt) : null,
         condition_status: conditionStatus.length > 0 ? conditionStatus[0] : null,
@@ -209,19 +294,42 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         contact_person_name: contactPersonName || null,
         contact_phone: contactPhone || null,
         contact_email: contactEmail || null,
-        registration_documents: allDocumentUrls.length > 0 ? allDocumentUrls : null,
-        flat_plan_documents: allFlatPlanUrls.length > 0 ? allFlatPlanUrls : null,
-        ...(!isEditing && { owner_id: user?.id })
+        registration_documents: allDocumentUrls,
+        flat_plan_documents: allFlatPlanUrls
+        // Remove owner_id as backend handles this automatically
       }
 
+      console.log('Submitting society data:', societyData);
+      
       let result
       if (isEditing && society) {
+        console.log('Updating society:', society.id);
         result = await apiClient.updateSociety(society.id, societyData)
       } else {
+        console.log('Creating new society');
         result = await apiClient.createSociety(societyData)
       }
 
-      if (result.error) throw result.error
+      console.log('Society API response:', result);
+
+      if (result.error) {
+        console.error('Society API error:', result.error);
+        
+        // Handle validation errors from backend
+        if (result.errors && Array.isArray(result.errors)) {
+          result.errors.forEach((error: any) => {
+            toast({
+              title: "Validation Error",
+              description: `${error.field}: ${error.message}`,
+              variant: "destructive",
+            });
+          });
+          return;
+        }
+        
+        // Handle other errors
+        throw new Error(result.error);
+      }
 
       toast({
         title: isEditing ? "Society Updated" : "Society Created",
@@ -230,11 +338,38 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
 
       onSuccess?.()
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving society:', error)
+      
+      // Handle different types of errors
+      let errorMessage = "Something went wrong. Please try again.";
+      
+      if (error?.response?.data?.errors) {
+        // Handle validation errors from API response
+        error.response.data.errors.forEach((err: any) => {
+          toast({
+            title: "Validation Error",
+            description: `${err.field}: ${err.message}`,
+            variant: "destructive",
+          });
+        });
+        return; // Don't show generic error if we've shown specific ones
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      // Handle specific error cases
+      if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+        errorMessage = "Cannot connect to server. Please check if the backend server is running on http://localhost:5000";
+      } else if (error?.message?.includes('timeout')) {
+        errorMessage = "Request timed out. Please try again.";
+      }
+      
       toast({
         title: "Error",
-        description: "Something went wrong. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -390,18 +525,28 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state" className="text-sm font-medium">State *</Label>
-                    <Input
-                      id="state"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      placeholder="State"
-                      className="h-11"
-                      required
-                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="state" className="text-sm font-medium">State *</Label>
+                      <Input
+                        id="state"
+                        value={state}
+                        onChange={(e) => setState(e.target.value)}
+                        placeholder="State"
+                        className="h-11"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pincode" className="text-sm font-medium">Pincode</Label>
+                      <Input
+                        id="pincode"
+                        value={pincode}
+                        onChange={(e) => setPincode(e.target.value)}
+                        placeholder="Pincode"
+                        className="h-11"
+                      />
+                    </div>
                   </div>
-                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="yearBuilt" className="text-sm font-medium">Year Built</Label>
@@ -543,6 +688,8 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
                 documents={registrationDocuments}
                 onDocumentsChange={setRegistrationDocuments}
                 uploadButtonColor="primary"
+                onUploadStart={() => setUploading(true)}
+                onUploadComplete={() => setUploading(false)}
               />
 
               <DocumentUploadSection
@@ -553,6 +700,8 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
                 documents={floorPlanDocuments}
                 onDocumentsChange={setFloorPlanDocuments}
                 uploadButtonColor="orange"
+                onUploadStart={() => setUploading(true)}
+                onUploadComplete={() => setUploading(false)}
               />
             </div>
 
@@ -756,15 +905,30 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
               </div>
             </div>
 
+            {/* Upload Status */}
+            {uploading && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  <span className="text-blue-700">Uploading documents to Cloudinary...</span>
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <div className="flex justify-end">
               <Button 
                 type="submit" 
                 size="lg" 
                 className="min-w-32"
-                disabled={loading || !declaration}
+                disabled={loading || uploading || !declaration}
               >
-                {loading ? (
+                {uploading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                    Uploading...
+                  </>
+                ) : loading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
                     {isEditing ? 'Updating...' : 'Creating...'}

@@ -30,6 +30,37 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
+// Debug endpoint to check if user exists
+router.post('/check-user',
+  [
+    body('phone')
+      .notEmpty()
+      .withMessage('Phone number is required')
+      .isLength({ min: 10, max: 16 })
+      .withMessage('Phone number must be between 10-16 characters')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { phone } = req.body;
+    
+    const user = await User.findOne({ phone });
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        phone,
+        userExists: !!user,
+        user: user ? {
+          phone: user.phone,
+          isVerified: user.isVerified,
+          verificationCode: user.verificationCode ? '***' : null,
+          verificationCodeExpires: user.verificationCodeExpires
+        } : null
+      }
+    });
+  })
+);
+
 // Send OTP for phone authentication
 router.post('/send-otp', 
   // authRateLimit(5, 15 * 60 * 1000), // Removed - no rate limiting needed
@@ -135,22 +166,31 @@ router.post('/verify-otp',
     const user = await User.findOne({ phone });
     
     if (!user) {
-      return res.status(404).json({
+      console.log('OTP Verification: User not found for phone:', phone);
+      return res.status(400).json({
         status: 'error',
-        message: 'User not found.'
+        message: 'User not found. Please ensure you have sent an OTP to this phone number first.',
+        details: 'Make sure you have completed the send-otp step before verifying.'
       });
     }
 
     // Check if OTP is valid and not expired
     // In development, accept 123456 as valid OTP
+    console.log('OTP Verification: Checking OTP for user:', user.phone);
+    console.log('OTP Verification: Expected OTP:', user.verificationCode);
+    console.log('OTP Verification: Received OTP:', otp);
+    console.log('OTP Verification: Environment:', process.env.NODE_ENV);
+    
     const isValidOTP = process.env.NODE_ENV === 'production' 
       ? (user.verificationCode && user.verificationCode === otp)
       : (user.verificationCode && user.verificationCode === otp) || otp === '123456';
     
     if (!isValidOTP) {
+      console.log('OTP Verification: Invalid OTP provided');
       return res.status(400).json({
         status: 'error',
-        message: 'Invalid OTP.'
+        message: 'Invalid OTP. Please check the code and try again.',
+        details: process.env.NODE_ENV === 'development' ? 'In development, you can use 123456 as a test OTP.' : 'Please enter the 6-digit code sent to your phone.'
       });
     }
 

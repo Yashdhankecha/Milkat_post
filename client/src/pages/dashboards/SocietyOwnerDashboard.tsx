@@ -11,13 +11,16 @@ import { SocietyForm } from "@/components/SocietyForm";
 import { MemberManagement } from "@/components/MemberManagement";
 import { RequirementForm } from "@/components/RequirementForm";
 import { DocumentUploadSection, type DocumentFile } from "@/components/DocumentUploadSection";
-import { Building2, Users, FileText, Plus, Settings, Eye, X, Upload, CheckCircle2 } from "lucide-react";
+import RedevelopmentModule from "@/components/RedevelopmentModule";
+import InvitationManagement from "@/components/InvitationManagement";
+import { Building2, Users, FileText, Plus, Settings, Eye, X, Upload, CheckCircle2, RefreshCw, Building, UserPlus, Mail, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface Society {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   society_type: string;
   number_of_blocks: number;
@@ -44,18 +47,18 @@ interface Society {
 
 interface SocietyMember {
   id: string;
-  flat_number: string;
-  user_id: string;
+  userId: string;
+  phone: string;
+  email: string;
+  role: string;
   status: string;
-  joined_at: string;
-  profiles?: {
-    full_name: string;
-    phone: string;
-  };
+  joinedAt: string;
+  isOwner: boolean;
 }
 
 interface Requirement {
-  id: string;
+  id?: string;
+  _id?: string;
   requirement_type: string;
   description: string;
   budget_range: string;
@@ -64,7 +67,8 @@ interface Requirement {
 }
 
 interface Proposal {
-  id: string;
+  id?: string;
+  _id?: string;
   title: string;
   description: string;
   budget_estimate: number;
@@ -88,22 +92,40 @@ const SocietyOwnerDashboard = () => {
   const [registrationDocuments, setRegistrationDocuments] = useState<DocumentFile[]>([]);
   const [floorPlanDocuments, setFloorPlanDocuments] = useState<DocumentFile[]>([]);
 
+  // Helper function to get society ID (handles both id and _id)
+  const getSocietyId = (societyData: Society | null): string | undefined => {
+    return societyData?.id || societyData?._id;
+  };
+
   const fetchSocietyData = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user found, cannot fetch society data');
+      return;
+    }
     
     try {
+      console.log('Fetching society data for user:', user.id, 'role:', user.currentRole);
       // Fetch societies owned by the current user
-      const { data: societiesData, error: societyError } = await apiClient.getSocieties();
+      const { data: responseData, error: societyError } = await apiClient.getMySocieties();
+      console.log('Societies response data:', responseData);
+      
+      // Extract societies array from the response
+      const societiesData = responseData?.societies || responseData || [];
+      console.log('Societies array:', societiesData);
 
       // Use the first society for now (TODO: Add society selector if multiple)
       const societyData = societiesData?.[0];
 
       if (societyError) {
         console.error('Society fetch error:', societyError);
+        toast("Error", {
+          description: "Failed to fetch society data. Please try again.",
+        });
         return;
       }
 
       if (societyData) {
+        console.log('Setting society data:', societyData);
         setSociety(societyData);
         
         // Load existing documents
@@ -125,53 +147,79 @@ const SocietyOwnerDashboard = () => {
           setFloorPlanDocuments(existingFloorDocs);
         }
 
-        // Fetch society members
-        const { data: membersData, error: membersError } = await apiClient.getUsers({ society_id: societyData.id });
-
+        // Fetch society members using the new API endpoint
+        const societyId = getSocietyId(societyData);
+        console.log('Society ID for members fetch:', societyId);
+        if (societyId) {
+          const { data: membersResponse, error: membersError } = await apiClient.getSocietyMembers(societyId);
+        
         if (membersError) {
           console.error('Members fetch error:', membersError);
-        } else if (membersData && membersData.length > 0) {
-          // Fetch profiles separately to avoid relation issues
-          const memberIds = membersData.map(member => member.user_id);
-          const { data: profilesData } = await apiClient.getUsers({ ids: memberIds.join(',') });
-
-          // Combine the data
-          const membersWithProfiles = membersData.map(member => {
-            const profile = profilesData?.find(p => p.id === member.user_id);
-            return {
-              ...member,
-              profiles: profile || null
-            };
+          toast("Warning", {
+            description: "Failed to fetch member data. Please refresh the page.",
           });
-          
-          setMembers(membersWithProfiles);
+          setMembers([]);
+        } else if (membersResponse && membersResponse.members) {
+          console.log('Members data received:', membersResponse.members);
+          setMembers(membersResponse.members);
         } else {
+          console.log('No members data found');
+          setMembers([]);
+        }
+        } else {
+          console.log('No society ID available for members fetch');
           setMembers([]);
         }
 
         // Fetch requirements
-        const { data: requirementsData, error: requirementsError } = await apiClient.getRequirements({ society_id: societyData.id });
+        const societyIdForRequirements = getSocietyId(societyData);
+        const { data: requirementsData, error: requirementsError } = await apiClient.getRequirements({ society_id: societyIdForRequirements });
 
+        let requirementsArray: any[] = [];
+        
         if (requirementsError) {
           console.error('Requirements fetch error:', requirementsError);
+          toast("Warning", {
+            description: "Failed to fetch requirements data.",
+          });
+          setRequirements([]); // Ensure it's always an array
         } else {
-          setRequirements(requirementsData || []);
+          // Ensure requirementsData is an array
+          requirementsArray = Array.isArray(requirementsData) ? requirementsData : 
+                             (requirementsData?.data && Array.isArray(requirementsData.data)) ? requirementsData.data : 
+                             (requirementsData?.requirements && Array.isArray(requirementsData.requirements)) ? requirementsData.requirements : [];
+          console.log('Requirements data structure:', { requirementsData, requirementsArray });
+          setRequirements(requirementsArray);
         }
 
         // Fetch proposals for requirements
-        const requirementIds = requirementsData?.map(req => req.id) || [];
+        const requirementIds = requirementsArray?.map(req => req._id || req.id) || [];
         if (requirementIds.length > 0) {
           const { data: proposalsData, error: proposalsError } = await apiClient.getRequirements({ society_id: societyData.id });
 
           if (proposalsError) {
             console.error('Proposals fetch error:', proposalsError);
+            toast("Warning", {
+              description: "Failed to fetch proposals data.",
+            });
+            setProposals([]); // Ensure it's always an array
           } else {
-            setProposals(proposalsData || []);
+            // Ensure proposalsData is an array
+            const proposalsArray = Array.isArray(proposalsData) ? proposalsData : 
+                                 (proposalsData?.data && Array.isArray(proposalsData.data)) ? proposalsData.data : 
+                                 (proposalsData?.proposals && Array.isArray(proposalsData.proposals)) ? proposalsData.proposals : [];
+            console.log('Proposals data structure:', { proposalsData, proposalsArray });
+            setProposals(proposalsArray);
           }
+        } else {
+          setProposals([]); // No requirements, so no proposals
         }
       }
     } catch (error) {
       console.error('Fetch error:', error);
+      toast("Error", {
+        description: "Failed to load dashboard data. Please refresh the page.",
+      });
     } finally {
       setLoading(false);
     }
@@ -194,7 +242,14 @@ const SocietyOwnerDashboard = () => {
         .filter(doc => doc.status === 'completed' && doc.url)
         .map(doc => doc.url!);
 
-      const { error } = await apiClient.updateSociety(society.id, {
+      const societyId = getSocietyId(society);
+      if (!societyId) {
+        toast("Error", {
+          description: "Society ID not available",
+        });
+        return;
+      }
+      const { error } = await apiClient.updateSociety(societyId, {
         registration_documents: registrationDocUrls,
         flat_plan_documents: floorPlanDocUrls
       });
@@ -231,6 +286,8 @@ const SocietyOwnerDashboard = () => {
     );
   }
 
+  console.log('Dashboard render - society:', society, 'showSocietyForm:', showSocietyForm, 'loading:', loading);
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardNav />
@@ -241,30 +298,47 @@ const SocietyOwnerDashboard = () => {
             <h1 className="text-3xl font-bold">Society Management Dashboard</h1>
             <p className="text-muted-foreground">Manage your society and members</p>
           </div>
-          {!society && (
-            <Dialog open={showSocietyForm} onOpenChange={setShowSocietyForm}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Society Profile
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Create Society Profile</DialogTitle>
-                  <DialogDescription>
-                    Fill out the form below to create your society profile with all the necessary details.
-                  </DialogDescription>
-                </DialogHeader>
-                <SocietyForm 
-                  onSuccess={() => {
-                    setShowSocietyForm(false);
-                    fetchSocietyData();
-                  }} 
-                />
-              </DialogContent>
-            </Dialog>
-          )}
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={fetchSocietyData}
+              disabled={loading}
+              size="sm"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            {!society && (
+              <Dialog open={showSocietyForm} onOpenChange={setShowSocietyForm}>
+                <DialogTrigger asChild>
+                  <Button 
+                    onClick={() => {
+                      console.log('Opening society form dialog');
+                      setShowSocietyForm(true);
+                    }}
+                    className="bg-primary hover:bg-primary/90"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Society Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create Society Profile</DialogTitle>
+                    <DialogDescription>
+                      Fill out the form below to create your society profile with all the necessary details.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <SocietyForm 
+                    onSuccess={() => {
+                      setShowSocietyForm(false);
+                      fetchSocietyData();
+                    }} 
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
         </div>
 
         {!society ? (
@@ -279,7 +353,13 @@ const SocietyOwnerDashboard = () => {
             <CardContent className="text-center">
               <Dialog open={showSocietyForm} onOpenChange={setShowSocietyForm}>
                 <DialogTrigger asChild>
-                  <Button size="lg">
+                  <Button 
+                    size="lg"
+                    onClick={() => {
+                      console.log('Opening society form dialog from main content');
+                      setShowSocietyForm(true);
+                    }}
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Create Society Profile
                   </Button>
@@ -303,77 +383,77 @@ const SocietyOwnerDashboard = () => {
           </Card>
         ) : (
           <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Flats</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{society.total_flats}</div>
+            {/* Enhanced Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-blue-600 font-medium">Total Flats</p>
+                      <p className="text-3xl font-bold text-blue-800">{society.total_flats}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Members</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{members.length}</div>
+              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-green-600 font-medium">Active Members</p>
+                      <p className="text-3xl font-bold text-green-800">{members.length}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                      <Users className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Blocks</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{society.number_of_blocks}</div>
+              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-purple-600 font-medium">Total Blocks</p>
+                      <p className="text-3xl font-bold text-purple-800">{society.number_of_blocks || 'N/A'}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Requirements</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{requirements.length}</div>
+              <Card className="relative overflow-hidden border-0 shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-orange-600 font-medium">Requirements</p>
+                      <p className="text-3xl font-bold text-orange-800">{requirements && Array.isArray(requirements) ? requirements.length : 0}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+                      <FileText className="h-6 w-6 text-white" />
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Proposals</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{proposals.length}</div>
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Society Code</CardTitle>
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-lg font-mono">{society.society_code}</div>
-                </CardContent>
-              </Card>
             </div>
 
             {/* Main Content Tabs */}
             <Tabs defaultValue="society" className="space-y-6">
-              <TabsList>
-                <TabsTrigger value="society">Society Details</TabsTrigger>
-                <TabsTrigger value="members">Members ({members.length})</TabsTrigger>
-                <TabsTrigger value="requirements">Requirements ({requirements.length})</TabsTrigger>
-                <TabsTrigger value="proposals">Proposals ({proposals.length})</TabsTrigger>
-              </TabsList>
+       <TabsList>
+         <TabsTrigger value="society">Society Details</TabsTrigger>
+         <TabsTrigger value="members">Members ({members && Array.isArray(members) ? members.length : 0})</TabsTrigger>
+         <TabsTrigger value="invitations">Invitations</TabsTrigger>
+         <TabsTrigger value="requirements">Requirements ({requirements && Array.isArray(requirements) ? requirements.length : 0})</TabsTrigger>
+         <TabsTrigger value="proposals">Proposals ({proposals && Array.isArray(proposals) ? proposals.length : 0})</TabsTrigger>
+         <TabsTrigger value="redevelopment">Redevelopment</TabsTrigger>
+       </TabsList>
 
               <TabsContent value="society">
                 <div className="space-y-6">
@@ -497,7 +577,7 @@ const SocietyOwnerDashboard = () => {
                       title="Society Registration Documents"
                       description="Upload society registration certificate, building approvals, NOC documents"
                       bucketName="society-documents"
-                      folderPath={`${society.id}/registration`}
+                      folderPath={`${getSocietyId(society) || 'unknown'}/registration`}
                       documents={registrationDocuments}
                       onDocumentsChange={setRegistrationDocuments}
                       uploadButtonColor="primary"
@@ -508,7 +588,7 @@ const SocietyOwnerDashboard = () => {
                       title="Floor Plans & Layout Documents"
                       description="Upload floor plans, layout drawings for each block"
                       bucketName="society-documents"
-                      folderPath={`${society.id}/floor-plans`}
+                      folderPath={`${getSocietyId(society) || 'unknown'}/floor-plans`}
                       documents={floorPlanDocuments}
                       onDocumentsChange={setFloorPlanDocuments}
                       uploadButtonColor="orange"
@@ -526,8 +606,15 @@ const SocietyOwnerDashboard = () => {
 
               <TabsContent value="members">
             <MemberManagement 
-              societyId={society.id} 
+              societyId={getSocietyId(society) || ''} 
             />
+              </TabsContent>
+
+              <TabsContent value="invitations">
+                <InvitationManagement 
+                  societyId={getSocietyId(society) || ''} 
+                  societyName={society.name} 
+                />
               </TabsContent>
 
               <TabsContent value="requirements">
@@ -549,7 +636,7 @@ const SocietyOwnerDashboard = () => {
                           </DialogDescription>
                         </DialogHeader>
                         <RequirementForm 
-                          societyId={society.id}
+                          societyId={getSocietyId(society) || ''}
                           onSuccess={() => {
                             setShowRequirementForm(false);
                             fetchSocietyData();
@@ -559,7 +646,7 @@ const SocietyOwnerDashboard = () => {
                     </Dialog>
                   </div>
 
-                  {requirements.length === 0 ? (
+                  {!requirements || !Array.isArray(requirements) || requirements.length === 0 ? (
                     <Card>
                       <CardContent className="text-center py-12">
                         <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -569,8 +656,8 @@ const SocietyOwnerDashboard = () => {
                     </Card>
                   ) : (
                     <div className="grid gap-6">
-                      {requirements.map((requirement) => (
-                        <Card key={requirement.id}>
+                      {requirements && Array.isArray(requirements) && requirements.map((requirement) => (
+                        <Card key={requirement._id || requirement.id}>
                           <CardHeader>
                             <div className="flex justify-between items-start">
                               <div>
@@ -599,7 +686,7 @@ const SocietyOwnerDashboard = () => {
                 <div className="space-y-6">
                   <h2 className="text-2xl font-bold">Developer Proposals</h2>
                   
-                  {proposals.length === 0 ? (
+                  {!proposals || !Array.isArray(proposals) || proposals.length === 0 ? (
                     <Card>
                       <CardContent className="text-center py-12">
                         <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -609,8 +696,8 @@ const SocietyOwnerDashboard = () => {
                     </Card>
                   ) : (
                     <div className="grid gap-6">
-                      {proposals.map((proposal) => (
-                        <Card key={proposal.id}>
+                      {proposals && Array.isArray(proposals) && proposals.map((proposal) => (
+                        <Card key={proposal._id || proposal.id}>
                           <CardHeader>
                             <div className="flex justify-between items-start">
                               <div>
@@ -634,6 +721,13 @@ const SocietyOwnerDashboard = () => {
                     </div>
                   )}
                 </div>
+              </TabsContent>
+
+              <TabsContent value="redevelopment">
+                <RedevelopmentModule 
+                  societyId={getSocietyId(society) || ''} 
+                  isOwner={true}
+                />
               </TabsContent>
             </Tabs>
           </>

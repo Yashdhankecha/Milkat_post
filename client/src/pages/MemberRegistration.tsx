@@ -160,11 +160,7 @@ const MemberRegistration = () => {
 
     try {
       // Verify OTP
-      const { data, error } = await apiClient.verifyOTP({
-        phone: phone,
-        token: otp,
-        type: 'sms'
-      })
+      const { data, error } = await apiClient.verifyOTP(phone, otp)
 
       if (error) {
         toast({

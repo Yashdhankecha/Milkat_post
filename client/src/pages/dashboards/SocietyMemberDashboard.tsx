@@ -1,457 +1,472 @@
-import apiClient from '@/lib/api';
-import { useState, useEffect } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import DashboardNav from "@/components/DashboardNav";
-import { FlatDetailsForm } from "@/components/FlatDetailsForm";
-import { VotingSystem } from "@/components/VotingSystem";
-import { Building2, Home, FileText, Users, MessageSquare, Vote, Settings } from "lucide-react";
-import { toast } from "sonner";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Building2, 
+  Users, 
+  FileText, 
+  Vote, 
+  Bell,
+  MessageSquare,
+  Download,
+  Eye,
+  TrendingUp,
+  Calendar,
+  AlertCircle,
+  CheckCircle
+} from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { apiClient } from '@/lib/api';
+import DashboardNav from '@/components/DashboardNav';
+import RedevelopmentModule from '@/components/RedevelopmentModule';
 
 interface Society {
-  id: string;
+  _id: string;
   name: string;
   address: string;
   city: string;
   state: string;
-  year_built: number;
-  total_flats: number;
-  condition_status: string;
+  totalFlats: number;
+  society_type: string;
+  amenities: string[];
 }
 
-interface SocietyMember {
-  id: string;
-  society_id: string;
-  flat_number: string;
-  status: string;
-  joined_at: string;
-  societies?: Society;
-}
-
-interface RedevelopmentRequirement {
-  id: string;
-  requirement_type: string;
+interface RedevelopmentProject {
+  _id: string;
+  title: string;
   description: string;
-  timeline_expectation: string;
   status: string;
-  created_at: string;
+  progress: number;
+  votingResults?: {
+    totalMembers: number;
+    votesCast: number;
+    yesVotes: number;
+    noVotes: number;
+    approvalPercentage: number;
+    isApproved: boolean;
+  };
+  updates: Array<{
+    _id: string;
+    title: string;
+    description: string;
+    postedBy: string;
+    postedAt: string;
+    isImportant: boolean;
+  }>;
+  queries: Array<{
+    _id: string;
+    title: string;
+    description: string;
+    status: string;
+    response?: string;
+  }>;
 }
 
-const SocietyMemberDashboard = () => {
+interface Notification {
+  _id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+const SocietyMemberDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [membership, setMembership] = useState<SocietyMember | null>(null);
-  const [requirements, setRequirements] = useState<RedevelopmentRequirement[]>([]);
-  const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [societies, setSocieties] = useState<Society[]>([]);
+  const [selectedSociety, setSelectedSociety] = useState<Society | null>(null);
+  const [projects, setProjects] = useState<RedevelopmentProject[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    if (user) {
-      fetchMembershipData();
+    fetchSocieties();
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    if (selectedSociety) {
+      fetchProjects();
     }
-  }, [user]);
+  }, [selectedSociety]);
 
-  const fetchMembershipData = async () => {
+  const fetchSocieties = async () => {
     try {
-      console.log('Fetching membership data for user:', user?.id)
+      setLoading(true);
+      const response = await apiClient.getMySocieties();
       
-      // First fetch member's society membership without join
-      const membershipResult = await apiClient.getProfile();
-      const { data: membershipData, error: membershipError } = membershipResult;
-
-      console.log('Membership data (no join):', { membershipData, membershipError })
-
-      if (membershipError) {
-        if (typeof membershipError === 'object' && membershipError && 'code' in membershipError && (membershipError as any).code !== 'PGRST116') {
-          console.error('Error fetching membership:', membershipError);
-          return;
-        }
+      if (response.error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch societies",
+          variant: "destructive",
+        });
+        return;
       }
 
-      if (membershipData && membershipData.society_id) {
-        console.log('Society ID from membership:', membershipData.society_id)
-        
-        // Now fetch society data separately
-        const societyResult = await apiClient.getSociety(membershipData.society_id);
-        const { data: societyData, error: societyError } = societyResult;
-          
-        console.log('Society data:', { societyData, societyError })
-        
-        if (societyData) {
-          // Combine the data
-          const combinedData = {
-            ...membershipData,
-            societies: societyData
-          };
-          console.log('Combined membership data:', combinedData)
-          setMembership(combinedData);
-        } else {
-          console.error('No society found for ID:', membershipData.society_id)
-          setMembership(membershipData);
-        }
-        // Fetch society requirements
-        const requirementsResult = await apiClient.getRequirements({ society_id: membershipData.society_id });
-        const { data: requirementsData, error: requirementsError } = requirementsResult;
-
-        if (requirementsError) {
-          console.error('Error fetching requirements:', requirementsError);
-        } else {
-          setRequirements(requirementsData || []);
-        }
-        // Fetch proposals for voting
-        const result = await apiClient.getDevelopers();
-        const proposalsData = result.data || [];
-        const proposalsError = result.error;
-
-        if (proposalsError) {
-          console.error('Error fetching proposals:', proposalsError);
-        } else {
-          setProposals(proposalsData || []);
-        }
-      } else {
-        console.log('No membership data or society_id found');
-        setMembership(null);
-        setRequirements([]);
-        setProposals([]);
+      setSocieties(response.data.societies || []);
+      if (response.data.societies && response.data.societies.length > 0) {
+        setSelectedSociety(response.data.societies[0]);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error("Failed to load dashboard data");
+      console.error('Error fetching societies:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch societies",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchProjects = async () => {
+    if (!selectedSociety) return;
+
+    try {
+      const response = await apiClient.getRedevelopmentProjects(`?society_id=${selectedSociety._id}`);
+      
+      if (response.error) {
+        console.error('Error fetching projects:', response.error);
+        return;
+      }
+
+      setProjects(response.data.projects || []);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await apiClient.get('/notifications');
+      
+      if (response.error) {
+        console.error('Error fetching notifications:', response.error);
+        return;
+      }
+
+      setNotifications(response.data.notifications || []);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    const statusColors: Record<string, string> = {
+      planning: 'bg-blue-100 text-blue-800',
+      tender_open: 'bg-yellow-100 text-yellow-800',
+      proposals_received: 'bg-purple-100 text-purple-800',
+      voting: 'bg-orange-100 text-orange-800',
+      developer_selected: 'bg-green-100 text-green-800',
+      construction: 'bg-indigo-100 text-indigo-800',
+      completed: 'bg-emerald-100 text-emerald-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    return statusColors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gray-50">
         <DashboardNav />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="text-muted-foreground mt-4">Loading dashboard...</p>
+        <div className="container mx-auto px-4 py-8">
+          <div className="space-y-6">
+            <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+            <div className="grid gap-6">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardHeader>
+                    <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <DashboardNav />
-      
-      <main className="container mx-auto px-6 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">Member Dashboard</h1>
-            <p className="text-muted-foreground">View your society information and requirements</p>
-          </div>
-        </div>
-
-        {!membership ? (
+  if (societies.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <DashboardNav />
+        <div className="container mx-auto px-4 py-8">
           <Card>
-            <CardHeader className="text-center">
-              <Home className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <CardTitle>No Society Membership Found</CardTitle>
-              <CardDescription>
-                You are not currently a member of any society. Contact your society owner/secretary to get added.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Button variant="outline">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Contact Support
-              </Button>
+            <CardContent className="text-center py-12">
+              <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Society Memberships</h3>
+              <p className="text-muted-foreground">
+                You are not a member of any society yet.
+              </p>
             </CardContent>
           </Card>
-        ) : (
-          <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Your Flat</CardTitle>
-                  <Home className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">#{membership.flat_number}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Status: <Badge variant="secondary" className="text-xs">{membership.status}</Badge>
-                  </p>
-                </CardContent>
-              </Card>
+        </div>
+      </div>
+    );
+  }
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Society Flats</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{membership.societies?.total_flats || 'N/A'}</div>
-                  <p className="text-xs text-muted-foreground">Total units</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Active Proposals</CardTitle>
-                  <Vote className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{proposals.length}</div>
-                  <p className="text-xs text-muted-foreground">Awaiting votes</p>
-                </CardContent>
-              </Card>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <DashboardNav />
+      <div className="container mx-auto px-4 py-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Society Member Dashboard</h1>
+              <p className="text-muted-foreground mt-1">
+                Welcome back, {user?.name || user?.phone}
+              </p>
             </div>
+            <div className="flex items-center gap-2">
+              {societies.length > 1 && (
+                <select
+                  value={selectedSociety?._id || ''}
+                  onChange={(e) => {
+                    const society = societies.find(s => s._id === e.target.value);
+                    setSelectedSociety(society || null);
+                  }}
+                  className="px-3 py-2 border rounded-md"
+                >
+                  {societies.map((society) => (
+                    <option key={society._id} value={society._id}>
+                      {society.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          </div>
 
-            {/* Main Content Tabs */}
-            <Tabs defaultValue="society" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="society">Society Info</TabsTrigger>
-                <TabsTrigger value="requirements">Requirements ({requirements.length})</TabsTrigger>
-                <TabsTrigger value="proposals">Voting ({proposals.length})</TabsTrigger>
-                <TabsTrigger value="flat">My Flat</TabsTrigger>
-                <TabsTrigger value="profile">Profile</TabsTrigger>
-              </TabsList>
+          {/* Society Info */}
+          {selectedSociety && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  {selectedSociety.name}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Address</p>
+                    <p className="font-medium">{selectedSociety.address}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Location</p>
+                    <p className="font-medium">{selectedSociety.city}, {selectedSociety.state}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Flats</p>
+                    <p className="font-medium">{selectedSociety.totalFlats}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-              <TabsContent value="society">
+          {/* Main Content */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="redevelopment">Redevelopment</TabsTrigger>
+              <TabsTrigger value="notifications">
+                Notifications ({notifications.filter(n => !n.isRead).length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6">
+              {/* Quick Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>{membership.societies?.name || 'Unknown Society'}</CardTitle>
-                    <CardDescription>
-                      {membership.societies?.address || 'Address not available'}, {membership.societies?.city || ''}, {membership.societies?.state || ''}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="font-medium mb-3">Society Details</h3>
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Year Built</p>
-                            <p className="font-medium">{membership.societies?.year_built || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Total Flats</p>
-                            <p className="font-medium">{membership.societies?.total_flats || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Condition</p>
-                            <Badge variant="secondary">{membership.societies?.condition_status || 'Unknown'}</Badge>
-                          </div>
-                        </div>
+                        <p className="text-sm font-medium text-muted-foreground">Active Projects</p>
+                        <p className="text-2xl font-bold">{projects.filter(p => p.status !== 'completed' && p.status !== 'cancelled').length}</p>
                       </div>
-                      <div>
-                        <h3 className="font-medium mb-3">Your Membership</h3>
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Flat Number</p>
-                            <p className="font-medium">#{membership.flat_number}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Member Since</p>
-                            <p className="font-medium">{new Date(membership.joined_at).toLocaleDateString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Status</p>
-                            <Badge variant={membership.status === 'active' ? 'default' : 'secondary'}>
-                              {membership.status}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
+                      <Building2 className="h-8 w-8 text-muted-foreground" />
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
 
-              <TabsContent value="requirements">
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Pending Votes</p>
+                        <p className="text-2xl font-bold text-orange-600">
+                          {projects.filter(p => p.status === 'voting').length}
+                        </p>
+                      </div>
+                      <Vote className="h-8 w-8 text-orange-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Unread Updates</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {projects.reduce((sum, p) => sum + p.updates.length, 0)}
+                        </p>
+                      </div>
+                      <Bell className="h-8 w-8 text-blue-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Open Queries</p>
+                        <p className="text-2xl font-bold text-red-600">
+                          {projects.reduce((sum, p) => sum + p.queries.filter(q => q.status === 'open').length, 0)}
+                        </p>
+                      </div>
+                      <MessageSquare className="h-8 w-8 text-red-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Projects */}
+              {projects.length > 0 ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Active Redevelopment Requirements</CardTitle>
-                    <CardDescription>
-                      Requirements posted by your society that need member input
-                    </CardDescription>
+                    <CardTitle>Recent Redevelopment Projects</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {Array.isArray(requirements) && requirements.map((req) => (
-                        <div key={req.id} className="p-4 border rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium capitalize">{req.requirement_type}</h3>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="default">{req.status}</Badge>
-                              <Button size="sm">View Details</Button>
+                      {projects.slice(0, 3).map((project) => (
+                        <div key={project._id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-3">
+                                <h4 className="font-semibold">{project.title}</h4>
+                                <Badge className={getStatusColor(project.status)}>
+                                  {project.status.replace('_', ' ').toUpperCase()}
+                                </Badge>
+                              </div>
+                              <p className="text-muted-foreground text-sm line-clamp-2">
+                                {project.description}
+                              </p>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <TrendingUp className="h-4 w-4" />
+                                  <span>{project.progress}% Complete</span>
+                                </div>
+                                {project.votingResults && (
+                                  <div className="flex items-center gap-1">
+                                    <Vote className="h-4 w-4" />
+                                    <span>{project.votingResults.approvalPercentage}% Approval</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">{req.description}</p>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Timeline: {req.timeline_expectation}</span>
-                            <span>Posted: {new Date(req.created_at).toLocaleDateString()}</span>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => setActiveTab('redevelopment')}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       ))}
-                      {(!Array.isArray(requirements) || requirements.length === 0) && (
-                        <div className="text-center py-8">
-                          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground">No active requirements at this time</p>
-                        </div>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
+              ) : (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Redevelopment Projects</h3>
+                    <p className="text-muted-foreground">
+                      No redevelopment projects are currently active in your society.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
 
-              <TabsContent value="proposals">
-                <div className="space-y-6">
-                  {/* Proposals Overview */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Developer Proposals</CardTitle>
-                      <CardDescription>
-                        Review and vote on proposals submitted by developers for your society's redevelopment
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {Array.isArray(proposals) && proposals.map((proposal) => {
-                          const requirement = requirements.find(r => r.id === proposal.requirement_id);
-                          return (
-                            <div key={proposal.id} className="p-4 border rounded-lg">
-                              <div className="flex items-start justify-between mb-3">
-                                <div>
-                                  <h3 className="font-semibold text-lg mb-1">{proposal.title}</h3>
-                                  <p className="text-sm text-muted-foreground mb-2">
-                                    For: {requirement?.requirement_type} • From: {proposal.developers?.company_name}
-                                  </p>
-                                  <Badge variant={
-                                    proposal.status === 'submitted' ? 'default' : 
-                                    proposal.status === 'approved' ? 'secondary' : 
-                                    'outline'
-                                  }>
-                                    {proposal.status}
-                                  </Badge>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-sm text-muted-foreground">Budget Estimate</p>
-                                  <p className="font-semibold">₹{proposal.budget_estimate?.toLocaleString('en-IN')}</p>
-                                </div>
+            <TabsContent value="redevelopment">
+              <RedevelopmentModule 
+                societyId={selectedSociety?._id} 
+                isOwner={false}
+              />
+            </TabsContent>
+
+            <TabsContent value="notifications" className="space-y-6">
+              {notifications.length === 0 ? (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Notifications</h3>
+                    <p className="text-muted-foreground">
+                      You don't have any notifications yet.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {notifications.map((notification) => (
+                    <Card key={notification._id} className={!notification.isRead ? 'border-primary' : ''}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-full ${notification.isRead ? 'bg-gray-100' : 'bg-primary/10'}`}>
+                            {notification.type === 'vote' ? (
+                              <Vote className="h-4 w-4 text-primary" />
+                            ) : notification.type === 'update' ? (
+                              <TrendingUp className="h-4 w-4 text-blue-600" />
+                            ) : notification.type === 'query' ? (
+                              <MessageSquare className="h-4 w-4 text-orange-600" />
+                            ) : (
+                              <Bell className="h-4 w-4 text-gray-600" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h4 className="font-semibold">{notification.title}</h4>
+                                <p className="text-muted-foreground text-sm mt-1">
+                                  {notification.message}
+                                </p>
                               </div>
-                              
-                              <p className="text-sm text-muted-foreground mb-3">
-                                {proposal.description}
-                              </p>
-                              
-                              <div className="grid grid-cols-2 gap-4 mb-3">
-                                <div>
-                                  <p className="text-sm font-medium">Timeline</p>
-                                  <p className="text-sm text-muted-foreground">{proposal.timeline}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium">Submitted</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {new Date(proposal.submitted_at).toLocaleDateString()}
-                                  </p>
-                                </div>
+                              <div className="text-sm text-muted-foreground">
+                                {formatDate(notification.createdAt)}
                               </div>
                             </div>
-                          );
-                        })}
-                        {(!Array.isArray(proposals) || proposals.length === 0) && (
-                          <div className="text-center py-8">
-                            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                            <p className="text-muted-foreground">No proposals available yet</p>
-                            <p className="text-sm text-muted-foreground mt-2">
-                              Proposals will appear here when developers submit them for your society's requirements
-                            </p>
                           </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Voting System */}
-                  {membership && (
-                    <VotingSystem 
-                      societyMemberId={membership.id} 
-                      societyId={membership.society_id} 
-                    />
-                  )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </TabsContent>
-
-              <TabsContent value="flat">
-                {membership && (
-                  <FlatDetailsForm 
-                    societyMemberId={membership.id} 
-                    onSave={() => toast.success("Flat details updated successfully!")} 
-                  />
-                )}
-              </TabsContent>
-
-              <TabsContent value="profile">
-                <Card>
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>Member Profile & Settings</CardTitle>
-                      <Button variant="outline">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Edit Profile
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="font-medium mb-3">Membership Information</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Flat Number</p>
-                            <p className="font-medium">#{membership.flat_number}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Member Status</p>
-                            <Badge variant={membership.status === 'active' ? 'default' : 'secondary'}>
-                              {membership.status}
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Member Since</p>
-                            <p className="font-medium">{new Date(membership.joined_at).toLocaleDateString()}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Society</p>
-                            <p className="font-medium">{membership.societies?.name || 'Unknown Society'}</p>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h3 className="font-medium mb-3">Voting Preferences</h3>
-                        <div className="p-4 bg-muted rounded-lg">
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Set your preferences for future redevelopment decisions and notifications
-                          </p>
-                          <div className="space-y-2">
-                            <Button variant="outline" size="sm" className="mr-2">
-                              Email Notifications
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              SMS Alerts
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
-      </main>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   );
 };

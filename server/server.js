@@ -29,6 +29,9 @@ import likeRoutes from './routes/likes.js';
 import shareRoutes from './routes/shares.js';
 import notificationRoutes from './routes/notifications.js';
 import userRoleRoutes from './routes/userRoles.js';
+import redevelopmentRoutes from './routes/redevelopment.js';
+import developerProposalRoutes from './routes/developerProposals.js';
+import invitationRoutes from './routes/invitations.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -132,6 +135,9 @@ app.use('/api/likes', likeRoutes);
 app.use('/api/shares', shareRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/user-roles', userRoleRoutes);
+app.use('/api/redevelopment-projects', redevelopmentRoutes);
+app.use('/api/developer-proposals', developerProposalRoutes);
+app.use('/api/invitations', invitationRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

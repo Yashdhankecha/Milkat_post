@@ -32,6 +32,8 @@ interface DocumentUploadSectionProps {
   maxSizeMessage?: string;
   className?: string;
   uploadButtonColor?: 'primary' | 'orange' | 'blue';
+  onUploadStart?: () => void;
+  onUploadComplete?: () => void;
 }
 
 export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
@@ -44,7 +46,9 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
   acceptedTypes = ".pdf,.jpg,.jpeg,.png,.doc,.docx",
   maxSizeMessage = "PDF, DOC, DOCX, JPG, PNG files up to 10MB each",
   className = "",
-  uploadButtonColor = 'primary'
+  uploadButtonColor = 'primary',
+  onUploadStart,
+  onUploadComplete
 }) => {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -80,7 +84,49 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
     
-    const newDocuments: DocumentFile[] = selectedFiles.map(file => ({
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['image/', 'video/', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    selectedFiles.forEach(file => {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: File size exceeds 10MB limit`);
+        return;
+      }
+
+      // Check file type
+      const isValidType = allowedTypes.some(type => file.type.startsWith(type));
+      if (!isValidType) {
+        errors.push(`${file.name}: Invalid file type. Only images, videos, and documents are allowed`);
+        return;
+      }
+
+      validFiles.push(file);
+    });
+
+    // Show validation errors
+    if (errors.length > 0) {
+      errors.forEach(error => {
+        toast({
+          title: "Invalid File",
+          description: error,
+          variant: "destructive",
+        });
+      });
+    }
+
+    if (validFiles.length === 0) {
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+    
+    const newDocuments: DocumentFile[] = validFiles.map(file => ({
       file,
       name: file.name,
       size: file.size,
@@ -108,12 +154,23 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
 
     // Update status to uploading
     updateDocumentStatus(index, 'uploading', 0);
+    onUploadStart?.();
 
     try {
-      // Use our API client's upload method
-      const { data, error: uploadError } = await apiClient.uploadSingleFile(document.file);
+      console.log('Uploading file:', document.name, 'Size:', document.size);
+      
+      // Use single file upload for better compatibility
+      const documentType = folderPath.includes('registration') ? 'registration' : 
+                          folderPath.includes('floor') ? 'floor_plan' : 'general';
+      
+      const { data, error: uploadError } = await apiClient.uploadSingleFile(document.file, documentType);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(uploadError);
+      }
+
+      console.log('Upload successful:', data);
 
       // Update document with completed status
       const updatedDocuments = [...documents];
@@ -131,13 +188,31 @@ export const DocumentUploadSection: React.FC<DocumentUploadSectionProps> = ({
         description: `${document.name} has been uploaded successfully.`,
       });
 
-    } catch (error) {
+      onUploadComplete?.();
+
+    } catch (error: any) {
       console.error('Upload error:', error);
-      updateDocumentStatus(index, 'error', 0, 'Upload failed. Please try again.');
+      
+      // Determine error message based on error type
+      let errorMessage = 'Upload failed. Please try again.';
+      
+      if (error?.message?.includes('File too large')) {
+        errorMessage = 'File size exceeds 10MB limit. Please choose a smaller file.';
+      } else if (error?.message?.includes('Invalid file type')) {
+        errorMessage = 'Invalid file type. Please upload images, videos, or documents only.';
+      } else if (error?.message?.includes('Network error') || error?.message?.includes('Failed to fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (error?.message?.includes('Upload service unavailable')) {
+        errorMessage = 'Upload service is temporarily unavailable. Please try again later.';
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      updateDocumentStatus(index, 'error', 0, errorMessage);
       
       toast({
         title: "Upload Failed",
-        description: `Failed to upload ${document.name}. Please try again.`,
+        description: `Failed to upload ${document.name}: ${errorMessage}`,
         variant: "destructive",
       });
     }

@@ -84,11 +84,14 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
-    // Get user profile
-    const profile = await Profile.findOne({ user: user._id });
+    // Get user profiles - prioritize society_owner profile
+    const profiles = await Profile.find({ user: user._id, status: 'active' });
+    const societyOwnerProfile = profiles.find(p => p.role === 'society_owner');
+    const profile = societyOwnerProfile || profiles[0] || null;
     
     req.user = user;
     req.profile = profile;
+    req.allProfiles = profiles;
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
@@ -115,6 +118,11 @@ export const authenticate = async (req, res, next) => {
 // Authorization middleware for specific roles
 export const authorize = (...roles) => {
   return (req, res, next) => {
+    console.log('Authorization check - User:', req.user._id);
+    console.log('Authorization check - Current profile:', req.profile);
+    console.log('Authorization check - All profiles:', req.allProfiles);
+    console.log('Authorization check - Required roles:', roles);
+    
     if (!req.profile) {
       return res.status(401).json({
         status: 'error',
@@ -125,7 +133,19 @@ export const authorize = (...roles) => {
     if (!roles.includes(req.profile.role)) {
       return res.status(403).json({
         status: 'error',
-        message: `Access denied. Required role: ${roles.join(' or ')}`
+        message: `Access denied. Required role: ${roles.join(' or ')}, but user has role: ${req.profile.role}`,
+        debug: {
+          userProfiles: req.allProfiles.map(p => ({
+            role: p.role,
+            companyName: p.companyName,
+            status: p.status
+          })),
+          currentProfile: req.profile ? {
+            role: req.profile.role,
+            companyName: req.profile.companyName,
+            status: req.profile.status
+          } : null
+        }
       });
     }
 

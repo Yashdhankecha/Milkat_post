@@ -1,6 +1,8 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import Society from '../models/Society.js';
+import Profile from '../models/Profile.js';
+import User from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { catchAsync } from '../middleware/errorHandler.js';
 
@@ -213,17 +215,33 @@ router.post('/',
     body('registration_documents')
       .optional()
       .isArray()
-      .withMessage('Registration documents must be an array'),
+      .withMessage('Registration documents must be an array')
+      .custom((value) => {
+        if (value === undefined || value === null) return true;
+        return Array.isArray(value);
+      }),
     body('flat_plan_documents')
       .optional()
       .isArray()
       .withMessage('Flat plan documents must be an array')
+      .custom((value) => {
+        if (value === undefined || value === null) return true;
+        return Array.isArray(value);
+      })
   ],
   validateRequest,
   catchAsync(async (req, res) => {
     console.log('Society creation request received:');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     console.log('User:', req.user ? req.user._id : 'No user');
+    console.log('Document arrays:', {
+      registration_documents: req.body.registration_documents,
+      flat_plan_documents: req.body.flat_plan_documents,
+      registration_type: typeof req.body.registration_documents,
+      flat_plan_type: typeof req.body.flat_plan_documents
+    });
+    
+    try {
     
     const userId = req.user._id;
     
@@ -282,6 +300,8 @@ router.post('/',
     const society = new Society(societyData);
     await society.save();
 
+    console.log('Society created successfully:', society._id);
+
     res.status(201).json({
       status: 'success',
       message: 'Society created successfully',
@@ -290,6 +310,44 @@ router.post('/',
         roleCreated: !profile._id // Indicate if role was just created
       }
     });
+    
+    } catch (error) {
+      console.error('Society creation error:', error);
+      
+      // Handle Mongoose validation errors
+      if (error.name === 'ValidationError') {
+        const validationErrors = Object.values(error.errors).map((err) => ({
+          field: err.path,
+          message: err.message,
+          value: err.value
+        }));
+        
+        return res.status(400).json({
+          status: 'error',
+          message: 'Validation failed',
+          errors: validationErrors,
+          details: 'Please check the required fields and try again'
+        });
+      }
+      
+      // Handle duplicate key errors
+      if (error.code === 11000) {
+        const field = Object.keys(error.keyPattern)[0];
+        return res.status(400).json({
+          status: 'error',
+          message: 'Duplicate entry',
+          field: field,
+          details: `${field} already exists. Please use a different value.`
+        });
+      }
+      
+      res.status(500).json({
+        status: 'error',
+        message: 'Failed to create society',
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
   })
 );
 
@@ -310,6 +368,11 @@ router.put('/:id',
   ],
   validateRequest,
   catchAsync(async (req, res) => {
+    console.log('Society update request received:');
+    console.log('Society ID:', req.params.id);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('User:', req.user ? req.user._id : 'No user');
+
     const society = await Society.findById(req.params.id);
 
     if (!society) {
@@ -331,7 +394,8 @@ router.put('/:id',
       'name', 'address', 'city', 'state', 'pincode', 'coordinates', 'societyType',
       'totalArea', 'totalFlats', 'numberOfBlocks', 'yearBuilt', 'registrationDate',
       'fsi', 'roadFacing', 'conditionStatus', 'amenities', 'contactPersonName',
-      'contactPhone', 'contactEmail', 'status'
+      'contactPhone', 'contactEmail', 'status', 'registrationDocuments', 'flatPlanDocuments',
+      'flatVariants'
     ];
 
     const updates = {};
@@ -388,7 +452,6 @@ router.delete('/:id',
 // Get user's societies
 router.get('/my/societies',
   authenticate,
-  authorize('society_owner'),
   catchAsync(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -411,6 +474,67 @@ router.get('/my/societies',
           total,
           pages: Math.ceil(total / limit)
         }
+      }
+    });
+  })
+);
+
+// Get society members
+router.get('/:id/members',
+  authenticate,
+  catchAsync(async (req, res) => {
+    const { id: societyId } = req.params;
+    
+    // Verify the user has access to this society (either owner or member)
+    const society = await Society.findById(societyId);
+    if (!society) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Society not found'
+      });
+    }
+
+    // Check if user is the owner or a member
+    const userProfile = await Profile.findOne({
+      user: req.user._id,
+      companyName: societyId,
+      status: 'active'
+    });
+
+    if (!userProfile && society.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You are not a member of this society.'
+      });
+    }
+
+    // Get all active members of the society
+    const profiles = await Profile.find({
+      companyName: societyId,
+      status: 'active'
+    }).populate('user', 'phone email isVerified lastLogin');
+
+    // Format the response
+    const members = profiles.map(profile => ({
+      id: profile._id,
+      userId: profile.user._id,
+      phone: profile.user.phone,
+      email: profile.user.email,
+      role: profile.role,
+      status: profile.status,
+      joinedAt: profile.joinedAt,
+      isOwner: society.owner.toString() === profile.user._id.toString()
+    }));
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        society: {
+          id: society._id,
+          name: society.name
+        },
+        members,
+        total: members.length
       }
     });
   })
