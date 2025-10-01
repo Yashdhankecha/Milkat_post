@@ -159,16 +159,45 @@ router.get('/my-likes',
   authenticate,
   catchAsync(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 50; // Increased default limit
     const userId = req.user._id;
 
     const likes = await Like.getUserLikes(userId, page, limit);
     const total = await Like.countDocuments({ user: userId });
 
+    // Transform the data to match frontend expectations
+    const transformedLikes = likes.map(like => ({
+      _id: like._id,
+      createdAt: like.createdAt,
+      property: like.property ? {
+        _id: like.property._id,
+        title: like.property.title,
+        description: like.property.description,
+        price: like.property.price,
+        location: like.property.location,
+        images: like.property.images || [],
+        propertyType: like.property.propertyType,
+        listingType: like.property.listingType,
+        status: like.property.status,
+        area: like.property.area,
+        builtUpArea: like.property.builtUpArea,
+        carpetArea: like.property.carpetArea,
+        amenities: like.property.amenities || [],
+        furnishedStatus: like.property.furnishedStatus,
+        floorNumber: like.property.floorNumber,
+        totalFloors: like.property.totalFloors,
+        ageOfProperty: like.property.ageOfProperty,
+        facing: like.property.facing,
+        parkingSpaces: like.property.parkingSpaces,
+        createdAt: like.property.createdAt,
+        updatedAt: like.property.updatedAt
+      } : null
+    })).filter(like => like.property !== null); // Filter out likes with deleted properties
+
     res.status(200).json({
       status: 'success',
       data: {
-        likes,
+        likes: transformedLikes,
         pagination: {
           page,
           limit,

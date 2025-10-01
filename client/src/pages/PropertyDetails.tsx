@@ -28,7 +28,7 @@ import {
 
 const PropertyDetails = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const [property, setProperty] = useState<any>(null);
   const [relatedProperties, setRelatedProperties] = useState<any[]>([]);
@@ -38,9 +38,6 @@ const PropertyDetails = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageLoading, setImageLoading] = useState(true);
   const [contactForm, setContactForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
     message: ''
   });
   const [showShareModal, setShowShareModal] = useState(false);
@@ -113,19 +110,19 @@ const PropertyDetails = () => {
   };
 
   const checkIfSaved = async () => {
-    if (!user) return;
+    if (!user || !id) return;
 
     try {
-      // For now, we'll implement a simple localStorage-based favorites
-      const savedProperties = JSON.parse(localStorage.getItem('saved_properties') || '[]');
-      setIsSaved(savedProperties.includes(id));
+      const response = await apiClient.checkIfLiked(id);
+      setIsSaved(response.data?.hasLiked || false);
     } catch (error) {
-      // Property not saved, which is fine
+      console.error('Error checking saved status:', error);
+      setIsSaved(false);
     }
   };
 
   const toggleSave = async () => {
-    if (!user) {
+    if (!user || !id) {
       toast({
         title: "Login Required",
         description: "Please login to save properties.",
@@ -135,26 +132,28 @@ const PropertyDetails = () => {
     }
 
     try {
-      const savedProperties = JSON.parse(localStorage.getItem('saved_properties') || '[]');
-      
       if (isSaved) {
-        // Remove from favorites
-        const updatedSaved = savedProperties.filter((savedId: string) => savedId !== id);
-        localStorage.setItem('saved_properties', JSON.stringify(updatedSaved));
+        // Unlike property
+        await apiClient.unlikeProperty(id);
         setIsSaved(false);
-        toast({ title: "Property removed from favorites" });
+        toast({ 
+          title: "Removed from Saved",
+          description: "Property removed from your saved list"
+        });
       } else {
-        // Add to favorites
-        const updatedSaved = [...savedProperties, id];
-        localStorage.setItem('saved_properties', JSON.stringify(updatedSaved));
+        // Like property
+        await apiClient.likeProperty(id);
         setIsSaved(true);
-        toast({ title: "Property saved to favorites" });
+        toast({ 
+          title: "Saved Property",
+          description: "Property added to your saved list"
+        });
       }
     } catch (error) {
       console.error('Error toggling save:', error);
       toast({
         title: "Error",
-        description: "Failed to update favorites.",
+        description: "Failed to update saved status.",
         variant: "destructive",
       });
     }
@@ -173,14 +172,13 @@ const PropertyDetails = () => {
     }
     
     try {
-      // Create inquiry data
+      // Create inquiry data with user's profile information
       const inquiryData = {
         inquiryType: 'property_inquiry',
         subject: `Inquiry about ${property?.title || 'Property'}`,
-        message: `Name: ${contactForm.name}\nEmail: ${contactForm.email}\nPhone: ${contactForm.phone}\n\nMessage: ${contactForm.message}`,
+        message: contactForm.message, // Only the message, user details are automatic
         contactPreference: 'phone',
-        propertyId: id,
-        propertyTitle: property?.title
+        propertyId: id
       };
       
       const result = await apiClient.createInquiry(inquiryData);
@@ -193,7 +191,7 @@ const PropertyDetails = () => {
         title: "Message Sent Successfully!",
         description: "Your inquiry has been sent to the property owner. They will contact you soon.",
       });
-      setContactForm({ name: '', email: '', phone: '', message: '' });
+      setContactForm({ message: '' }); // Reset form
     } catch (error: any) {
       console.error('Error sending inquiry:', error);
       toast({
@@ -548,47 +546,39 @@ const PropertyDetails = () => {
                 )}
 
                 <form onSubmit={handleContactSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={contactForm.name}
-                      onChange={(e) => setContactForm({...contactForm, name: e.target.value})}
-                      required
-                    />
+                  {/* User Information Display */}
+                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-2">
+                    <h4 className="font-medium text-gray-800 dark:text-gray-200">Your Information</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">Name:</span>
+                        <span className="ml-2 font-medium text-gray-800 dark:text-gray-200">
+                          {profile?.fullName || user?.phone || 'Not available'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">Phone:</span>
+                        <span className="ml-2 font-medium text-gray-800 dark:text-gray-200">
+                          {user?.phone || 'Not available'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                  
                   <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={contactForm.email}
-                      onChange={(e) => setContactForm({...contactForm, email: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={contactForm.phone}
-                      onChange={(e) => setContactForm({...contactForm, phone: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="message">Message</Label>
+                    <Label htmlFor="message">Your Message *</Label>
                     <Textarea
                       id="message"
-                      placeholder="I'm interested in this property..."
+                      placeholder="I'm interested in this property. Please provide more details..."
                       value={contactForm.message}
                       onChange={(e) => setContactForm({...contactForm, message: e.target.value})}
+                      rows={4}
                       required
                     />
                   </div>
                   <Button type="submit" className="w-full smooth-transition hover:scale-105">
                     <MessageCircle className="w-4 h-4 mr-2" />
-                    Send Message
+                    Send Inquiry
                   </Button>
                 </form>
               </CardContent>

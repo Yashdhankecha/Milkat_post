@@ -36,11 +36,12 @@ router.get('/',
       minArea: req.query.minArea ? parseInt(req.query.minArea) : undefined,
       maxArea: req.query.maxArea ? parseInt(req.query.maxArea) : undefined,
       amenities: req.query.amenities ? req.query.amenities.split(',') : undefined,
-      status: req.query.status || 'active'
+      status: req.query.status || 'active',
+      owner_id: req.query.owner_id
     };
 
     const properties = await Property.searchProperties(filters, page, limit);
-    const total = await Property.countDocuments(filters);
+    const total = await Property.countProperties(filters);
 
     res.status(200).json({
       status: 'success',

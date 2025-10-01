@@ -1,7 +1,12 @@
-import { MapPin, Calendar, Ruler } from "lucide-react";
+import { MapPin, Calendar, Ruler, Heart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api";
 
 interface PropertyCardProps {
   id: string;
@@ -15,6 +20,71 @@ interface PropertyCardProps {
 }
 
 const PropertyCard = ({ id, title, location, price, area, image, type, status }: PropertyCardProps) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [isSaved, setIsSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Check if property is saved when component mounts
+  useEffect(() => {
+    if (user && id) {
+      checkIfSaved();
+    }
+  }, [user, id]);
+
+  const checkIfSaved = async () => {
+    try {
+      const response = await apiClient.checkIfLiked(id);
+      setIsSaved(response.data?.hasLiked || false);
+    } catch (error) {
+      console.error('Error checking saved status:', error);
+    }
+  };
+
+  const handleSaveToggle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to save properties",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      if (isSaved) {
+        // Unlike property
+        await apiClient.unlikeProperty(id);
+        setIsSaved(false);
+        toast({
+          title: "Removed from Saved",
+          description: "Property removed from your saved list"
+        });
+      } else {
+        // Like property
+        await apiClient.likeProperty(id);
+        setIsSaved(true);
+        toast({
+          title: "Saved Property",
+          description: "Property added to your saved list"
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling save:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update saved status",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "For Sale":
@@ -55,6 +125,21 @@ const PropertyCard = ({ id, title, location, price, area, image, type, status }:
         <Badge variant="secondary" className="absolute top-3 right-3 smooth-transition group-hover:scale-105">
           {type}
         </Badge>
+        
+        {/* Save Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`absolute top-3 right-12 p-2 h-8 w-8 rounded-full transition-all duration-200 ${
+            isSaved 
+              ? 'bg-red-500 text-white hover:bg-red-600' 
+              : 'bg-white/90 text-gray-600 hover:bg-white hover:text-red-500'
+          }`}
+          onClick={handleSaveToggle}
+          disabled={isLoading}
+        >
+          <Heart className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
+        </Button>
       </div>
       
       <CardContent className="p-4">

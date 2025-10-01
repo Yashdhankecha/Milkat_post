@@ -40,7 +40,10 @@ likeSchema.statics.hasUserLiked = function(userId, propertyId) {
 likeSchema.statics.getUserLikes = function(userId, page = 1, limit = 10) {
   const skip = (page - 1) * limit;
   return this.find({ user: userId })
-    .populate('property', 'title price location images propertyType listingType')
+    .populate({
+      path: 'property',
+      select: 'title description price location images propertyType listingType status area builtUpArea carpetArea amenities furnishedStatus floorNumber totalFloors ageOfProperty facing parkingSpaces createdAt updatedAt'
+    })
     .sort({ likedAt: -1 })
     .skip(skip)
     .limit(limit);

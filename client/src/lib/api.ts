@@ -322,6 +322,10 @@ class ApiClient {
     });
   }
 
+  async checkIfLiked(propertyId: string) {
+    return this.request(`/likes/check/${propertyId}`);
+  }
+
 
   // Shares endpoints
   async shareProperty(propertyId: string, shareMethod: string, sharedWith?: string) {
@@ -1070,6 +1074,52 @@ class ApiClient {
     return this.request(`/queries/${queryId}/upvote`, {
       method: 'DELETE',
     });
+  }
+
+  // Inquiry endpoints
+  async createInquiry(inquiryData: any) {
+    return this.request('/inquiries', {
+      method: 'POST',
+      body: JSON.stringify(inquiryData),
+    });
+  }
+
+  async getMyInquiries(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/inquiries/my${queryString}`);
+  }
+
+  async getMyPropertyInquiries(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/inquiries/my-properties${queryString}`);
+  }
+
+  async getMyProjectInquiries(params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/inquiries/my-projects${queryString}`);
+  }
+
+  async getPropertyInquiries(propertyId: string, params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/inquiries/property/${propertyId}${queryString}`);
+  }
+
+  async respondToInquiry(inquiryId: string, response: string) {
+    return this.request(`/inquiries/${inquiryId}/respond`, {
+      method: 'PUT',
+      body: JSON.stringify({ response }),
+    });
+  }
+
+  async updateInquiryStatus(inquiryId: string, status: string) {
+    return this.request(`/inquiries/${inquiryId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async getInquiry(inquiryId: string) {
+    return this.request(`/inquiries/${inquiryId}`);
   }
 }
 

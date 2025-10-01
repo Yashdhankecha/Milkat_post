@@ -316,6 +316,7 @@ propertySchema.statics.searchProperties = function(filters, page = 1, limit = 10
   if (filters.amenities && filters.amenities.length > 0) {
     query.amenities = { $in: filters.amenities };
   }
+  if (filters.owner_id) query.owner = filters.owner_id;
   if (filters.status) query.status = filters.status;
   else query.status = 'active';
   
@@ -327,6 +328,28 @@ propertySchema.statics.searchProperties = function(filters, page = 1, limit = 10
     .sort({ isFeatured: -1, createdAt: -1 })
     .skip(skip)
     .limit(limit);
+};
+
+// Static method to count properties with filters
+propertySchema.statics.countProperties = function(filters) {
+  const query = {};
+  
+  if (filters.city) query['location.city'] = new RegExp(filters.city, 'i');
+  if (filters.state) query['location.state'] = new RegExp(filters.state, 'i');
+  if (filters.propertyType) query.propertyType = filters.propertyType;
+  if (filters.listingType) query.listingType = filters.listingType;
+  if (filters.minPrice) query.price = { ...query.price, $gte: filters.minPrice };
+  if (filters.maxPrice) query.price = { ...query.price, $lte: filters.maxPrice };
+  if (filters.minArea) query.area = { ...query.area, $gte: filters.minArea };
+  if (filters.maxArea) query.area = { ...query.area, $lte: filters.maxArea };
+  if (filters.amenities && filters.amenities.length > 0) {
+    query.amenities = { $in: filters.amenities };
+  }
+  if (filters.owner_id) query.owner = filters.owner_id;
+  if (filters.status) query.status = filters.status;
+  else query.status = 'active';
+  
+  return this.countDocuments(query);
 };
 
 export default mongoose.model('Property', propertySchema);
