@@ -180,3 +180,4 @@ querySchema.statics.getStatistics = function(societyId) {
 };
 
 export default mongoose.model('Query', querySchema);
+

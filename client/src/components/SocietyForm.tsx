@@ -1,4 +1,4 @@
-import apiClient from '@/lib/api';
+import { apiClient } from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -13,10 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { format } from 'date-fns'
-import { X, Upload, FileText, Building2, MapPin, Users, Settings, CheckCircle2, Star, CalendarIcon, Plus, Trash } from 'lucide-react'
+import { X, FileText, Building2, MapPin, Users, Settings, CheckCircle2, Star, CalendarIcon, Plus, Trash } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { cn } from '@/lib/utils'
-import { DocumentUploadSection, type DocumentFile } from '@/components/DocumentUploadSection'
 
 
 interface SocietyFormProps {
@@ -78,17 +77,29 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
   const [contactPhone, setContactPhone] = useState(society?.contact_phone || '')
   const [contactEmail, setContactEmail] = useState(society?.contact_email || '')
   const [declaration, setDeclaration] = useState(false)
-  const [registrationDocuments, setRegistrationDocuments] = useState<DocumentFile[]>([])
-  const [floorPlanDocuments, setFloorPlanDocuments] = useState<DocumentFile[]>([])
   const [loading, setLoading] = useState(false)
-  const [uploading, setUploading] = useState(false)
   
   const { toast } = useToast()
 
   // Load existing society data for editing
   useEffect(() => {
     if (isEditing && society) {
-      // Load existing form data
+      console.log('Loading society data for editing:', society);
+      console.log('Society data fields:', {
+        name: society.name,
+        society_type: society.society_type,
+        total_area: society.total_area,
+        total_flats: society.total_flats,
+        year_built: society.year_built,
+        contact_person_name: society.contact_person_name,
+        contact_phone: society.contact_phone,
+        contact_email: society.contact_email,
+        address: society.address,
+        city: society.city,
+        state: society.state
+      });
+      
+      // Load existing form data with proper fallbacks
       setName(society.name || '')
       setSocietyType(society.society_type || '')
       setNumberOfBlocks(society.number_of_blocks?.toString() || '')
@@ -108,25 +119,19 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
       setContactPhone(society.contact_phone || '')
       setContactEmail(society.contact_email || '')
       
-      // Load existing documents
-      if (society.registration_documents && Array.isArray(society.registration_documents)) {
-        const existingRegDocs: DocumentFile[] = society.registration_documents.map((url: string) => ({
-          url,
-          name: url.split('/').pop() || 'Document',
-          status: 'completed' as const
-        }))
-        setRegistrationDocuments(existingRegDocs)
-      }
+      console.log('Form state updated with society data:', {
+        name: society.name,
+        society_type: society.society_type,
+        total_area: society.total_area,
+        contact_person_name: society.contact_person_name,
+        contact_phone: society.contact_phone,
+        contact_email: society.contact_email,
+        road_facing: society.road_facing,
+        condition_status: society.condition_status
+      });
       
-      if (society.flat_plan_documents && Array.isArray(society.flat_plan_documents)) {
-        const existingFloorDocs: DocumentFile[] = society.flat_plan_documents.map((url: string) => ({
-          url,
-          name: url.split('/').pop() || 'Floor Plan',
-          status: 'completed' as const
-        }))
-        setFloorPlanDocuments(existingFloorDocs)
-      }
-
+      
+      // Load existing flat variants
       if (society.flat_variants && Array.isArray(society.flat_variants)) {
         setFlatVariants(society.flat_variants.map((variant: any, index: number) => ({
           id: (index + 1).toString(),
@@ -138,6 +143,47 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
       }
     }
   }, [isEditing, society])
+
+  // Debug useEffect to log state values after they update
+  useEffect(() => {
+    if (isEditing && society) {
+      console.log('Form state values after update:', {
+        contactPersonName,
+        contactPhone,
+        contactEmail,
+        roadFacing,
+        conditionStatus
+      });
+    }
+  }, [contactPersonName, contactPhone, contactEmail, roadFacing, conditionStatus, isEditing, society])
+
+  // Force form reset when society changes
+  useEffect(() => {
+    if (isEditing && society) {
+      console.log('Society changed, resetting form with data:', society);
+      // Force a small delay to ensure the form is properly reset
+      setTimeout(() => {
+        setName(society.name || '')
+        setSocietyType(society.society_type || '')
+        setNumberOfBlocks(society.number_of_blocks?.toString() || '')
+        setTotalArea(society.total_area?.toString() || '')
+        setRegistrationDate(society.registration_date ? new Date(society.registration_date) : undefined)
+        setAddress(society.address || '')
+        setCity(society.city || '')
+        setState(society.state || '')
+        setPincode(society.pincode || '')
+        setTotalFlats(society.total_flats?.toString() || '')
+        setYearBuilt(society.year_built?.toString() || '')
+        setConditionStatus(society.condition_status ? [society.condition_status] : [])
+        setAmenities(society.amenities || [])
+        setFsi(society.fsi?.toString() || '')
+        setRoadFacing(society.road_facing || '')
+        setContactPersonName(society.contact_person_name || '')
+        setContactPhone(society.contact_phone || '')
+        setContactEmail(society.contact_email || '')
+      }, 100);
+    }
+  }, [society?._id, society?.id, isEditing])
 
   const handleConditionChange = (condition: string, checked: boolean) => {
     // Defer state update to avoid flushSync warning
@@ -251,22 +297,6 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
     setLoading(true)
 
     try {
-      // Get document URLs from the uploaded documents
-      const allDocumentUrls = registrationDocuments
-        .filter(doc => doc.status === 'completed' && doc.url)
-        .map(doc => doc.url!)
-      
-      const allFlatPlanUrls = floorPlanDocuments
-        .filter(doc => doc.status === 'completed' && doc.url)
-        .map(doc => doc.url!)
-
-      console.log('Document URLs being saved:', { 
-        registrationDocuments: allDocumentUrls, 
-        floorPlanDocuments: allFlatPlanUrls,
-        registrationCount: registrationDocuments.length,
-        floorPlanCount: floorPlanDocuments.length
-      })
-
       // Prepare flat variants data
       const flatVariantsData = flatVariants.map(variant => ({
         name: variant.name,
@@ -293,18 +323,22 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         road_facing: roadFacing || null,
         contact_person_name: contactPersonName || null,
         contact_phone: contactPhone || null,
-        contact_email: contactEmail || null,
-        registration_documents: allDocumentUrls,
-        flat_plan_documents: allFlatPlanUrls
-        // Remove owner_id as backend handles this automatically
+        contact_email: contactEmail || null
+        // FIX: Explicitly exclude _id and id fields to prevent ObjectId casting errors
       }
+      
+      // FIX: Ensure no _id or id fields are present in the data
+      delete societyData._id;
+      delete societyData.id;
 
       console.log('Submitting society data:', societyData);
       
       let result
       if (isEditing && society) {
-        console.log('Updating society:', society.id);
-        result = await apiClient.updateSociety(society.id, societyData)
+        // FIX: Use the same ID logic as the dashboard
+        const societyId = society.id || society._id;
+        console.log('Updating society:', societyId);
+        result = await apiClient.updateSociety(societyId, societyData)
       } else {
         console.log('Creating new society');
         result = await apiClient.createSociety(societyData)
@@ -393,7 +427,7 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
         </CardHeader>
         
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form key={society?._id || society?.id || 'new'} onSubmit={handleSubmit} className="space-y-8">
             {/* Basic Information Section */}
             <div className="space-y-6">
               <div className="flex items-center gap-3 pb-2 border-b">
@@ -669,43 +703,6 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
             <Separator className="my-8" />
 
             {/* Society Documents Section */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 pb-2">
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                  <FileText className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">Society Documents</h3>
-                  <p className="text-sm text-muted-foreground">Upload society registration and approval documents</p>
-                </div>
-              </div>
-              
-              <DocumentUploadSection
-                title="Upload Society Registration Documents"
-                description="Society registration certificate, building approvals, NOC documents"
-                bucketName="society-documents"
-                folderPath="registration"
-                documents={registrationDocuments}
-                onDocumentsChange={setRegistrationDocuments}
-                uploadButtonColor="primary"
-                onUploadStart={() => setUploading(true)}
-                onUploadComplete={() => setUploading(false)}
-              />
-
-              <DocumentUploadSection
-                title="Upload Floor Plans & Layout Documents"
-                description="Floor plans, layout drawings for each block"
-                bucketName="society-documents"
-                folderPath="floor-plans"
-                documents={floorPlanDocuments}
-                onDocumentsChange={setFloorPlanDocuments}
-                uploadButtonColor="orange"
-                onUploadStart={() => setUploading(true)}
-                onUploadComplete={() => setUploading(false)}
-              />
-            </div>
-
-            <Separator className="my-8" />
 
             {/* Flat Details Section */}
             <div className="space-y-6">
@@ -905,15 +902,6 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
               </div>
             </div>
 
-            {/* Upload Status */}
-            {uploading && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                  <span className="text-blue-700">Uploading documents to Cloudinary...</span>
-                </div>
-              </div>
-            )}
 
             {/* Submit Button */}
             <div className="flex justify-end">
@@ -921,14 +909,9 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
                 type="submit" 
                 size="lg" 
                 className="min-w-32"
-                disabled={loading || uploading || !declaration}
+                disabled={loading || !declaration}
               >
-                {uploading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                    Uploading...
-                  </>
-                ) : loading ? (
+                {loading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
                     {isEditing ? 'Updating...' : 'Creating...'}

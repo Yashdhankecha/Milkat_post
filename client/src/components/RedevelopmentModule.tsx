@@ -37,14 +37,11 @@ import { apiClient } from '@/lib/api';
 import RedevelopmentForm from './RedevelopmentForm';
 import ProposalComparison from './ProposalComparison';
 import RedevelopmentVotingSystem from './RedevelopmentVotingSystem';
-import ProjectTimeline from './ProjectTimeline';
-import DocumentVault from './DocumentVault';
 import MemberQueries from './MemberQueries';
 // New enhanced components
 import VotingPanel from './VotingPanel';
 import SimpleVotingPanel from './SimpleVotingPanel';
 import ProposalVotingComparison from './ProposalVotingComparison';
-import RedevelopmentDocumentVault from './RedevelopmentDocumentVault';
 
 interface RedevelopmentProject {
   _id: string;
@@ -433,12 +430,10 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
       {selectedProject && (
         <div className="mt-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-6">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="proposals">Proposals</TabsTrigger>
               <TabsTrigger value="voting">Voting</TabsTrigger>
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
               <TabsTrigger value="queries">Queries</TabsTrigger>
             </TabsList>
 
@@ -565,19 +560,6 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
               )}
             </TabsContent>
 
-            <TabsContent value="timeline" className="space-y-6">
-              <ProjectTimeline project={selectedProject} />
-            </TabsContent>
-
-            <TabsContent value="documents" className="space-y-6">
-              {/* Enhanced Document Vault */}
-              <RedevelopmentDocumentVault
-                projectId={selectedProject._id}
-                userRole={isOwner ? 'society_owner' : 'society_member'}
-                canUpload={isOwner}
-                canDelete={isOwner}
-              />
-            </TabsContent>
 
             <TabsContent value="queries" className="space-y-6">
               <MemberQueries 

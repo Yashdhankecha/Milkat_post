@@ -243,6 +243,11 @@ router.post('/',
     });
     
     try {
+      // FIX: Remove any _id field from request body to prevent ObjectId casting errors
+      delete req.body._id;
+      delete req.body.id;
+      
+      console.log('Sanitized request body (removed _id/id):', JSON.stringify(req.body, null, 2));
     
     const userId = req.user._id;
     
@@ -303,11 +308,31 @@ router.post('/',
 
     console.log('Society created successfully:', society._id);
 
+    // Transform field names from backend camelCase to frontend snake_case
+    const transformedSociety = {
+      ...society.toObject(),
+      society_type: society.societyType,
+      number_of_blocks: society.numberOfBlocks,
+      total_area: society.totalArea,
+      total_flats: society.totalFlats,
+      year_built: society.yearBuilt,
+      registration_date: society.registrationDate,
+      condition_status: society.conditionStatus,
+      contact_person_name: society.contactPersonName,
+      contact_phone: society.contactPhone,
+      contact_email: society.contactEmail,
+      society_code: society.societyCode,
+      flat_variants: society.flatVariants,
+      registration_documents: society.registrationDocuments,
+      flat_plan_documents: society.flatPlanDocuments,
+      created_at: society.createdAt
+    };
+
     res.status(201).json({
       status: 'success',
       message: 'Society created successfully',
       data: { 
-        society,
+        society: transformedSociety,
         roleCreated: !profile._id // Indicate if role was just created
       }
     });
@@ -373,6 +398,12 @@ router.put('/:id',
     console.log('Society ID:', req.params.id);
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     console.log('User:', req.user ? req.user._id : 'No user');
+    
+    // FIX: Remove any _id field from request body to prevent ObjectId casting errors
+    delete req.body._id;
+    delete req.body.id;
+    
+    console.log('Sanitized request body (removed _id/id):', JSON.stringify(req.body, null, 2));
 
     const society = await Society.findById(req.params.id);
 
@@ -412,10 +443,30 @@ router.put('/:id',
       { new: true, runValidators: true }
     );
 
+    // Transform field names from backend camelCase to frontend snake_case
+    const transformedSociety = {
+      ...updatedSociety.toObject(),
+      society_type: updatedSociety.societyType,
+      number_of_blocks: updatedSociety.numberOfBlocks,
+      total_area: updatedSociety.totalArea,
+      total_flats: updatedSociety.totalFlats,
+      year_built: updatedSociety.yearBuilt,
+      registration_date: updatedSociety.registrationDate,
+      condition_status: updatedSociety.conditionStatus,
+      contact_person_name: updatedSociety.contactPersonName,
+      contact_phone: updatedSociety.contactPhone,
+      contact_email: updatedSociety.contactEmail,
+      society_code: updatedSociety.societyCode,
+      flat_variants: updatedSociety.flatVariants,
+      registration_documents: updatedSociety.registrationDocuments,
+      flat_plan_documents: updatedSociety.flatPlanDocuments,
+      created_at: updatedSociety.createdAt
+    };
+
     res.status(200).json({
       status: 'success',
       message: 'Society updated successfully',
-      data: { society: updatedSociety }
+      data: { society: transformedSociety }
     });
   })
 );
@@ -516,9 +567,29 @@ router.get('/my/societies',
     const allSocieties = Array.from(societyMap.values())
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+    // Transform field names from backend camelCase to frontend snake_case
+    const transformedSocieties = allSocieties.map(society => ({
+      ...society,
+      society_type: society.societyType,
+      number_of_blocks: society.numberOfBlocks,
+      total_area: society.totalArea,
+      total_flats: society.totalFlats,
+      year_built: society.yearBuilt,
+      registration_date: society.registrationDate,
+      condition_status: society.conditionStatus,
+      contact_person_name: society.contactPersonName,
+      contact_phone: society.contactPhone,
+      contact_email: society.contactEmail,
+      society_code: society.societyCode,
+      flat_variants: society.flatVariants,
+      registration_documents: society.registrationDocuments,
+      flat_plan_documents: society.flatPlanDocuments,
+      created_at: society.createdAt
+    }));
+
     // Apply pagination
-    const total = allSocieties.length;
-    const paginatedSocieties = allSocieties.slice(skip, skip + limit);
+    const total = transformedSocieties.length;
+    const paginatedSocieties = transformedSocieties.slice(skip, skip + limit);
 
     res.status(200).json({
       status: 'success',
@@ -591,6 +662,76 @@ router.get('/:id/members',
         },
         members,
         total: members.length
+      }
+    });
+  })
+);
+
+// Get society documents
+router.get('/:id/documents',
+  authenticate,
+  catchAsync(async (req, res) => {
+    const society = await Society.findById(req.params.id);
+
+    if (!society) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Society not found'
+      });
+    }
+
+    // Check if user is owner or member
+    const isOwner = society.owner.toString() === req.user._id.toString();
+    const isMember = await SocietyMember.findOne({
+      society: society._id,
+      user: req.user._id,
+      status: 'active'
+    });
+
+    if (!isOwner && !isMember) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You can only view documents of societies you own or are a member of.'
+      });
+    }
+
+    // Combine all documents with metadata
+    const documents = [];
+
+    // Add registration documents
+    if (society.registrationDocuments && society.registrationDocuments.length > 0) {
+      society.registrationDocuments.forEach((url, index) => {
+        documents.push({
+          id: `doc_${index}`,
+          name: url.split('/').pop() || `Society Document ${index + 1}`,
+          type: 'society_document',
+          url: url,
+          uploadedAt: society.createdAt,
+          size: null // Size not available from URL
+        });
+      });
+    }
+
+    // Add flat plan documents (for backward compatibility)
+    if (society.flatPlanDocuments && society.flatPlanDocuments.length > 0) {
+      society.flatPlanDocuments.forEach((url, index) => {
+        documents.push({
+          id: `doc_${documents.length + index}`,
+          name: url.split('/').pop() || `Society Document ${documents.length + index + 1}`,
+          type: 'society_document',
+          url: url,
+          uploadedAt: society.createdAt,
+          size: null // Size not available from URL
+        });
+      });
+    }
+
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        documents,
+        total: documents.length
       }
     });
   })

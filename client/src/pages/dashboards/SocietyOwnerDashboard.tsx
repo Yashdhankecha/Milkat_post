@@ -1,4 +1,4 @@
-import apiClient from '@/lib/api';
+import { apiClient } from '@/lib/api';
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import DashboardNav from "@/components/DashboardNav";
 import { SocietyForm } from "@/components/SocietyForm";
 import { MemberManagement } from "@/components/MemberManagement";
-import { RequirementForm } from "@/components/RequirementForm";
-import { DocumentUploadSection, type DocumentFile } from "@/components/DocumentUploadSection";
 import RedevelopmentModule from "@/components/RedevelopmentModule";
-import InvitationManagement from "@/components/InvitationManagement";
 import QueryManagement from "@/components/QueryManagement";
+import { DocumentUploadSection, type DocumentFile } from "@/components/DocumentUploadSection";
 import { 
   Building2, 
   Users, 
@@ -22,9 +20,10 @@ import {
   Settings, 
   Eye, 
   X, 
-  Upload, 
-  CheckCircle2, 
-  RefreshCw, 
+  Upload,
+  CheckCircle2,
+  RefreshCw,
+  Trash2,
   Building, 
   UserPlus, 
   Mail, 
@@ -33,9 +32,6 @@ import {
   TrendingUp,
   Calendar,
   MapPin,
-  Phone,
-  Mail as MailIcon,
-  User,
   Clock,
   AlertCircle,
   CheckCircle,
@@ -43,7 +39,8 @@ import {
   BarChart3,
   Shield,
   Home,
-  Layers
+  Layers,
+  Download
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -74,6 +71,12 @@ interface Society {
   created_at: string;
   registration_documents?: any;
   flat_plan_documents?: any;
+  redevelopmentStatus?: {
+    isPlanned: boolean;
+    plannedDate?: string;
+    currentPhase?: string;
+    progress?: number;
+  };
 }
 
 interface SocietyMember {
@@ -87,41 +90,18 @@ interface SocietyMember {
   isOwner: boolean;
 }
 
-interface Requirement {
-  id?: string;
-  _id?: string;
-  requirement_type: string;
-  description: string;
-  budget_range: string;
-  status: string;
-  created_at: string;
-}
-
-interface Proposal {
-  id?: string;
-  _id?: string;
-  title: string;
-  description: string;
-  budget_estimate: number;
-  status: string;
-  submitted_at: string;
-  developers?: {
-    company_name: string;
-  };
-}
 
 const SocietyOwnerDashboard = () => {
   const { user } = useAuth();
   const [society, setSociety] = useState<Society | null>(null);
   const [members, setMembers] = useState<SocietyMember[]>([]);
-  const [requirements, setRequirements] = useState<Requirement[]>([]);
-  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [queries, setQueries] = useState<any[]>([]);
   const [showSocietyForm, setShowSocietyForm] = useState(false);
-  const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
-  const [registrationDocuments, setRegistrationDocuments] = useState<DocumentFile[]>([]);
-  const [floorPlanDocuments, setFloorPlanDocuments] = useState<DocumentFile[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<any[]>([]);
+  const [documentUploads, setDocumentUploads] = useState<DocumentFile[]>([]);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
 
   // Helper function to get society ID (handles both id and _id)
   const getSocietyId = (societyData: Society | null): string | undefined => {
@@ -157,26 +137,18 @@ const SocietyOwnerDashboard = () => {
 
       if (societyData) {
         console.log('Setting society data:', societyData);
+        console.log('Society data fields:', {
+          name: societyData.name,
+          society_type: societyData.society_type,
+          total_area: societyData.total_area,
+          total_flats: societyData.total_flats,
+          year_built: societyData.year_built,
+          contact_person_name: societyData.contact_person_name,
+          contact_phone: societyData.contact_phone,
+          contact_email: societyData.contact_email
+        });
         setSociety(societyData);
         
-        // Load existing documents
-        if (societyData.registration_documents && Array.isArray(societyData.registration_documents)) {
-          const existingRegDocs: DocumentFile[] = societyData.registration_documents.map((url: string) => ({
-            url,
-            name: url.split('/').pop() || 'Registration Document',
-            status: 'completed' as const
-          }));
-          setRegistrationDocuments(existingRegDocs);
-        }
-        
-        if (societyData.flat_plan_documents && Array.isArray(societyData.flat_plan_documents)) {
-          const existingFloorDocs: DocumentFile[] = societyData.flat_plan_documents.map((url: string) => ({
-            url,
-            name: url.split('/').pop() || 'Floor Plan Document',
-            status: 'completed' as const
-          }));
-          setFloorPlanDocuments(existingFloorDocs);
-        }
 
         // Fetch society members using the new API endpoint
         const societyId = getSocietyId(societyData);
@@ -202,48 +174,135 @@ const SocietyOwnerDashboard = () => {
           setMembers([]);
         }
 
-        // Fetch requirements
-        const societyIdForRequirements = getSocietyId(societyData);
-        const { data: requirementsData, error: requirementsError } = await apiClient.getRequirements({ society_id: societyIdForRequirements });
 
-        let requirementsArray: any[] = [];
-        
-        if (requirementsError) {
-          console.error('Requirements fetch error:', requirementsError);
-          toast("Warning", {
-            description: "Failed to fetch requirements data.",
-          });
-          setRequirements([]); // Ensure it's always an array
-        } else {
-          // Ensure requirementsData is an array
-          requirementsArray = Array.isArray(requirementsData) ? requirementsData : 
-                             (requirementsData?.data && Array.isArray(requirementsData.data)) ? requirementsData.data : 
-                             (requirementsData?.requirements && Array.isArray(requirementsData.requirements)) ? requirementsData.requirements : [];
-          console.log('Requirements data structure:', { requirementsData, requirementsArray });
-          setRequirements(requirementsArray);
+        // Fetch queries for the society
+        const societyIdForQueries = getSocietyId(societyData);
+        if (societyIdForQueries) {
+          try {
+            const { data: queriesData, error: queriesError } = await apiClient.getSocietyQueries(societyIdForQueries);
+            
+            if (queriesError) {
+              console.error('Queries fetch error:', queriesError);
+              setQueries([]);
+            } else {
+              const queriesArray = Array.isArray(queriesData) ? queriesData : 
+                                 (queriesData?.data && Array.isArray(queriesData.data)) ? queriesData.data : 
+                                 (queriesData?.queries && Array.isArray(queriesData.queries)) ? queriesData.queries : [];
+              console.log('Queries data structure:', { queriesData, queriesArray });
+              setQueries(queriesArray);
+            }
+          } catch (queriesError) {
+            console.error('Queries fetch error:', queriesError);
+            setQueries([]);
+          }
         }
 
-        // Fetch proposals for requirements
-        const requirementIds = requirementsArray?.map(req => req._id || req.id) || [];
-        if (requirementIds.length > 0) {
-          const { data: proposalsData, error: proposalsError } = await apiClient.getRequirements({ society_id: societyData.id });
-
-          if (proposalsError) {
-            console.error('Proposals fetch error:', proposalsError);
-            toast("Warning", {
-              description: "Failed to fetch proposals data.",
-            });
-            setProposals([]); // Ensure it's always an array
-          } else {
-            // Ensure proposalsData is an array
-            const proposalsArray = Array.isArray(proposalsData) ? proposalsData : 
-                                 (proposalsData?.data && Array.isArray(proposalsData.data)) ? proposalsData.data : 
-                                 (proposalsData?.proposals && Array.isArray(proposalsData.proposals)) ? proposalsData.proposals : [];
-            console.log('Proposals data structure:', { proposalsData, proposalsArray });
-            setProposals(proposalsArray);
+        // Fetch uploaded documents for the society
+        const societyIdForDocs = getSocietyId(societyData);
+        
+        if (societyIdForDocs) {
+          try {
+            // Add timestamp to prevent caching issues
+            const timestamp = Date.now();
+            const { data: documentsData, error: docsError } = await apiClient.getSocietyDocuments(societyIdForDocs, timestamp);
+            
+            if (docsError) {
+              console.error('Documents fetch error:', docsError);
+              // Fallback: create documents from society data
+              const fallbackDocs = [];
+              if (societyData.registration_documents && societyData.registration_documents.length > 0) {
+                societyData.registration_documents.forEach((url: string, index: number) => {
+                  fallbackDocs.push({
+                    id: `doc_${index}`,
+                    name: url.split('/').pop() || `Society Document ${index + 1}`,
+                    type: 'society_document',
+                    url: url,
+                    uploadedAt: societyData.createdAt || new Date(),
+                    size: null
+                  });
+                });
+              }
+              if (societyData.flat_plan_documents && societyData.flat_plan_documents.length > 0) {
+                societyData.flat_plan_documents.forEach((url: string, index: number) => {
+                  fallbackDocs.push({
+                    id: `doc_${fallbackDocs.length + index}`,
+                    name: url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`,
+                    type: 'society_document',
+                    url: url,
+                    uploadedAt: societyData.createdAt || new Date(),
+                    size: null
+                  });
+                });
+              }
+              setUploadedDocuments(fallbackDocs);
+            } else {
+              const documentsArray = Array.isArray(documentsData) ? documentsData : 
+                                   (documentsData?.data && Array.isArray(documentsData.data)) ? documentsData.data : 
+                                   (documentsData?.documents && Array.isArray(documentsData.documents)) ? documentsData.documents : [];
+              // If API returns empty but society has documents, use fallback
+              if (documentsArray.length === 0 && (societyData.registration_documents?.length > 0 || societyData.flat_plan_documents?.length > 0)) {
+                const fallbackDocs = [];
+                if (societyData.registration_documents && societyData.registration_documents.length > 0) {
+                  societyData.registration_documents.forEach((url: string, index: number) => {
+                    fallbackDocs.push({
+                      id: `doc_${index}`,
+                      name: url.split('/').pop() || `Society Document ${index + 1}`,
+                      type: 'society_document',
+                      url: url,
+                      uploadedAt: societyData.createdAt || new Date(),
+                      size: null
+                    });
+                  });
+                }
+                if (societyData.flat_plan_documents && societyData.flat_plan_documents.length > 0) {
+                  societyData.flat_plan_documents.forEach((url: string, index: number) => {
+                    fallbackDocs.push({
+                      id: `doc_${fallbackDocs.length + index}`,
+                      name: url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`,
+                      type: 'society_document',
+                      url: url,
+                      uploadedAt: societyData.createdAt || new Date(),
+                      size: null
+                    });
+                  });
+                }
+                setUploadedDocuments(fallbackDocs);
+              } else {
+                setUploadedDocuments(documentsArray);
+              }
+            }
+          } catch (docsError) {
+            console.error('Documents fetch error:', docsError);
+            // Fallback: create documents from society data
+            const fallbackDocs = [];
+            if (societyData.registration_documents && societyData.registration_documents.length > 0) {
+              societyData.registration_documents.forEach((url: string, index: number) => {
+                fallbackDocs.push({
+                  id: `doc_${index}`,
+                  name: url.split('/').pop() || `Society Document ${index + 1}`,
+                  type: 'society_document',
+                  url: url,
+                  uploadedAt: societyData.createdAt || new Date(),
+                  size: null
+                });
+              });
+            }
+            if (societyData.flat_plan_documents && societyData.flat_plan_documents.length > 0) {
+              societyData.flat_plan_documents.forEach((url: string, index: number) => {
+                fallbackDocs.push({
+                  id: `doc_${fallbackDocs.length + index}`,
+                  name: url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`,
+                  type: 'society_document',
+                  url: url,
+                  uploadedAt: societyData.createdAt || new Date(),
+                  size: null
+                });
+              });
+            }
+            setUploadedDocuments(fallbackDocs);
           }
         } else {
-          setProposals([]); // No requirements, so no proposals
+          setUploadedDocuments([]);
         }
       }
     } catch (error) {
@@ -260,46 +319,63 @@ const SocietyOwnerDashboard = () => {
     fetchSocietyData();
   }, [user]);
 
-  const updateSocietyDocuments = async () => {
-    if (!society) return;
-
-    try {
-      // Get document URLs from the uploaded documents
-      const registrationDocUrls = registrationDocuments
-        .filter(doc => doc.status === 'completed' && doc.url)
-        .map(doc => doc.url!);
+  // Handle document upload completion
+  const handleDocumentUploadComplete = async () => {
+    setIsUploadingDocuments(false);
+    setShowUploadForm(false);
+    
+    // Update society with uploaded document URLs
+    if (society && documentUploads.length > 0) {
+      const completedUploads = documentUploads.filter(doc => doc.status === 'completed' && doc.url);
       
-      const floorPlanDocUrls = floorPlanDocuments
-        .filter(doc => doc.status === 'completed' && doc.url)
-        .map(doc => doc.url!);
-
-      const societyId = getSocietyId(society);
-      if (!societyId) {
-        toast("Error", {
-          description: "Society ID not available",
-        });
-        return;
+      if (completedUploads.length > 0) {
+        console.log('Processing completed uploads:', completedUploads);
+        
+        const uploadedUrls = completedUploads.map(doc => doc.url!);
+        
+        try {
+          const societyId = getSocietyId(society);
+          if (societyId) {
+            // Get current documents from both arrays
+            const currentRegDocs = society.registration_documents || [];
+            const currentFloorDocs = society.flat_plan_documents || [];
+            
+            // Combine all current documents with new uploads
+            const allCurrentDocs = [...currentRegDocs, ...currentFloorDocs];
+            const updatedDocs = [...allCurrentDocs, ...uploadedUrls];
+            
+            console.log('Updating society with all documents:', updatedDocs);
+            
+            // Update society with all documents in registration_documents array
+            // We'll use registration_documents as the main document storage
+            await apiClient.updateSociety(societyId, {
+              registration_documents: updatedDocs,
+              flat_plan_documents: [] // Clear floor plan docs since we're unifying
+            });
+          }
+        } catch (error) {
+          console.error('Error updating society documents:', error);
+          toast("Error", {
+            description: "Failed to save documents. Please try again.",
+          });
+        }
       }
-      const { error } = await apiClient.updateSociety(societyId, {
-        registration_documents: registrationDocUrls,
-        flat_plan_documents: floorPlanDocUrls
-      });
-
-      if (error) throw error;
-
-      await fetchSocietyData();
-
-      toast("Documents Updated", {
-        description: "Society documents have been updated successfully.",
-      });
-
-    } catch (error) {
-      console.error('Update error:', error);
-      toast("Update Failed", {
-        description: "Failed to update documents. Please try again.",
-      });
     }
+    
+    // Clear upload state
+    setDocumentUploads([]);
+    
+    // Refresh the documents list
+    await fetchSocietyData();
+    toast("Success", {
+      description: "Documents uploaded successfully!",
+    });
   };
+
+  const handleDocumentUploadStart = () => {
+    setIsUploadingDocuments(true);
+  };
+
 
   if (loading) {
     return (
@@ -435,7 +511,7 @@ const SocietyOwnerDashboard = () => {
         ) : (
           <>
             {/* Enhanced Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Stat Card 1: Total Flats */}
               <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-blue-500/40">
                 <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-blue-400/20 dark:bg-blue-600/20 blur-xl animate-pulse-slow"></div>
@@ -453,24 +529,7 @@ const SocietyOwnerDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Stat Card 2: Active Members */}
-              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-green-500/40">
-                <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-green-400/20 dark:bg-green-600/20 blur-xl animate-pulse-slow delay-100"></div>
-                <CardContent className="p-6 flex flex-col justify-between h-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm font-medium text-green-800 dark:text-green-200">Active Members</p>
-                    <div className="p-2 rounded-full bg-green-500/20 dark:bg-green-700/30 backdrop-blur-sm">
-                      <Users className="h-6 w-6 text-green-600 dark:text-green-400" />
-                    </div>
-                  </div>
-                  <p className="text-5xl font-extrabold text-green-900 dark:text-green-100 leading-none">
-                    {members.length}
-                  </p>
-                  <p className="text-sm text-green-700 dark:text-green-300 mt-2">Society residents</p>
-                </CardContent>
-              </Card>
-
-              {/* Stat Card 3: Total Blocks */}
+              {/* Stat Card 2: Total Blocks */}
               <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-purple-500/40">
                 <div className="absolute -top-8 -left-8 h-24 w-24 rounded-full bg-purple-400/20 dark:bg-purple-600/20 blur-xl animate-pulse-slow delay-200"></div>
                 <CardContent className="p-6 flex flex-col justify-between h-full">
@@ -487,61 +546,51 @@ const SocietyOwnerDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Stat Card 4: Requirements */}
+              {/* Stat Card 3: Active Members */}
+              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-green-500/40">
+                <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-green-400/20 dark:bg-green-600/20 blur-xl animate-pulse-slow delay-100"></div>
+                <CardContent className="p-6 flex flex-col justify-between h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200">Active Members</p>
+                    <div className="p-2 rounded-full bg-green-500/20 dark:bg-green-700/30 backdrop-blur-sm">
+                      <Users className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <p className="text-5xl font-extrabold text-green-900 dark:text-green-100 leading-none">
+                    {members.length}
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-2">Society residents</p>
+                </CardContent>
+              </Card>
+
+              {/* Stat Card 4: Member Queries */}
               <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-orange-500/40">
                 <div className="absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-orange-400/20 dark:bg-orange-600/20 blur-xl animate-pulse-slow delay-300"></div>
                 <CardContent className="p-6 flex flex-col justify-between h-full">
                   <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Requirements</p>
+                    <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Member Queries</p>
                     <div className="p-2 rounded-full bg-orange-500/20 dark:bg-orange-700/30 backdrop-blur-sm">
                       <FileText className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                     </div>
                   </div>
                   <p className="text-5xl font-extrabold text-orange-900 dark:text-orange-100 leading-none">
-                    {requirements && Array.isArray(requirements) ? requirements.length : 0}
+                    {queries && Array.isArray(queries) ? queries.length : 0}
                   </p>
-                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-2">Active requests</p>
+                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-2">
+                    {queries && Array.isArray(queries) ? 
+                      `${queries.filter(q => q.status === 'open').length} pending` : 
+                      'No queries'
+                    }
+                  </p>
                 </CardContent>
               </Card>
 
-              {/* Stat Card 5: Pending Approvals */}
-              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-red-500/40">
-                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-red-400/20 dark:bg-red-600/20 blur-xl animate-pulse-slow delay-400"></div>
-                <CardContent className="p-6 flex flex-col justify-between h-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200">Pending Approvals</p>
-                    <div className="p-2 rounded-full bg-red-500/20 dark:bg-red-700/30 backdrop-blur-sm">
-                      <Clock className="h-6 w-6 text-red-600 dark:text-red-400" />
-                    </div>
-                  </div>
-                  <p className="text-5xl font-extrabold text-red-900 dark:text-red-100 leading-none">
-                    {proposals && Array.isArray(proposals) ? proposals.filter(p => p.status === 'submitted').length : 0}
-                  </p>
-                  <p className="text-sm text-red-700 dark:text-red-300 mt-2">Awaiting review</p>
-                </CardContent>
-              </Card>
 
-              {/* Stat Card 6: Document Status */}
-              <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-indigo-500/40">
-                <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-indigo-400/20 dark:bg-indigo-600/20 blur-xl animate-pulse-slow delay-500"></div>
-                <CardContent className="p-6 flex flex-col justify-between h-full">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm font-medium text-indigo-800 dark:text-indigo-200">Document Status</p>
-                    <div className="p-2 rounded-full bg-indigo-500/20 dark:bg-indigo-700/30 backdrop-blur-sm">
-                      <Shield className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                    </div>
-                  </div>
-                  <p className="text-5xl font-extrabold text-indigo-900 dark:text-indigo-100 leading-none">
-                    {registrationDocuments.length + floorPlanDocuments.length}
-                  </p>
-                  <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-2">Files uploaded</p>
-                </CardContent>
-              </Card>
             </div>
 
             {/* Main Content Tabs */}
             <Tabs defaultValue="society" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-7 h-auto p-1 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-gray-700/20 dark:to-gray-800/20 rounded-xl shadow-inner border border-gray-200 dark:border-gray-700">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5 h-auto p-1 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-gray-700/20 dark:to-gray-800/20 rounded-xl shadow-inner border border-gray-200 dark:border-gray-700">
                 <TabsTrigger
                   value="society"
                   className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-blue-400 dark:data-[state=active]:border-blue-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-300"
@@ -555,22 +604,10 @@ const SocietyOwnerDashboard = () => {
                   <Users className="h-4 w-4 mr-2" /> Members ({members && Array.isArray(members) ? members.length : 0})
                 </TabsTrigger>
                 <TabsTrigger
-                  value="invitations"
+                  value="documents"
                   className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-500 data-[state=active]:to-pink-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-purple-400 dark:data-[state=active]:border-purple-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-300"
                 >
-                  <Mail className="h-4 w-4 mr-2" /> Invitations
-                </TabsTrigger>
-                <TabsTrigger
-                  value="requirements"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-orange-400 dark:data-[state=active]:border-orange-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-300"
-                >
-                  <FileText className="h-4 w-4 mr-2" /> Requirements ({requirements && Array.isArray(requirements) ? requirements.length : 0})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="proposals"
-                  className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-blue-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-indigo-400 dark:data-[state=active]:border-indigo-700 rounded-lg py-2 px-4 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-300"
-                >
-                  <BarChart3 className="h-4 w-4 mr-2" /> Proposals ({proposals && Array.isArray(proposals) ? proposals.length : 0})
+                  <FileText className="h-4 w-4 mr-2" /> Documents ({uploadedDocuments && Array.isArray(uploadedDocuments) ? uploadedDocuments.length : 0})
                 </TabsTrigger>
                 <TabsTrigger
                   value="redevelopment"
@@ -601,7 +638,7 @@ const SocietyOwnerDashboard = () => {
                           {society.address}, {society.city}, {society.state}
                         </CardDescription>
                         </div>
-                        <Dialog>
+                        <Dialog key={society?._id || society?.id || 'edit'}>
                           <DialogTrigger asChild>
                           <Button 
                             variant="outline"
@@ -671,43 +708,6 @@ const SocietyOwnerDashboard = () => {
                           </div>
                           <p className="font-semibold text-gray-800 dark:text-gray-200">{society.fsi}</p>
                         </div>
-                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-teal-500" />
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Road Facing</p>
-                          </div>
-                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.road_facing}</p>
-                        </div>
-                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-yellow-500" />
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Condition Status</p>
-                          </div>
-                          <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0">
-                            {society.condition_status}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-pink-500" />
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Person</p>
-                          </div>
-                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.contact_person_name}</p>
-                        </div>
-                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <MailIcon className="h-4 w-4 text-cyan-500" />
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Email</p>
-                          </div>
-                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.contact_email}</p>
-                        </div>
-                        <div className="space-y-2 p-4 rounded-lg bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-emerald-500" />
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Phone</p>
-                          </div>
-                          <p className="font-semibold text-gray-800 dark:text-gray-200">{society.contact_phone}</p>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -772,40 +772,6 @@ const SocietyOwnerDashboard = () => {
                     </Card>
                   )}
 
-                  {/* Documents Upload Section */}
-                  <div className="space-y-6">
-                    <DocumentUploadSection
-                      title="Society Registration Documents"
-                      description="Upload society registration certificate, building approvals, NOC documents"
-                      bucketName="society-documents"
-                      folderPath={`${getSocietyId(society) || 'unknown'}/registration`}
-                      documents={registrationDocuments}
-                      onDocumentsChange={setRegistrationDocuments}
-                      uploadButtonColor="primary"
-                      className="mb-6"
-                    />
-
-                    <DocumentUploadSection
-                      title="Floor Plans & Layout Documents"
-                      description="Upload floor plans, layout drawings for each block"
-                      bucketName="society-documents"
-                      folderPath={`${getSocietyId(society) || 'unknown'}/floor-plans`}
-                      documents={floorPlanDocuments}
-                      onDocumentsChange={setFloorPlanDocuments}
-                      uploadButtonColor="orange"
-                    />
-
-                    <div className="flex justify-end">
-                      <Button 
-                        onClick={updateSocietyDocuments}
-                        className="px-6 py-3 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-indigo-500/30 transition-all duration-300 group"
-                      >
-                        <Upload className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
-                        Update Society Documents
-                        <ArrowRight className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               </TabsContent>
 
@@ -815,184 +781,236 @@ const SocietyOwnerDashboard = () => {
             />
               </TabsContent>
 
-              <TabsContent value="invitations">
-                <InvitationManagement 
-                  societyId={getSocietyId(society) || ''} 
-                  societyName={society.name} 
-                />
-              </TabsContent>
-
-              <TabsContent value="requirements">
+              <TabsContent value="documents">
                 <div className="space-y-6">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                       <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
-                        <FileText className="h-8 w-8 text-orange-500" />
-                        Redevelopment Requirements
+                        <FileText className="h-8 w-8 text-purple-500" />
+                        Uploaded Documents
                       </h2>
-                      <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your society's redevelopment needs and track progress</p>
+                      <p className="text-gray-600 dark:text-gray-400 mt-2">
+                        Manage and view all society documents including registration papers and floor plans
+                      </p>
                     </div>
-                    <Dialog open={showRequirementForm} onOpenChange={setShowRequirementForm}>
-                      <DialogTrigger asChild>
-                        <Button className="px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg hover:shadow-orange-500/30 transition-all duration-300 group">
-                          <Plus className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
-                          Create Requirement
-                          <ArrowRight className="h-4 w-4 ml-2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Create Redevelopment Requirement</DialogTitle>
-                          <DialogDescription>
-                            Submit a redevelopment requirement for your society.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <RequirementForm 
-                          societyId={getSocietyId(society) || ''}
-                          onSuccess={() => {
-                            setShowRequirementForm(false);
-                            fetchSocietyData();
-                          }}
-                        />
-                      </DialogContent>
-                    </Dialog>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => fetchSocietyData()} 
+                        variant="outline" 
+                        size="sm"
+                        className="flex items-center gap-2"
+                        disabled={isUploadingDocuments}
+                      >
+                        <RefreshCw className={`h-4 w-4 ${isUploadingDocuments ? 'animate-spin' : ''}`} />
+                        Refresh
+                      </Button>
+                      {isUploadingDocuments && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="text-sm text-blue-600 dark:text-blue-400">Uploading...</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {!requirements || !Array.isArray(requirements) || requirements.length === 0 ? (
-                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-gray-900">
-                      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-red-500/10 dark:from-orange-900/20 dark:to-red-900/20 opacity-70 blur-3xl pointer-events-none"></div>
-                      <CardContent className="text-center py-12">
-                        <div className="relative mb-6">
-                          <FileText className="h-16 w-16 text-orange-500 mx-auto animate-bounce-slow" />
-                          <div className="absolute -top-2 -right-2 h-6 w-6 bg-yellow-400 rounded-full flex items-center justify-center">
-                            <Sparkles className="h-3 w-3 text-yellow-800 animate-pulse" />
-                          </div>
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">No Requirements Posted</h3>
-                        <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                          Create a redevelopment requirement to start receiving proposals from developers and transform your society.
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid gap-6">
-                      {requirements && Array.isArray(requirements) && requirements.map((requirement) => (
-                        <Card key={requirement._id || requirement.id} className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-gray-900 transform transition-all duration-300 hover:scale-[1.01] hover:shadow-lg">
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500/5 to-transparent opacity-50 animate-gradient-pulse"></div>
-                          <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                  <FileText className="h-5 w-5 text-orange-500" />
-                                  {requirement.requirement_type}
-                                </CardTitle>
-                                <CardDescription className="text-gray-600 dark:text-gray-400 mt-2">{requirement.description}</CardDescription>
+
+                  {/* Documents Grid */}
+                  {uploadedDocuments && uploadedDocuments.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {uploadedDocuments.map((doc: any, index: number) => (
+                        <Card key={doc.id || index} className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-gray-900 hover:shadow-xl transition-all duration-300">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                                  <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                </div>
+                                <div>
+                                  <CardTitle className="text-lg font-semibold text-gray-800 dark:text-gray-100 line-clamp-2">
+                                    {doc.name}
+                                  </CardTitle>
+                                  <Badge 
+                                    variant="default"
+                                    className="mt-1 text-xs"
+                                  >
+                                    Society Document
+                                  </Badge>
+                                </div>
                               </div>
-                              <Badge className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                requirement.status === 'active' 
-                                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
-                                  : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
-                              }`}>
-                                {requirement.status}
-                              </Badge>
                             </div>
                           </CardHeader>
-                          <CardContent className="p-6">
+                          <CardContent className="pt-0">
                             <div className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <BarChart3 className="h-4 w-4 text-orange-500" />
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Budget Range:</span>
-                                <span className="font-semibold text-gray-800 dark:text-gray-200">{requirement.budget_range}</span>
+                              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                <Calendar className="h-4 w-4" />
+                                <span>Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</span>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-orange-500" />
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Created on</span>
-                                <span className="font-semibold text-gray-800 dark:text-gray-200">{new Date(requirement.created_at).toLocaleDateString()}</span>
+                              {doc.size && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                  <FileText className="h-4 w-4" />
+                                  <span>Size: {(doc.size / 1024 / 1024).toFixed(2)} MB</span>
+                                </div>
+                              )}
+                              <div className="flex gap-2 pt-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => window.open(doc.url, '_blank')}
+                                  className="flex-1 text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300"
+                                >
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  View
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    const link = document.createElement('a');
+                                    link.href = doc.url;
+                                    link.download = doc.name;
+                                    link.click();
+                                  }}
+                                  className="flex-1 text-green-600 hover:text-green-700 border-green-200 hover:border-green-300"
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={async () => {
+                                    if (confirm('Are you sure you want to delete this document?')) {
+                                      try {
+                                        const societyId = getSocietyId(society);
+                                        if (societyId) {
+                                          // Remove document from society
+                                          const currentRegDocs = society.registration_documents || [];
+                                          const currentFloorDocs = society.flat_plan_documents || [];
+                                          
+                                          // Combine all documents and remove the specific one
+                                          const allDocs = [...currentRegDocs, ...currentFloorDocs];
+                                          const updatedDocs = allDocs.filter((url: string) => url !== doc.url);
+                                          
+                                          await apiClient.updateSociety(societyId, {
+                                            registration_documents: updatedDocs,
+                                            flat_plan_documents: [] // Clear floor plan docs since we're unifying
+                                          });
+                                          
+                                          // Refresh documents
+                                          await fetchSocietyData();
+                                          
+                                          toast("Success", {
+                                            description: "Document deleted successfully!",
+                                          });
+                                        }
+                                      } catch (error) {
+                                        console.error('Error deleting document:', error);
+                                        toast("Error", {
+                                          description: "Failed to delete document. Please try again.",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </div>
                           </CardContent>
                         </Card>
                       ))}
                     </div>
+                  ) : (
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-gray-900">
+                      <CardContent className="p-12 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="p-4 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                            <FileText className="h-12 w-12 text-purple-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                              No Documents Uploaded
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-4">
+                              Upload society documents to get started
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Document Upload Section */}
+                  {showUploadForm ? (
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-gray-900">
+                      <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
+                              <FileText className="h-6 w-6 text-blue-500" />
+                              Upload Society Documents
+                            </CardTitle>
+                            <CardDescription className="text-gray-600 dark:text-gray-400 mt-2">
+                              Upload all society-related documents including registration papers, approvals, and floor plans
+                            </CardDescription>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowUploadForm(false)}
+                            className="text-gray-500 hover:text-gray-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-6">
+                        <DocumentUploadSection
+                          title="Society Documents"
+                          description="Upload all society-related documents including registration certificates, building approvals, NOC documents, floor plans, and other relevant papers"
+                          bucketName="society-documents"
+                          folderPath={`${getSocietyId(society) || 'unknown'}/documents`}
+                          documents={documentUploads}
+                          onDocumentsChange={setDocumentUploads}
+                          acceptedTypes=".pdf,.jpg,.jpeg,.png,.doc,.docx,.txt,.dwg,.dxf"
+                          maxSizeMessage="PDF, DOC, DOCX, JPG, PNG, TXT, DWG, DXF files up to 10MB each"
+                          uploadButtonColor="primary"
+                          onUploadStart={handleDocumentUploadStart}
+                          onUploadComplete={handleDocumentUploadComplete}
+                        />
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-gray-900">
+                      <CardContent className="p-8 text-center">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="p-4 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                            <FileText className="h-12 w-12 text-blue-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                              Upload Society Documents
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md">
+                              Upload all society-related documents including registration papers, approvals, floor plans, and other relevant documents
+                            </p>
+                            <Button 
+                              onClick={() => setShowUploadForm(true)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                            >
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload Documents
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
                 </div>
               </TabsContent>
 
-              <TabsContent value="proposals">
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
-                      <BarChart3 className="h-8 w-8 text-indigo-500" />
-                      Developer Proposals
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-400 mt-2">Review and manage proposals from developers for your redevelopment projects</p>
-                  </div>
-                  
-                  {!proposals || !Array.isArray(proposals) || proposals.length === 0 ? (
-                    <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-gray-900">
-                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 dark:from-indigo-900/20 dark:to-blue-900/20 opacity-70 blur-3xl pointer-events-none"></div>
-                      <CardContent className="text-center py-12">
-                        <div className="relative mb-6">
-                          <BarChart3 className="h-16 w-16 text-indigo-500 mx-auto animate-bounce-slow" />
-                          <div className="absolute -top-2 -right-2 h-6 w-6 bg-yellow-400 rounded-full flex items-center justify-center">
-                            <Sparkles className="h-3 w-3 text-yellow-800 animate-pulse" />
-                          </div>
-                        </div>
-                        <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">No Proposals Yet</h3>
-                        <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                          Proposals from developers will appear here once they respond to your requirements. Create requirements to get started!
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid gap-6">
-                      {proposals && Array.isArray(proposals) && proposals.map((proposal) => (
-                        <Card key={proposal._id || proposal.id} className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-gray-900 transform transition-all duration-300 hover:scale-[1.01] hover:shadow-lg">
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/5 to-transparent opacity-50 animate-gradient-pulse"></div>
-                          <CardHeader className="p-6 border-b border-gray-200 dark:border-gray-700">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                  <BarChart3 className="h-5 w-5 text-indigo-500" />
-                                  {proposal.title}
-                                </CardTitle>
-                                <CardDescription className="text-gray-600 dark:text-gray-400 mt-2 flex items-center gap-2">
-                                  <Building className="h-4 w-4" />
-                                  By {proposal.developers?.company_name}
-                                </CardDescription>
-                              </div>
-                              <Badge className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                proposal.status === 'submitted' 
-                                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
-                                  : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
-                              }`}>
-                                {proposal.status}
-                              </Badge>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="p-6">
-                            <div className="space-y-4">
-                              <p className="text-gray-700 dark:text-gray-300">{proposal.description}</p>
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TrendingUp className="h-4 w-4 text-indigo-500" />
-                                  <span className="text-sm text-gray-600 dark:text-gray-400">Budget Estimate:</span>
-                                  <span className="font-semibold text-gray-800 dark:text-gray-200">₹{proposal.budget_estimate?.toLocaleString()}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="h-4 w-4 text-indigo-500" />
-                                  <span className="text-sm text-gray-600 dark:text-gray-400">Submitted on</span>
-                                  <span className="font-semibold text-gray-800 dark:text-gray-200">{new Date(proposal.submitted_at).toLocaleDateString()}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
+
 
               <TabsContent value="redevelopment">
                 <RedevelopmentModule 

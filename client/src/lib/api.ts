@@ -745,18 +745,29 @@ class ApiClient {
   // Society management methods
   async createSociety(societyData: any) {
     console.log('Creating society - API URL:', `${this.baseURL}/societies`);
-    console.log('Society data being sent:', societyData);
+    
+    // FIX: Remove any _id or id fields to prevent ObjectId casting errors
+    const sanitizedData = { ...societyData };
+    delete sanitizedData._id;
+    delete sanitizedData.id;
+    
+    console.log('Society data being sent (sanitized):', sanitizedData);
     
     return this.request('/societies', {
       method: 'POST',
-      body: JSON.stringify(societyData),
+      body: JSON.stringify(sanitizedData),
     });
   }
 
   async updateSociety(id: string, updates: any) {
+    // FIX: Remove any _id or id fields to prevent ObjectId casting errors
+    const sanitizedUpdates = { ...updates };
+    delete sanitizedUpdates._id;
+    delete sanitizedUpdates.id;
+    
     return this.request(`/societies/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(updates),
+      body: JSON.stringify(sanitizedUpdates),
     });
   }
 
@@ -1024,6 +1035,11 @@ class ApiClient {
   async getSocietyQueries(societyId: string, params?: any) {
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
     return this.request(`/queries/society/${societyId}${queryString}`);
+  }
+
+  async getSocietyDocuments(societyId: string, timestamp?: number) {
+    const queryString = timestamp ? `?_t=${timestamp}` : '';
+    return this.request(`/societies/${societyId}/documents${queryString}`);
   }
 
   async respondToQuery(queryId: string, responseText: string) {

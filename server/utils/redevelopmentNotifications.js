@@ -461,3 +461,4 @@ export default {
   createConstructionMilestoneNotification,
   createProjectCompletedNotification,
 };
+

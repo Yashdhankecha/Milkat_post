@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { UserPlus, Mail, CheckCircle, XCircle, Clock, Phone, Crown } from 'lucide-react'
+import { UserPlus, Mail, CheckCircle, XCircle, Clock, Phone, Crown, RefreshCw } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
 interface MemberManagementProps {
@@ -46,6 +46,18 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
     if (societyId) {
       fetchMembers()
       fetchInvitations()
+    }
+  }, [societyId])
+
+  // Auto-refresh data every 30 seconds to catch accepted invitations
+  useEffect(() => {
+    if (societyId) {
+      const interval = setInterval(() => {
+        fetchMembers()
+        fetchInvitations()
+      }, 30000) // 30 seconds
+
+      return () => clearInterval(interval)
     }
   }, [societyId])
 
@@ -211,7 +223,19 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
             Manage society members and send invitations
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              fetchMembers()
+              fetchInvitations()
+            }}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <UserPlus className="h-4 w-4" />
@@ -273,7 +297,8 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
               </div>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <Tabs defaultValue="members" className="space-y-4">
@@ -377,21 +402,23 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
             <CardHeader>
               <CardTitle>Sent Invitations</CardTitle>
               <CardDescription>
-                Track the status of your invitations
+                Track the status of your invitations (showing pending invitations only)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {invitations.length === 0 ? (
+              {invitations.filter((inv: any) => inv.status === 'pending' || inv.status === 'sent').length === 0 ? (
                 <div className="text-center py-8">
                   <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Invitations Sent</h3>
+                  <h3 className="text-lg font-semibold mb-2">No Pending Invitations</h3>
                   <p className="text-muted-foreground">
-                    Send invitations to grow your society
+                    All invitations have been responded to or send new invitations to grow your society
                   </p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {invitations.map((invitation: any) => (
+                  {invitations
+                    .filter((inv: any) => inv.status === 'pending' || inv.status === 'sent')
+                    .map((invitation: any) => (
                     <Card key={invitation._id} className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">

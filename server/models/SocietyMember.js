@@ -133,3 +133,4 @@ societyMemberSchema.statics.getUserSocieties = function(userId, status = 'active
 };
 
 export default mongoose.model('SocietyMember', societyMemberSchema);
+

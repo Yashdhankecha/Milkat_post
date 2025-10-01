@@ -560,3 +560,4 @@ export default function ProposalVotingComparison({
     </div>
   );
 }
+

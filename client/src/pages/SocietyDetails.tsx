@@ -245,3 +245,4 @@ const SocietyDetails: React.FC = () => {
 };
 
 export default SocietyDetails;
+

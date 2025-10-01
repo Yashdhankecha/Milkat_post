@@ -595,3 +595,4 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
 };
 
 export default GlobalRedevelopmentProjects;
+
