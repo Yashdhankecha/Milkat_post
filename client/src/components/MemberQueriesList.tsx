@@ -8,7 +8,7 @@ import { MessageSquare, Clock, CheckCircle, AlertCircle, ThumbsUp, Calendar, Use
 
 interface Query {
   _id: string;
-  society: {
+  society?: {
     _id: string;
     name: string;
   };
@@ -18,18 +18,18 @@ interface Query {
   status: string;
   response?: {
     text: string;
-    respondedBy: {
+    respondedBy?: {
       _id: string;
       name: string;
     };
-    respondedAt: string;
+    respondedAt?: string;
   };
-  upvotes: Array<{
+  upvotes?: Array<{
     member: string;
     votedAt: string;
   }>;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface MemberQueriesListProps {
@@ -220,7 +220,7 @@ const MemberQueriesList: React.FC<MemberQueriesListProps> = ({ societyId, refres
                       {query.category.replace('_', ' ')}
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {query.society.name}
+                      {query.society?.name || 'Unknown Society'}
                     </p>
                   </div>
                 </div>
@@ -252,9 +252,9 @@ const MemberQueriesList: React.FC<MemberQueriesListProps> = ({ societyId, refres
                   </p>
                   <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
                     <User className="h-3 w-3" />
-                    <span>By {query.response.respondedBy.name}</span>
+                    <span>By {query.response.respondedBy?.name || 'Society Admin'}</span>
                     <Calendar className="h-3 w-3 ml-2" />
-                    <span>{formatDate(query.response.respondedAt)}</span>
+                    <span>{query.response.respondedAt ? formatDate(query.response.respondedAt) : 'Unknown'}</span>
                   </div>
                 </div>
               )}
@@ -263,9 +263,9 @@ const MemberQueriesList: React.FC<MemberQueriesListProps> = ({ societyId, refres
                 <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                   <div className="flex items-center gap-1">
                     <Clock className="h-4 w-4" />
-                    <span>Submitted {formatDate(query.createdAt)}</span>
+                    <span>Submitted {query.createdAt ? formatDate(query.createdAt) : 'Unknown'}</span>
                   </div>
-                  {query.upvotes.length > 0 && (
+                  {query.upvotes && query.upvotes.length > 0 && (
                     <div className="flex items-center gap-1">
                       <ThumbsUp className="h-4 w-4" />
                       <span>{query.upvotes.length} upvotes</span>
