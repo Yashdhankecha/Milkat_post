@@ -348,6 +348,45 @@ router.get('/my-votes',
   })
 );
 
+// Get my vote for a specific project and session
+router.get('/my-vote/:projectId/:session',
+  authenticate,
+  [
+    param('projectId').isMongoId().withMessage('Invalid project ID'),
+    param('session').trim().isLength({ min: 1 }).withMessage('Session is required')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { projectId, session } = req.params;
+
+    const vote = await MemberVote.findOne({
+      project: projectId,
+      member: req.user._id,
+      votingSession: session
+    }).populate('project', 'title');
+
+    if (!vote) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Vote not found'
+      });
+    }
+
+    res.json({
+      status: 'success',
+      data: {
+        vote: {
+          _id: vote._id,
+          vote: vote.vote,
+          reason: vote.reason,
+          votedAt: vote.votedAt,
+          project: vote.project
+        }
+      }
+    });
+  })
+);
+
 // Get voting statistics for a project
 router.get('/stats/:projectId',
   authenticate,

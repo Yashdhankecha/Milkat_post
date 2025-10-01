@@ -341,7 +341,7 @@ const RedevelopmentVotingSystem: React.FC<RedevelopmentVotingSystemProps> = ({
                         <div className="space-y-1">
                           <div className="font-medium">{proposal.title}</div>
                           <div className="text-sm text-muted-foreground">
-                            {proposal.developer.companyName} • {formatCurrency(proposal.corpusAmount)} • FSI: {proposal.fsi}
+                            {proposal.developerProfile?.company_name || proposal.developer.name || 'Developer'} • {formatCurrency(proposal.corpusAmount)} • FSI: {proposal.fsi}
                           </div>
                         </div>
                       </Label>

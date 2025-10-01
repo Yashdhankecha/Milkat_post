@@ -119,7 +119,7 @@ router.get('/projects/:projectId', authenticate, async (req, res) => {
 });
 
 // Submit a proposal for a redevelopment project (Builders)
-router.post('/projects/:projectId/proposals', authenticate, authorize(['developer']), async (req, res) => {
+router.post('/projects/:projectId/proposals', authenticate, async (req, res) => {
   try {
     const { projectId } = req.params;
     const {
@@ -145,7 +145,8 @@ router.post('/projects/:projectId/proposals', authenticate, authorize(['develope
     
     // Verify project exists and is open for proposals
     const project = await RedevelopmentProject.findById(projectId)
-      .populate('society', 'name owner');
+      .populate('society', 'name owner')
+      .populate('owner', 'phone name');
     
     if (!project) {
       return res.status(404).json({
@@ -174,18 +175,33 @@ router.post('/projects/:projectId/proposals', authenticate, authorize(['develope
       });
     }
     
-    // Get developer profile
+    // Get or create developer profile
     const Profile = (await import('../models/Profile.js')).default;
-    const developerProfile = await Profile.findOne({
+    let developerProfile = await Profile.findOne({
       user: req.user._id,
       role: 'developer'
     });
     
     if (!developerProfile) {
-      return res.status(400).json({
-        success: false,
-        message: 'Developer profile not found'
+      // Create a basic developer profile if it doesn't exist
+      developerProfile = new Profile({
+        user: req.user._id,
+        role: 'developer',
+        fullName: req.user.name || 'Developer',
+        phone: req.user.phone || '',
+        isActive: true
       });
+      
+      await developerProfile.save();
+      
+      // Update user's current role if not set
+      if (!req.user.currentRole) {
+        req.user.currentRole = 'developer';
+        req.user.activeRole = 'developer';
+        await req.user.save();
+      }
+      
+      console.log('Created developer profile for user:', req.user._id);
     }
     
     // Create proposal
@@ -196,9 +212,9 @@ router.post('/projects/:projectId/proposals', authenticate, authorize(['develope
       title,
       description,
       fsi: parseFloat(fsi),
-      corpus: parseFloat(corpus),
-      rent: parseFloat(rent),
-      timeline: parseInt(timeline),
+      corpusAmount: parseFloat(corpus),
+      rentAmount: parseFloat(rent),
+      timeline: timeline, // Keep as string since it can be "24 months"
       amenities: amenities || [],
       financialBreakdown: financialBreakdown || {},
       developerCredentials: developerCredentials || {},
@@ -219,23 +235,29 @@ router.post('/projects/:projectId/proposals', authenticate, authorize(['develope
       await project.save();
     }
     
-    // Create notification for society owner
-    const notification = new Notification({
-      recipient: project.society.owner,
-      sender: req.user._id,
-      type: 'developer_proposal_submitted',
-      title: 'New Developer Proposal',
-      message: `A new proposal has been submitted for ${project.title} by ${developerProfile.company_name || req.user.name}`,
-      data: {
-        societyId: project.society._id,
-        redevelopmentProjectId: project._id,
-        proposalId: proposal._id,
-        developerId: req.user._id
-      },
-      priority: 'medium'
-    });
-    
-    await notification.save();
+    // Create notification for project owner (society owner)
+    try {
+      const notification = new Notification({
+        recipient: project.owner._id,
+        sender: req.user._id,
+        type: 'developer_proposal_submitted',
+        title: 'New Developer Proposal',
+        message: `A new proposal has been submitted for ${project.title} by ${developerProfile.company_name || req.user.name}`,
+        data: {
+          societyId: project.society._id,
+          redevelopmentProjectId: project._id,
+          proposalId: proposal._id,
+          developerId: req.user._id
+        },
+        priority: 'medium'
+      });
+      
+      await notification.save();
+      console.log('Notification created successfully for project owner:', project.owner._id);
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+      // Don't fail the proposal submission if notification fails
+    }
     
     // Populate the created proposal
     await proposal.populate([

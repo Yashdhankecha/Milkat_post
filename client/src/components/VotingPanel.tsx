@@ -26,6 +26,9 @@ interface VotingPanelProps {
   userRole: 'society_owner' | 'society_member';
   votingDeadline?: string;
   isVotingOpen?: boolean;
+  projectTitle?: string;
+  projectDescription?: string;
+  votingSubject?: string; // What you're voting on (e.g., "Project Approval", "Developer Selection")
 }
 
 interface VotingStats {
@@ -49,7 +52,10 @@ export default function VotingPanel({
   session, 
   userRole, 
   votingDeadline,
-  isVotingOpen = true 
+  isVotingOpen = true,
+  projectTitle,
+  projectDescription,
+  votingSubject = "this proposal"
 }: VotingPanelProps) {
   const { toast } = useToast();
   const [selectedVote, setSelectedVote] = useState<'yes' | 'no' | 'abstain' | null>(null);
@@ -71,12 +77,18 @@ export default function VotingPanel({
       if (userRole === 'society_member') {
         try {
           const myVoteData = await apiClient.getMyVote(projectId, session);
-          setMyVote(myVoteData);
+          // Only set myVote if the data is valid
+          if (myVoteData && myVoteData.vote && myVoteData.vote !== 'Unknown') {
+            setMyVote(myVoteData);
+          } else {
+            setMyVote(null);
+          }
         } catch (error: any) {
           // 404 means no vote cast yet, which is fine
           if (error.status !== 404) {
             console.error('Error fetching my vote:', error);
           }
+          setMyVote(null);
         }
       }
 
@@ -146,7 +158,7 @@ export default function VotingPanel({
   };
 
   const deadlineStatus = getDeadlineStatus();
-  const hasVoted = !!myVote;
+  const hasVoted = !!myVote && myVote.vote && myVote.vote !== 'Unknown';
   const canVote = userRole === 'society_member' && isVotingOpen && !hasVoted && !deadlineStatus?.expired;
 
   if (loading) {
@@ -163,6 +175,7 @@ export default function VotingPanel({
 
   return (
     <div className="space-y-6">
+
       {/* Voting Status Header */}
       <Card>
         <CardHeader>
@@ -245,7 +258,7 @@ export default function VotingPanel({
         <Alert>
           <CheckCircle2 className="h-4 w-4" />
           <AlertDescription>
-            <div className="font-medium mb-1">You voted: {myVote.vote.toUpperCase()}</div>
+            <div className="font-medium mb-1">You voted: {myVote.vote?.toUpperCase() || 'Unknown'}</div>
             {myVote.reason && (
               <div className="text-sm text-muted-foreground mt-1">
                 Reason: {myVote.reason}
@@ -267,6 +280,35 @@ export default function VotingPanel({
               Select your choice and optionally provide a reason
             </CardDescription>
           </CardHeader>
+          
+          {/* What You're Voting On */}
+          {(projectTitle || votingSubject) && (
+            <CardContent className="pt-0">
+              <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                      You are voting on:
+                    </h4>
+                    {projectTitle && (
+                      <p className="text-blue-800 dark:text-blue-200 font-medium">
+                        Project: {projectTitle}
+                      </p>
+                    )}
+                    <p className="text-blue-700 dark:text-blue-300 text-sm">
+                      Subject: {votingSubject}
+                    </p>
+                    {projectDescription && (
+                      <p className="text-blue-600 dark:text-blue-400 text-sm mt-2">
+                        {projectDescription}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          )}
           <CardContent className="space-y-4">
             <RadioGroup value={selectedVote || ''} onValueChange={(value) => setSelectedVote(value as any)}>
               <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-green-50 dark:hover:bg-green-950 cursor-pointer">
@@ -275,7 +317,7 @@ export default function VotingPanel({
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                   <div>
                     <div className="font-medium">Yes - I Approve</div>
-                    <div className="text-xs text-muted-foreground">Support this proposal</div>
+                    <div className="text-xs text-muted-foreground">Support {votingSubject}</div>
                   </div>
                 </Label>
               </div>
@@ -286,7 +328,7 @@ export default function VotingPanel({
                   <XCircle className="h-5 w-5 text-red-600" />
                   <div>
                     <div className="font-medium">No - I Disapprove</div>
-                    <div className="text-xs text-muted-foreground">Reject this proposal</div>
+                    <div className="text-xs text-muted-foreground">Reject {votingSubject}</div>
                   </div>
                 </Label>
               </div>
@@ -297,7 +339,7 @@ export default function VotingPanel({
                   <MinusCircle className="h-5 w-5 text-gray-600" />
                   <div>
                     <div className="font-medium">Abstain - No Opinion</div>
-                    <div className="text-xs text-muted-foreground">Neither support nor oppose</div>
+                    <div className="text-xs text-muted-foreground">Neither support nor oppose {votingSubject}</div>
                   </div>
                 </Label>
               </div>

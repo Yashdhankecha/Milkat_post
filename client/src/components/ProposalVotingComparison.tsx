@@ -29,20 +29,22 @@ interface Proposal {
   developer: {
     _id: string;
     phone: string;
-    profile?: {
-      fullName: string;
-      companyName?: string;
-    };
+    name?: string;
+  };
+  developerProfile?: {
+    fullName: string;
+    company_name?: string;
   };
   corpusAmount: number;
   rentAmount: number;
   fsi: number;
-  proposedAmenities: Array<{
+  timeline: string; // Simple timeline string
+  proposedAmenities?: Array<{
     name: string;
     description: string;
     category: string;
   }>;
-  proposedTimeline: {
+  proposedTimeline?: {
     startDate: string;
     completionDate: string;
     phases: Array<{
@@ -51,7 +53,7 @@ interface Proposal {
       duration: number;
     }>;
   };
-  financialBreakdown: {
+  financialBreakdown?: {
     constructionCost: number;
     amenitiesCost: number;
     legalCost: number;
@@ -111,8 +113,8 @@ export default function ProposalVotingComparison({
   const fetchProposals = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getDeveloperProposals(`?redevelopmentProject=${projectId}`);
-      setProposals(response.proposals || []);
+      const response = await apiClient.getDeveloperProposals(`?project_id=${projectId}`);
+      setProposals(response.data?.proposals || []);
     } catch (error) {
       console.error('Error fetching proposals:', error);
       toast({
@@ -142,10 +144,20 @@ export default function ProposalVotingComparison({
   };
 
   const getTimelineDuration = (proposal: Proposal) => {
-    const start = new Date(proposal.proposedTimeline.startDate);
-    const end = new Date(proposal.proposedTimeline.completionDate);
-    const months = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    return `${months} months`;
+    // Use the simple timeline string if available, otherwise return default
+    if (proposal.timeline) {
+      return proposal.timeline;
+    }
+    
+    // Fallback to proposedTimeline if it exists
+    if (proposal.proposedTimeline?.startDate && proposal.proposedTimeline?.completionDate) {
+      const start = new Date(proposal.proposedTimeline.startDate);
+      const end = new Date(proposal.proposedTimeline.completionDate);
+      const months = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      return `${months} months`;
+    }
+    
+    return 'Timeline not specified';
   };
 
   if (loading) {
@@ -541,6 +553,7 @@ export default function ProposalVotingComparison({
             userRole={userRole}
             votingDeadline={votingDeadline}
             isVotingOpen={isVotingOpen}
+            votingSubject="Developer Selection"
           />
         </TabsContent>
       </Tabs>

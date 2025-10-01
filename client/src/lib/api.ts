@@ -994,7 +994,7 @@ class ApiClient {
 
   async getVotingStatistics(projectId: string, session?: string) {
     const queryParams = session ? `?session=${session}` : '';
-    return this.request(`/member-votes/project/${projectId}/statistics${queryParams}`);
+    return this.request(`/member-votes/stats/${projectId}${queryParams}`);
   }
 
   async verifyVote(voteId: string) {

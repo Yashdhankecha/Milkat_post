@@ -146,10 +146,11 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
       const proposalPayload = {
         title: proposalData.title,
         description: proposalData.description,
-        corpusAmount: parseFloat(proposalData.corpusAmount) || 0,
-        rentAmount: parseFloat(proposalData.rentAmount) || 0,
+        fsi: selectedProject.society?.fsi || 1.0, // Use project's FSI or default
+        corpus: parseFloat(proposalData.corpusAmount) || 0,
+        rent: parseFloat(proposalData.rentAmount) || 0,
         timeline: proposalData.timeline,
-        terms: proposalData.terms
+        additionalTerms: proposalData.terms
       };
 
       await apiClient.post(`/global-redevelopment/projects/${selectedProject._id}/proposals`, proposalPayload);

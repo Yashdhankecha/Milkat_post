@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -42,6 +42,7 @@ import DocumentVault from './DocumentVault';
 import MemberQueries from './MemberQueries';
 // New enhanced components
 import VotingPanel from './VotingPanel';
+import SimpleVotingPanel from './SimpleVotingPanel';
 import ProposalVotingComparison from './ProposalVotingComparison';
 import RedevelopmentDocumentVault from './RedevelopmentDocumentVault';
 
@@ -232,7 +233,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
         return;
       }
 
-      setProposals(response.data.proposals || []);
+      setProposals(response.data?.proposals || []);
     } catch (error) {
       console.error('Error fetching proposals:', error);
       toast({
@@ -457,47 +458,110 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
             </TabsContent>
 
             <TabsContent value="voting" className="space-y-6">
-              {proposals.length > 0 ? (
-                <>
-                  {/* Enhanced Proposal Comparison & Voting */}
-                  <ProposalVotingComparison
-                    proposals={proposals}
-                    projectId={selectedProject._id}
-                    votingSession="initial_approval"
-                    userRole={isOwner ? 'society_owner' : 'society_member'}
-                    votingDeadline={selectedProject.votingDeadline}
-                    isVotingOpen={selectedProject.status === 'voting'}
-                  />
-                  
-                  {/* Simple Voting Panel for Project Approval */}
-                  {selectedProject.status === 'voting' && !isOwner && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Project Approval Vote</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <VotingPanel
-                          projectId={selectedProject._id}
-                          session="project_approval"
-                          userRole="society_member"
-                          votingDeadline={selectedProject.votingDeadline}
-                          isVotingOpen={true}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-                </>
-              ) : (
-                <RedevelopmentVotingSystem 
-                  project={selectedProject}
-                  proposals={proposals}
-                  onVoteSubmit={(voteData) => {
-                    // Handle vote submission
-                    console.log('Vote submitted:', voteData);
-                    fetchProjects(); // Refresh to get updated voting results
+
+              {/* Society Owner Controls */}
+              {isOwner && selectedProject.status !== 'voting' && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="text-blue-800">Enable Voting</CardTitle>
+                    <CardDescription>
+                      Change the project status to "voting" to allow society members to vote on proposals.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          const updateData = {
+                            status: 'voting',
+                            votingDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days from now
+                          };
+                          
+                          const response = await apiClient.updateRedevelopmentProject(selectedProject._id, updateData);
+                          
+                          if (response.success || response.status === 'success') {
+                            toast({
+                              title: 'Voting Enabled',
+                              description: 'Society members can now vote on proposals.',
+                            });
+                            fetchProjects(); // Refresh to get updated status
+                          } else {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Error',
+                              description: response.message || 'Failed to enable voting. Please try again.',
+                            });
+                          }
+                        } catch (error) {
+                          console.error('Error enabling voting:', error);
+                          toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: error.message || 'Failed to enable voting. Please try again.',
+                          });
+                        }
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Enable Voting (7 days)
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Simple Voting Interface */}
+              {selectedProject.status === 'voting' && !isOwner ? (
+                <SimpleVotingPanel
+                  projectId={selectedProject._id}
+                  session="developer_selection"
+                  userRole="society_member"
+                  votingDeadline={selectedProject.votingDeadline}
+                  isVotingOpen={true}
+                  projectTitle={selectedProject.title}
+                  projectDescription={selectedProject.description}
+                  projectDetails={{
+                    estimatedBudget: selectedProject.estimatedBudget,
+                    expectedAmenities: selectedProject.expectedAmenities,
+                    timeline: selectedProject.timeline?.expectedCompletionDate
                   }}
-                  canVote={!isOwner}
                 />
+              ) : proposals.length > 0 ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Proposals Available</CardTitle>
+                    <CardDescription>
+                      {proposals.length} developer proposals have been submitted. 
+                      {isOwner ? ' Enable voting to allow members to vote.' : ' Voting is not currently open.'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {proposals.map((proposal) => (
+                        <div key={proposal._id} className="p-4 border rounded-lg">
+                          <h3 className="font-semibold">{proposal.title}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            by {proposal.developerProfile?.company_name || proposal.developer.name || 'Developer'}
+                          </p>
+                          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                            <span>Corpus: ₹{proposal.corpusAmount?.toLocaleString()}</span>
+                            <span>Timeline: {proposal.timeline}</span>
+                            <span>FSI: {proposal.fsi}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-6 text-center">
+                    <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Proposals Yet</h3>
+                    <p className="text-muted-foreground">
+                      No developer proposals have been submitted for this project.
+                    </p>
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
 

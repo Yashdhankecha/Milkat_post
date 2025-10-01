@@ -49,6 +49,11 @@ const developerProposalSchema = new mongoose.Schema({
   }],
 
   // Timeline
+  timeline: {
+    type: String,
+    required: true,
+    trim: true
+  },
   proposedTimeline: {
     startDate: Date,
     completionDate: Date,

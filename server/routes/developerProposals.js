@@ -50,6 +50,17 @@ router.get('/',
     // If project_id is provided, filter by it
     if (project_id) {
       query.redevelopmentProject = project_id;
+      
+      // If user is a society owner, verify they own the project
+      if (req.user.currentRole === 'society_owner') {
+        const project = await RedevelopmentProject.findById(project_id).populate('society', 'owner');
+        if (!project || project.society.owner.toString() !== req.user._id.toString()) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Access denied. You can only view proposals for your own projects.'
+          });
+        }
+      }
     }
     
     // If developer_id is provided, filter by it
