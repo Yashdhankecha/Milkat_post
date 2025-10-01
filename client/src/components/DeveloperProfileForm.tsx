@@ -54,7 +54,22 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
 
   useEffect(() => {
     if (existingProfile) {
-      setFormData(existingProfile);
+      setFormData({
+        company_name: existingProfile.company_name || '',
+        company_description: existingProfile.company_description || '',
+        established_year: existingProfile.established_year || null,
+        website: existingProfile.website || '',
+        contact_info: {
+          email: existingProfile.contact_info?.email || '',
+          phone: existingProfile.contact_info?.phone || '',
+          address: existingProfile.contact_info?.address || ''
+        },
+        social_media: {
+          linkedin: existingProfile.social_media?.linkedin || '',
+          twitter: existingProfile.social_media?.twitter || '',
+          facebook: existingProfile.social_media?.facebook || ''
+        }
+      });
     }
   }, [existingProfile]);
 
@@ -93,29 +108,40 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
     setSaving(true);
     
     try {
+      // Validate required fields
+      if (!formData.company_name || formData.company_name.trim().length < 2) {
+        toast({
+          title: "Validation Error",
+          description: "Company name is required and must be at least 2 characters long.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const updateData = {
-        user_id: profile.id,
-        company_name: formData.company_name,
-        company_description: formData.company_description,
-        established_year: formData.established_year,
-        website: formData.website,
-        contact_info: formData.contact_info,
-        social_media: formData.social_media,
-        verification_status: 'pending',
-        status: 'active'
+        companyName: formData.company_name.trim(),
+        ...(formData.company_description && { companyDescription: formData.company_description.trim() }),
+        ...(formData.established_year && { establishedYear: parseInt(formData.established_year) }),
+        ...(formData.website && formData.website.trim() && { website: formData.website.trim() }),
+        ...(formData.contact_info && Object.keys(formData.contact_info).length > 0 && { contactInfo: formData.contact_info }),
+        ...(formData.social_media && Object.keys(formData.social_media).length > 0 && { socialMedia: formData.social_media })
       };
 
-      if (existingProfile?.id) {
+      console.log('Sending developer data:', updateData);
+      console.log('Existing profile:', existingProfile);
+
+      const profileId = existingProfile?.id || existingProfile?._id;
+      
+      if (profileId) {
         // Update existing profile
-        const { error } = await apiClient
-          (updateData)
-          ;
+        console.log('Updating existing profile with ID:', profileId);
+        const { error } = await apiClient.updateDeveloper(profileId, updateData);
         
         if (error) throw error;
       } else {
         // Create new profile
-        const { error } = await apiClient
-          (updateData);
+        console.log('Creating new profile');
+        const { error } = await apiClient.createDeveloper(updateData);
         
         if (error) throw error;
       }
@@ -128,10 +154,20 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
       onUpdate();
     } catch (error) {
       console.error('Error updating developer profile:', error);
+      
+      // Show specific validation errors if available
+      let errorMessage = "Failed to update developer profile. Please try again.";
+      if (error?.response?.data?.errors) {
+        const validationErrors = error.response.data.errors.map((err: any) => err.msg).join(', ');
+        errorMessage = `Validation failed: ${validationErrors}`;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to update profile. Please try again.",
-        variant: "error",
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
       setSaving(false);

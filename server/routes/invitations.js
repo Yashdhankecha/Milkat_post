@@ -462,21 +462,51 @@ router.post('/:id/accept',
     // Accept invitation
     await invitation.acceptInvitation(responseMessage);
 
-    // Create or update user profile for the society
-    const profileData = {
-      user: req.user._id,
-      companyName: invitation.society,
+    // Import SocietyMember model
+    const SocietyMember = (await import('../models/SocietyMember.js')).default;
+
+    // Create or update society membership
+    const memberData = {
       role: invitation.invitationType,
       status: 'active',
-      phone: req.user.phone,
-      joinedAt: new Date()
+      joinedAt: new Date(),
+      metadata: {
+        invitationId: invitation._id,
+        addedBy: invitation.invitedBy,
+        addedAt: new Date()
+      }
     };
 
-    await Profile.findOneAndUpdate(
-      { user: req.user._id, companyName: invitation.society },
-      profileData,
-      { upsert: true, new: true }
-    );
+    // Check if member already exists
+    const existingMember = await SocietyMember.findOne({
+      society: invitation.society,
+      user: req.user._id
+    });
+
+    let societyMember;
+    if (existingMember) {
+      // Reactivate if removed
+      if (existingMember.status === 'removed') {
+        existingMember.status = 'active';
+        existingMember.removedAt = null;
+        existingMember.joinedAt = new Date();
+        societyMember = await existingMember.save();
+      } else {
+        return res.status(409).json({
+          status: 'error',
+          message: 'You are already a member of this society',
+          errorCode: 'ALREADY_MEMBER'
+        });
+      }
+    } else {
+      societyMember = await SocietyMember.create({
+        society: invitation.society,
+        user: req.user._id,
+        ...memberData
+      });
+    }
+
+    console.log(`Member added to society: ${societyMember._id}`);
 
     // Send notification to society owner
     const society = await Society.findById(invitation.society);
@@ -500,8 +530,16 @@ router.post('/:id/accept',
 
     res.status(200).json({
       status: 'success',
-      message: 'Invitation accepted successfully',
-      data: { invitation }
+      message: 'Invitation accepted successfully. You are now a member of the society.',
+      data: { 
+        invitation, 
+        societyMember: {
+          id: societyMember._id,
+          role: societyMember.role,
+          status: societyMember.status,
+          joinedAt: societyMember.joinedAt
+        }
+      }
     });
   })
 );

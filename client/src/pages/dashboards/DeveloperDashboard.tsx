@@ -12,6 +12,7 @@ import DeveloperProfileForm from "@/components/DeveloperProfileForm";
 import ProjectForm from "@/components/ProjectForm";
 import { ProposalForm } from "@/components/ProposalForm";
 import RedevelopmentDetails from "@/components/RedevelopmentDetails";
+import GlobalRedevelopmentProjects from "@/components/GlobalRedevelopmentProjects";
 import { 
   Building, 
   Plus, 
@@ -164,28 +165,28 @@ const DeveloperDashboard = () => {
       const timeoutId = setTimeout(() => controller.abort(), 2000);
       
       const [developerResult, projectsResult] = await Promise.allSettled([
-        apiClient.getDevelopers({ user_id: profileId }),
-        apiClient.getProjects({ owner_id: profileId })
+        apiClient.getMyDeveloperProfile(),
+        apiClient.getMyProjects()
       ]);
       
       clearTimeout(timeoutId);
       
       // Process results quickly
       if (developerResult.status === 'fulfilled' && !developerResult.value.error) {
-        setDeveloperProfile(developerResult.value.data?.[0] as DeveloperProfile || null);
+        setDeveloperProfile(developerResult.value.data?.developer as DeveloperProfile || null);
       } else {
         setDeveloperProfile(null);
       }
       
       if (projectsResult.status === 'fulfilled' && !projectsResult.value.error) {
-        setProjects(projectsResult.value.data || []);
+        setProjects(projectsResult.value.data?.projects || []);
       } else {
         setProjects([]);
       }
       
       // Set basic stats
       setStats({
-        totalProjects: projectsResult.status === 'fulfilled' ? (projectsResult.value.data || []).length : 0,
+        totalProjects: projectsResult.status === 'fulfilled' ? (projectsResult.value.data?.projects || []).length : 0,
         activeProjects: 0,
         totalProperties: 0,
         totalInquiries: 0,
@@ -220,10 +221,9 @@ const DeveloperDashboard = () => {
 
     try {
       const { data, error } = await apiClient.createDeveloper({
-        user_id: profile.id,
-        company_name: profile.companyName || 'My Development Company',
-        verification_status: 'pending',
-        status: 'active'
+        companyName: profile.companyName || 'My Development Company',
+        companyDescription: 'A professional development company',
+        establishedYear: new Date().getFullYear()
       })
         
 
@@ -821,207 +821,7 @@ const DeveloperDashboard = () => {
           </TabsContent>
 
           <TabsContent value="redevelopment" className="space-y-4">
-            <div className="grid gap-6">
-              {/* Available Requirements */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Available Redevelopment Opportunities</CardTitle>
-                  <CardDescription>
-                    Browse active redevelopment requirements from housing societies
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {requirements.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Hammer className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No active requirements</h3>
-                      <p className="text-muted-foreground">New redevelopment opportunities will appear here</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4">
-                      {requirements.map((requirement) => (
-                        <Card key={requirement.id} className="border-l-4 border-l-blue-500">
-                          <CardContent className="p-6">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="text-lg font-semibold mb-2">
-                                  {requirement.societies?.name || 'Unknown Society'}
-                                </h3>
-                                <div className="flex items-center text-sm text-muted-foreground mb-2">
-                                  <MapPin className="w-4 h-4 mr-1" />
-                                  <span>{requirement.societies?.address || 'Unknown Address'}, {requirement.societies?.city || 'Unknown City'}</span>
-                                </div>
-                                <div className="flex gap-2 mb-3">
-                                  <Badge variant="outline">{requirement.requirement_type}</Badge>
-                                  <Badge variant="outline">{requirement.societies?.total_flats || 0} Flats</Badge>
-                                  <Badge variant="secondary">{requirement.budget_range}</Badge>
-                                </div>
-                              </div>
-                              <Badge className="bg-green-100 text-green-800">
-                                Active
-                              </Badge>
-                            </div>
-                            
-                            <p className="text-sm text-muted-foreground mb-4">
-                              {requirement.description || 'No description available'}
-                            </p>
-                            
-                            <div className="grid grid-cols-2 gap-4 mb-4">
-                              <div>
-                                <p className="text-sm font-medium">Timeline</p>
-                                <p className="text-sm text-muted-foreground">{requirement.timeline_expectation || 'Not specified'}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium">Budget Range</p>
-                                <p className="text-sm text-muted-foreground">{requirement.budget_range || 'Not specified'}</p>
-                              </div>
-                            </div>
-                            
-                            {requirement.special_needs && requirement.special_needs.length > 0 && (
-                              <div className="mb-4">
-                                <p className="text-sm font-medium mb-2">Special Requirements</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {requirement.special_needs.map((need, index) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      {need}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="flex justify-between items-center">
-                              <p className="text-xs text-muted-foreground">
-                                Posted {new Date(requirement.created_at).toLocaleDateString()}
-                              </p>
-                              <div className="flex gap-2">
-                                <Button 
-                                  onClick={() => setShowRequirementDetails(requirement.id)}
-                                  size="sm"
-                                  variant="outline"
-                                >
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Details
-                                </Button>
-                                <Button 
-                                  onClick={() => {
-                                    setSelectedRequirement(requirement.id)
-                                    setShowProposalForm(true)
-                                  }}
-                                  size="sm"
-                                >
-                                  <FileText className="w-4 h-4 mr-2" />
-                                  Submit Proposal
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* My Proposals */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>My Proposals</CardTitle>
-                  <CardDescription>
-                    Track the status of your submitted proposals
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {proposals.length === 0 ? (
-                    <div className="text-center py-8">
-                      <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No proposals yet</h3>
-                      <p className="text-muted-foreground">Your submitted proposals will appear here</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4">
-                      {proposals.map((proposal) => (
-                        <Card key={proposal.id} className="border">
-                          <CardContent className="p-6">
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="text-lg font-semibold mb-2">
-                                  {proposal.title}
-                                </h3>
-                                <p className="text-sm text-muted-foreground mb-2">
-                                  {proposal.requirement?.societies?.name || 'Unknown Society'} - {proposal.requirement?.societies?.city || 'Unknown City'}
-                                </p>
-                                <Badge variant="outline" className="mb-2">
-                                  {proposal.requirement?.requirement_type}
-                                </Badge>
-                              </div>
-                              <div className="text-right">
-                                <Badge 
-                                  className={
-                                    proposal.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                                    proposal.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                    proposal.status === 'under_review' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }
-                                >
-                                  {proposal.status.replace('_', ' ')}
-                                </Badge>
-                              </div>
-                            </div>
-                            
-                            <p className="text-sm text-muted-foreground mb-4">
-                              {proposal.description || 'No description available'}
-                            </p>
-                            
-                            <div className="grid grid-cols-3 gap-4 mb-4">
-                              <div>
-                                <p className="text-sm font-medium">Budget Estimate</p>
-                                <p className="text-sm text-muted-foreground">
-                                  ₹{proposal.budget_estimate.toLocaleString()}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium">Timeline</p>
-                                <p className="text-sm text-muted-foreground">{proposal.timeline || 'Not specified'}</p>
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium">Submitted</p>
-                                <p className="text-sm text-muted-foreground">
-                                  {new Date(proposal.created_at).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                {proposal.status === 'accepted' && (
-                                  <CheckCircle className="w-4 h-4 text-green-600" />
-                                )}
-                                {proposal.status === 'under_review' && (
-                                  <Clock className="w-4 h-4 text-blue-600" />
-                                )}
-                              </div>
-                              <div className="flex gap-2">
-                                {proposal.status === 'submitted' && (
-                                  <Button variant="outline" size="sm">
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Edit
-                                  </Button>
-                                )}
-                                <Button variant="outline" size="sm">
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Details
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            <GlobalRedevelopmentProjects />
           </TabsContent>
 
           <TabsContent value="inquiries" className="space-y-4">

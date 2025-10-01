@@ -4,24 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, MapPin, Calendar, DollarSign, Users, Eye, FileText, TrendingUp, Filter } from 'lucide-react';
+import { Building2, MapPin, Calendar, DollarSign, Users, Eye, FileText, TrendingUp, Filter, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 interface RedevelopmentProject {
   _id: string;
   title: string;
   description: string;
   status: string;
-  budget: number;
-  expectedCompletion: string;
-  requirements: {
-    fsi: number;
-    corpus: number;
-    rent: number;
-    amenities: string[];
-  };
+  estimatedBudget: number;
+  corpusAmount: number;
+  rentAmount: number;
+  expectedCompletion?: string;
   society: {
     _id: string;
     name: string;
@@ -30,6 +28,7 @@ interface RedevelopmentProject {
     state: string;
     totalFlats: number;
     amenities: string[];
+    fsi?: number;
   };
   createdBy: {
     phone: string;
@@ -58,6 +57,17 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
   });
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [showProposalModal, setShowProposalModal] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<RedevelopmentProject | null>(null);
+  const [proposalData, setProposalData] = useState({
+    title: '',
+    description: '',
+    corpusAmount: '',
+    rentAmount: '',
+    timeline: '',
+    terms: ''
+  });
+  const [submittingProposal, setSubmittingProposal] = useState(false);
   const navigate = useNavigate();
 
   const fetchProjects = async (pageNum = 1, resetFilters = false) => {
@@ -67,7 +77,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
         limit: '12'
       });
 
-      if (filters.status) params.append('status', filters.status);
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.city) params.append('city', filters.city);
       if (filters.state) params.append('state', filters.state);
       if (filters.minBudget) params.append('minBudget', filters.minBudget);
@@ -76,7 +86,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
       if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
 
       const response = await apiClient.get(`/global-redevelopment/projects?${params}`);
-      const newProjects = response.data.projects || [];
+      const newProjects = response?.data?.projects || [];
       
       if (pageNum === 1 || resetFilters) {
         setProjects(newProjects);
@@ -113,6 +123,62 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
     const nextPage = page + 1;
     setPage(nextPage);
     fetchProjects(nextPage);
+  };
+
+  const handleSubmitProposal = (project: RedevelopmentProject) => {
+    setSelectedProject(project);
+    setProposalData({
+      title: `Proposal for ${project.title}`,
+      description: '',
+      corpusAmount: '',
+      rentAmount: '',
+      timeline: '',
+      terms: ''
+    });
+    setShowProposalModal(true);
+  };
+
+  const handleProposalSubmit = async () => {
+    if (!selectedProject) return;
+
+    setSubmittingProposal(true);
+    try {
+      const proposalPayload = {
+        title: proposalData.title,
+        description: proposalData.description,
+        corpusAmount: parseFloat(proposalData.corpusAmount) || 0,
+        rentAmount: parseFloat(proposalData.rentAmount) || 0,
+        timeline: proposalData.timeline,
+        terms: proposalData.terms
+      };
+
+      await apiClient.post(`/global-redevelopment/projects/${selectedProject._id}/proposals`, proposalPayload);
+      
+      toast({
+        title: "Proposal Submitted",
+        description: "Your proposal has been submitted successfully!",
+      });
+
+      setShowProposalModal(false);
+      setSelectedProject(null);
+      setProposalData({
+        title: '',
+        description: '',
+        corpusAmount: '',
+        rentAmount: '',
+        timeline: '',
+        terms: ''
+      });
+    } catch (error: any) {
+      console.error('Error submitting proposal:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to submit proposal. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingProposal(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -198,7 +264,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="planning">Planning</SelectItem>
                   <SelectItem value="tender_open">Tender Open</SelectItem>
                   <SelectItem value="proposals_received">Proposals Received</SelectItem>
@@ -322,7 +388,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-500" />
-                    <span className="font-medium">{formatCurrency(project.budget)}</span>
+                    <span className="font-medium">{formatCurrency(project.estimatedBudget)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-blue-500" />
@@ -330,7 +396,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                   </div>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-purple-500" />
-                    <span>FSI: {project.requirements.fsi}</span>
+                    <span>FSI: {project.society?.fsi || 'N/A'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-orange-500" />
@@ -342,9 +408,9 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                   <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Requirements</h4>
                   <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                    <div>Corpus: ₹{project.requirements.corpus.toLocaleString()}</div>
-                    <div>Rent: ₹{project.requirements.rent.toLocaleString()}/month</div>
-                    <div>Amenities: {project.requirements.amenities.slice(0, 2).join(', ')}</div>
+                    <div>Corpus: ₹{project.corpusAmount?.toLocaleString() || 'N/A'}</div>
+                    <div>Rent: ₹{project.rentAmount?.toLocaleString() || 'N/A'}/month</div>
+                    <div>Amenities: {project.society?.amenities?.slice(0, 2).join(', ') || 'N/A'}</div>
                   </div>
                 </div>
 
@@ -362,7 +428,10 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => navigate(`/redevelopment-projects/${project._id}`)}
+                    onClick={() => {
+                      console.log('View Details clicked for project:', project._id);
+                      navigate(`/project/${project._id}`);
+                    }}
                     className="flex-1"
                   >
                     <Eye className="h-4 w-4 mr-1" />
@@ -371,7 +440,10 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                   {!project.hasProposal && (
                     <Button
                       size="sm"
-                      onClick={() => navigate(`/redevelopment-projects/${project._id}/submit-proposal`)}
+                      onClick={() => {
+                        console.log('Submit Proposal clicked for project:', project._id);
+                        handleSubmitProposal(project);
+                      }}
                       className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
                     >
                       <FileText className="h-4 w-4 mr-1" />
@@ -396,6 +468,125 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
           >
             {loading ? 'Loading...' : 'Load More Projects'}
           </Button>
+        </div>
+      )}
+
+      {/* Proposal Submission Modal */}
+      {showProposalModal && selectedProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-semibold">Submit Proposal</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowProposalModal(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-medium text-gray-900">{selectedProject.title}</h3>
+                <p className="text-sm text-gray-600 mt-1">{selectedProject.description}</p>
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    {selectedProject.society?.city}, {selectedProject.society?.state}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <DollarSign className="h-4 w-4" />
+                    ₹{selectedProject.estimatedBudget?.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="proposal-title">Proposal Title</Label>
+                  <Input
+                    id="proposal-title"
+                    value={proposalData.title}
+                    onChange={(e) => setProposalData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter proposal title"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="proposal-description">Description</Label>
+                  <Textarea
+                    id="proposal-description"
+                    value={proposalData.description}
+                    onChange={(e) => setProposalData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Describe your proposal in detail..."
+                    rows={4}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="corpus-amount">Corpus Amount (₹)</Label>
+                    <Input
+                      id="corpus-amount"
+                      type="number"
+                      value={proposalData.corpusAmount}
+                      onChange={(e) => setProposalData(prev => ({ ...prev, corpusAmount: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="rent-amount">Rent Amount (₹)</Label>
+                    <Input
+                      id="rent-amount"
+                      type="number"
+                      value={proposalData.rentAmount}
+                      onChange={(e) => setProposalData(prev => ({ ...prev, rentAmount: e.target.value }))}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="timeline">Timeline</Label>
+                  <Input
+                    id="timeline"
+                    value={proposalData.timeline}
+                    onChange={(e) => setProposalData(prev => ({ ...prev, timeline: e.target.value }))}
+                    placeholder="e.g., 24 months"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="terms">Terms & Conditions</Label>
+                  <Textarea
+                    id="terms"
+                    value={proposalData.terms}
+                    onChange={(e) => setProposalData(prev => ({ ...prev, terms: e.target.value }))}
+                    placeholder="Enter any specific terms and conditions..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-6 border-t">
+              <Button
+                variant="outline"
+                onClick={() => setShowProposalModal(false)}
+                disabled={submittingProposal}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleProposalSubmit}
+                disabled={submittingProposal || !proposalData.title || !proposalData.description}
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                {submittingProposal ? 'Submitting...' : 'Submit Proposal'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

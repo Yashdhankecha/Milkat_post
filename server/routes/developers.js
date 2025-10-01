@@ -74,7 +74,6 @@ router.get('/:id',
 // Create developer profile
 router.post('/',
   authenticate,
-  authorize('developer'),
   [
     body('companyName')
       .trim()
@@ -104,6 +103,33 @@ router.post('/',
         status: 'error',
         message: 'Developer profile already exists'
       });
+    }
+
+    // Import Profile model
+    const Profile = (await import('../models/Profile.js')).default;
+    
+    // Check if user has developer role, if not create it
+    let profile = await Profile.findOne({ user: req.user._id, role: 'developer' });
+    
+    if (!profile) {
+      // Create developer role for the user
+      profile = new Profile({
+        user: req.user._id,
+        role: 'developer',
+        fullName: req.body.companyName || req.user.phone,
+        companyName: req.body.companyName,
+        status: 'active',
+        verificationStatus: 'pending'
+      });
+      
+      await profile.save();
+      
+      // Update user's current role to developer
+      req.user.currentRole = 'developer';
+      req.user.activeRole = 'developer';
+      await req.user.save();
+      
+      console.log(`Created developer role for user ${req.user._id}`);
     }
 
     const developerData = {
@@ -191,7 +217,6 @@ router.put('/:id',
 // Get my developer profile
 router.get('/my/profile',
   authenticate,
-  authorize('developer'),
   catchAsync(async (req, res) => {
     const developer = await Developer.findOne({ user: req.user._id })
       .populate('user', 'phone email isVerified');

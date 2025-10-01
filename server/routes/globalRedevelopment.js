@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { catchAsync } from '../middleware/errorHandler.js';
 import RedevelopmentProject from '../models/RedevelopmentProject.js';
 import DeveloperProposal from '../models/DeveloperProposal.js';
 import Society from '../models/Society.js';
@@ -8,116 +9,82 @@ import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
-// Get all redevelopment projects globally (for builders)
-router.get('/projects', authenticate, authorize(['developer']), async (req, res) => {
+// Test route to check if the server is working
+router.get('/test', (req, res) => {
+  res.json({ message: 'Global redevelopment route is working' });
+});
+
+// Get all redevelopment projects globally (for builders) - STEP BY STEP
+router.get('/projects', async (req, res) => {
+  console.log('=== DATABASE ROUTE CALLED ===');
+  console.log('Query params:', req.query);
+  
   try {
-    const { 
-      status, 
-      city, 
-      state, 
-      minBudget, 
-      maxBudget, 
-      page = 1, 
-      limit = 10,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
-    } = req.query;
+    // Step 1: Test if RedevelopmentProject model exists
+    console.log('Step 1: Testing RedevelopmentProject model...');
+    console.log('RedevelopmentProject model:', typeof RedevelopmentProject);
     
-    // Build filter query
-    const filter = {
-      status: { $in: ['planning', 'tender_open', 'proposals_received'] } // Only show projects that are open for proposals
-    };
-    
-    if (status) {
-      filter.status = status;
+    if (!RedevelopmentProject) {
+      throw new Error('RedevelopmentProject model is not defined');
     }
     
-    if (minBudget || maxBudget) {
-      filter.budget = {};
-      if (minBudget) filter.budget.$gte = parseInt(minBudget);
-      if (maxBudget) filter.budget.$lte = parseInt(maxBudget);
+    // Step 2: Test database connection
+    console.log('Step 2: Testing database connection...');
+    const dbStatus = RedevelopmentProject.db.readyState;
+    console.log('Database ready state:', dbStatus);
+    
+    if (dbStatus !== 1) {
+      throw new Error(`Database not connected. Ready state: ${dbStatus}`);
     }
     
-    // Build sort object
-    const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    // Step 3: Try simple database query
+    console.log('Step 3: Executing simple database query...');
+    const projects = await RedevelopmentProject.find({}).limit(5);
+    console.log('Found projects:', projects.length);
     
-    const skip = (page - 1) * limit;
-    
-    // Get projects with society details
-    const projects = await RedevelopmentProject.find(filter)
-      .populate('society', 'name address city state pincode societyType totalFlats amenities')
-      .populate('createdBy', 'phone name')
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit));
-    
-    // Filter by location if specified
-    let filteredProjects = projects;
-    if (city || state) {
-      filteredProjects = projects.filter(project => {
-        if (city && !project.society.city.toLowerCase().includes(city.toLowerCase())) {
-          return false;
-        }
-        if (state && !project.society.state.toLowerCase().includes(state.toLowerCase())) {
-          return false;
-        }
-        return true;
-      });
+    if (projects.length > 0) {
+      console.log('Sample project structure:', Object.keys(projects[0].toObject()));
     }
     
-    // Get total count for pagination
-    const total = await RedevelopmentProject.countDocuments(filter);
-    
-    // Check if developer has already submitted proposals for these projects
-    const projectIds = filteredProjects.map(p => p._id);
-    const existingProposals = await DeveloperProposal.find({
-      redevelopmentProject: { $in: projectIds },
-      developer: req.user._id
-    }).select('redevelopmentProject status');
-    
-    const proposalMap = {};
-    existingProposals.forEach(proposal => {
-      proposalMap[proposal.redevelopmentProject.toString()] = proposal.status;
-    });
-    
-    // Add proposal status to each project
-    const projectsWithProposalStatus = filteredProjects.map(project => {
-      const projectObj = project.toObject();
-      projectObj.hasProposal = proposalMap[project._id.toString()] ? true : false;
-      projectObj.proposalStatus = proposalMap[project._id.toString()] || null;
-      return projectObj;
-    });
-    
-    res.json({
+    const response = {
       success: true,
       data: {
-        projects: projectsWithProposalStatus,
+        projects: projects,
         pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(total / limit),
-          total,
-          limit: parseInt(limit)
+          current: 1,
+          pages: 1,
+          total: projects.length,
+          limit: 12
         }
       }
-    });
+    };
+    
+    console.log('Sending response with', projects.length, 'projects');
+    res.json(response);
+    
   } catch (error) {
-    console.error('Error fetching global redevelopment projects:', error);
+    console.error('=== ERROR in database route ===');
+    console.error('Error message:', error.message);
+    console.error('Error name:', error.name);
+    console.error('Error stack:', error.stack);
+    
     res.status(500).json({
       success: false,
-      message: 'Internal server error'
+      message: 'Database route error',
+      error: error.message,
+      stack: error.stack
     });
   }
 });
 
 // Get specific redevelopment project details (for builders)
-router.get('/projects/:projectId', authenticate, authorize(['developer']), async (req, res) => {
+router.get('/projects/:projectId', authenticate, async (req, res) => {
   try {
     const { projectId } = req.params;
     
     const project = await RedevelopmentProject.findById(projectId)
       .populate('society', 'name address city state pincode societyType totalFlats amenities flatVariants')
-      .populate('createdBy', 'phone name')
+      .populate('owner', 'phone name')
       .populate('selectedDeveloper', 'phone name');
     
     if (!project) {

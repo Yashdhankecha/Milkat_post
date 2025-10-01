@@ -47,21 +47,17 @@ const ProjectDetails = () => {
 
   const fetchProjectDetails = async () => {
     try {
-      const { data, error } = await apiClient
-        .select(`
-          *,
-          developers(
-            company_name,
-            contact_info,
-            website,
-            verification_status
-          )
-        `)
-        
-        .maybeSingle();
-
-      if (error) throw error;
-      setProject(data);
+      // First try to get as regular project
+      let response = await apiClient.getProject(id!);
+      
+      // If that fails, try as redevelopment project
+      if (response.error) {
+        console.log('Regular project not found, trying redevelopment project...');
+        response = await apiClient.getRedevelopmentProject(id!);
+      }
+      
+      if (response.error) throw new Error(response.error);
+      setProject(response.data);
     } catch (error) {
       console.error('Error fetching project:', error);
       toast({
@@ -76,15 +72,27 @@ const ProjectDetails = () => {
 
   const fetchRelatedProjects = async () => {
     try {
-      const { data, error } = await apiClient
-        
-        .neq('id', id)
-        ;
-
-      if (error) throw error;
-      setRelatedProjects(data || []);
+      const response = await apiClient.getProjects();
+      
+      if (response.error) throw new Error(response.error);
+      
+      // Handle different response formats
+      let projects = [];
+      if (Array.isArray(response.data)) {
+        projects = response.data;
+      } else if (response.data && Array.isArray(response.data.projects)) {
+        projects = response.data.projects;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        projects = response.data.data;
+      }
+      
+      // Filter out the current project and limit to 3 related projects
+      const related = projects.filter((p: any) => p._id !== id).slice(0, 3);
+      setRelatedProjects(related);
     } catch (error) {
       console.error('Error fetching related projects:', error);
+      // Set empty array on error to prevent crashes
+      setRelatedProjects([]);
     }
   };
 

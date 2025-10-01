@@ -250,6 +250,10 @@ class ApiClient {
     return this.request(`/projects${queryString}`);
   }
 
+  async getMyProjects() {
+    return this.request('/projects/my/projects');
+  }
+
   // Requirements endpoints
   async getRequirements(params?: any) {
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -622,6 +626,10 @@ class ApiClient {
     return this.request(`/developers/${id}`);
   }
 
+  async getMyDeveloperProfile() {
+    return this.request('/developers/my/profile');
+  }
+
   async createDeveloper(developer: any) {
     return this.request('/developers', {
       method: 'POST',
@@ -867,7 +875,7 @@ class ApiClient {
   }
 
   async getRedevelopmentProject(id: string) {
-    return this.request(`/redevelopment-projects/${id}`);
+    return this.request(`/global-redevelopment/projects/${id}`);
   }
 
   async createRedevelopmentProject(projectData: any) {

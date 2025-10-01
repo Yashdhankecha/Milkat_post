@@ -243,7 +243,6 @@ router.delete('/:id',
 // Get developer's projects
 router.get('/my/projects',
   authenticate,
-  authorize('developer'),
   catchAsync(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
