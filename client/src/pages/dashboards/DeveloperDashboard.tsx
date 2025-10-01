@@ -13,6 +13,7 @@ import ProjectForm from "@/components/ProjectForm";
 import { ProposalForm } from "@/components/ProposalForm";
 import RedevelopmentDetails from "@/components/RedevelopmentDetails";
 import GlobalRedevelopmentProjects from "@/components/GlobalRedevelopmentProjects";
+import InquiryList from "@/components/InquiryList";
 import { 
   Building, 
   Plus, 
@@ -35,7 +36,6 @@ import {
   X,
   Sparkles,
   ArrowRight,
-  BarChart3,
   Shield,
   Layers,
   Phone,
@@ -46,7 +46,8 @@ import {
   Settings,
   Target,
   Award,
-  Zap
+  Zap,
+  Loader2
 } from "lucide-react"
 
 interface DeveloperProfile {
@@ -124,6 +125,9 @@ const DeveloperDashboard = () => {
   const [developerProfile, setDeveloperProfile] = useState<DeveloperProfile | null>(null)
   const [projects, setProjects] = useState<DeveloperProject[]>([])
   const [properties, setProperties] = useState<UserProperty[]>([])
+  const [myInquiries, setMyInquiries] = useState<any[]>([])
+  const [propertyInquiries, setPropertyInquiries] = useState<any[]>([])
+  const [projectInquiries, setProjectInquiries] = useState<any[]>([])
   const [stats, setStats] = useState({
     totalProjects: 0,
     activeProjects: 0,
@@ -139,6 +143,7 @@ const DeveloperDashboard = () => {
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null)
   const [showRequirementDetails, setShowRequirementDetails] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [editingProject, setEditingProject] = useState<any>(null)
   const { profile } = useAuth()
@@ -150,7 +155,7 @@ const DeveloperDashboard = () => {
     }
   }, [profile?.id, profile?.user])
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     const profileId = profile?.id || profile?.user;
     if (!profile || !profileId) {
       setLoading(false);
@@ -158,48 +163,123 @@ const DeveloperDashboard = () => {
     }
 
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       
-      // Quick API calls with 2 second timeout
+      // Fetch all data in parallel with timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      const [developerResult, projectsResult] = await Promise.allSettled([
+      const [
+        developerResult, 
+        projectsResult, 
+        propertiesResult, 
+        myInquiriesResult, 
+        propertyInquiriesResult
+      ] = await Promise.allSettled([
         apiClient.getMyDeveloperProfile(),
-        apiClient.getMyProjects()
+        apiClient.getMyProjects(),
+        apiClient.getProperties({ owner_id: profileId }),
+        apiClient.getMyInquiries(),
+        apiClient.getMyPropertyInquiries()
       ]);
       
       clearTimeout(timeoutId);
       
-      // Process results quickly
+      // Process developer profile
       if (developerResult.status === 'fulfilled' && !developerResult.value.error) {
         setDeveloperProfile(developerResult.value.data?.developer as DeveloperProfile || null);
       } else {
         setDeveloperProfile(null);
       }
       
+      // Process projects
       if (projectsResult.status === 'fulfilled' && !projectsResult.value.error) {
-        setProjects(projectsResult.value.data?.projects || []);
+        const projectsData = projectsResult.value.data?.projects || [];
+        setProjects(projectsData);
+        
+        // Calculate project stats
+        const activeProjects = projectsData.filter((p: any) => 
+          ['planning', 'under_construction', 'ready_to_move'].includes(p.status)
+        ).length;
+        const completedProjects = projectsData.filter((p: any) => 
+          p.status === 'completed'
+        ).length;
+        
+        setStats(prev => ({
+          ...prev,
+          totalProjects: projectsData.length,
+          activeProjects,
+          completedProjects
+        }));
       } else {
         setProjects([]);
       }
       
-      // Set basic stats
-      setStats({
-        totalProjects: projectsResult.status === 'fulfilled' ? (projectsResult.value.data?.projects || []).length : 0,
-        activeProjects: 0,
-        totalProperties: 0,
-        totalInquiries: 0,
-        completedProjects: 0,
-        totalProposals: 0,
-        acceptedProposals: 0
-      });
+      // Process properties
+      if (propertiesResult.status === 'fulfilled' && !propertiesResult.value.error) {
+        const propertiesData = propertiesResult.value.data?.properties || [];
+        setProperties(propertiesData);
+        setStats(prev => ({
+          ...prev,
+          totalProperties: propertiesData.length
+        }));
+      } else {
+        setProperties([]);
+      }
+      
+      // Process inquiries
+      if (myInquiriesResult.status === 'fulfilled' && !myInquiriesResult.value.error) {
+        const myInquiriesData = myInquiriesResult.value.data?.inquiries || [];
+        setMyInquiries(myInquiriesData);
+        setStats(prev => ({
+          ...prev,
+          totalInquiries: myInquiriesData.length
+        }));
+      } else {
+        setMyInquiries([]);
+      }
+      
+      if (propertyInquiriesResult.status === 'fulfilled' && !propertyInquiriesResult.value.error) {
+        const propertyInquiriesData = propertyInquiriesResult.value.data?.inquiries || [];
+        setPropertyInquiries(propertyInquiriesData);
+        setStats(prev => ({
+          ...prev,
+          totalInquiries: prev.totalInquiries + propertyInquiriesData.length
+        }));
+      } else {
+        setPropertyInquiries([]);
+      }
+
+      // Fetch project inquiries
+      try {
+        const projectInquiriesResult = await apiClient.getMyProjectInquiries();
+        if (!projectInquiriesResult.error) {
+          const projectInquiriesData = projectInquiriesResult.data?.inquiries || [];
+          setProjectInquiries(projectInquiriesData);
+          setStats(prev => ({
+            ...prev,
+            totalInquiries: prev.totalInquiries + projectInquiriesData.length
+          }));
+        } else {
+          setProjectInquiries([]);
+        }
+      } catch (error) {
+        console.error('Error fetching project inquiries:', error);
+        setProjectInquiries([]);
+      }
 
     } catch (error) {
       console.error('Error fetching developer dashboard data:', error)
       setDeveloperProfile(null)
       setProjects([])
       setProperties([])
+      setMyInquiries([])
+      setPropertyInquiries([])
+      setProjectInquiries([])
       setRequirements([])
       setProposals([])
       setStats({
@@ -213,7 +293,56 @@ const DeveloperDashboard = () => {
       })
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  const handleRefresh = () => {
+    fetchDashboardData(true)
+  }
+
+  const handleCreateProject = () => {
+    setEditingProject(null)
+    setShowProjectForm(true)
+  }
+
+  const handleEditProject = (project: any) => {
+    setEditingProject(project)
+    setShowProjectForm(true)
+  }
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this project?')) return
+
+    try {
+      const result = await apiClient.deleteProject(projectId)
+      if (!result.error) {
+        toast({
+          title: "Success",
+          description: "Project deleted successfully",
+        })
+        fetchDashboardData(true)
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete project",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleProjectFormSuccess = () => {
+    setShowProjectForm(false)
+    setEditingProject(null)
+    fetchDashboardData(true)
   }
 
   const createDeveloperProfile = async () => {
@@ -441,11 +570,16 @@ const DeveloperDashboard = () => {
               <Button 
                 variant="ghost"
                 size="sm"
-                onClick={fetchDashboardData}
-                className="px-4 py-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-lg hover:bg-white/70 dark:hover:bg-gray-700/70 transition-all duration-300 group"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="px-4 py-2 rounded-full bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm shadow-lg hover:bg-white/70 dark:hover:bg-gray-700/70 transition-all duration-300 group disabled:opacity-50"
               >
-                <RefreshCw className="h-4 w-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
-                Refresh Status
+                {refreshing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                )}
+                {refreshing ? 'Refreshing...' : 'Refresh Data'}
               </Button>
               <Button 
                 asChild
@@ -457,7 +591,7 @@ const DeveloperDashboard = () => {
                 </Link>
               </Button>
               <Button 
-                onClick={() => setShowProjectForm(true)}
+                onClick={handleCreateProject}
                 className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-300 group"
               >
                 <Plus className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
@@ -487,39 +621,7 @@ const DeveloperDashboard = () => {
           )}
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6">
-            <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-blue-500/40">
-              <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-blue-400/20 dark:bg-blue-600/20 blur-xl animate-pulse-slow"></div>
-              <CardContent className="p-6 flex flex-col justify-between h-full">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Total Projects</p>
-                  <div className="p-2 rounded-full bg-blue-500/20 dark:bg-blue-700/30 backdrop-blur-sm">
-                    <Building className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                </div>
-                <p className="text-3xl font-extrabold text-blue-900 dark:text-blue-100 leading-none">
-                  {stats.totalProjects}
-                </p>
-                <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">Development projects</p>
-              </CardContent>
-            </Card>
-
-            <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-green-500/40">
-              <div className="absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-green-400/20 dark:bg-green-600/20 blur-xl animate-pulse-slow delay-100"></div>
-              <CardContent className="p-6 flex flex-col justify-between h-full">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-medium text-green-800 dark:text-green-200">Active Projects</p>
-                  <div className="p-2 rounded-full bg-green-500/20 dark:bg-green-700/30 backdrop-blur-sm">
-                    <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
-                  </div>
-                </div>
-                <p className="text-3xl font-extrabold text-green-900 dark:text-green-100 leading-none">
-                  {stats.activeProjects}
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300 mt-2">Currently active</p>
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-indigo-500/40">
               <div className="absolute -top-8 -left-8 h-24 w-24 rounded-full bg-indigo-400/20 dark:bg-indigo-600/20 blur-xl animate-pulse-slow delay-200"></div>
               <CardContent className="p-6 flex flex-col justify-between h-full">
@@ -549,22 +651,6 @@ const DeveloperDashboard = () => {
                   {stats.totalInquiries}
                 </p>
                 <p className="text-sm text-purple-700 dark:text-purple-300 mt-2">Customer interest</p>
-              </CardContent>
-            </Card>
-
-            <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 transform transition-all duration-300 hover:scale-[1.03] hover:shadow-orange-500/40">
-              <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-orange-400/20 dark:bg-orange-600/20 blur-xl animate-pulse-slow delay-400"></div>
-              <CardContent className="p-6 flex flex-col justify-between h-full">
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Completed</p>
-                  <div className="p-2 rounded-full bg-orange-500/20 dark:bg-orange-700/30 backdrop-blur-sm">
-                    <Calendar className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                  </div>
-                </div>
-                <p className="text-3xl font-extrabold text-orange-900 dark:text-orange-100 leading-none">
-                  {stats.completedProjects}
-                </p>
-                <p className="text-sm text-orange-700 dark:text-orange-300 mt-2">Successfully delivered</p>
               </CardContent>
             </Card>
 
@@ -603,7 +689,7 @@ const DeveloperDashboard = () => {
 
           {/* Main Content */}
           <Tabs defaultValue="company" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 h-auto p-1 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-gray-700/20 dark:to-gray-800/20 rounded-xl shadow-inner border border-gray-200 dark:border-gray-700">
+            <TabsList className="grid w-full grid-cols-5 h-auto p-1 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 dark:from-gray-700/20 dark:to-gray-800/20 rounded-xl shadow-inner border border-gray-200 dark:border-gray-700">
               <TabsTrigger
                 value="company"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-blue-400 dark:data-[state=active]:border-blue-700 rounded-lg py-2 px-3 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-300 text-xs md:text-sm"
@@ -634,12 +720,6 @@ const DeveloperDashboard = () => {
               >
                 <MessageSquare className="h-3 w-3 mr-1 md:mr-2" /> Inquiries
               </TabsTrigger>
-              <TabsTrigger
-                value="analytics"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-teal-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:scale-[1.02] data-[state=active]:border-teal-400 dark:data-[state=active]:border-teal-700 rounded-lg py-2 px-3 transition-all duration-300 text-gray-700 dark:text-gray-300 hover:text-teal-600 dark:hover:text-teal-300 text-xs md:text-sm"
-              >
-                <BarChart3 className="h-3 w-3 mr-1 md:mr-2" /> Analytics
-              </TabsTrigger>
             </TabsList>
 
           <TabsContent value="projects" className="space-y-4">
@@ -654,35 +734,41 @@ const DeveloperDashboard = () => {
                     <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <h3 className="text-lg font-medium mb-2">No projects yet</h3>
                     <p className="text-muted-foreground mb-4">Start showcasing your development projects</p>
-                    <Button onClick={() => setShowProjectForm(true)}>
+                    <Button onClick={handleCreateProject}>
                       Add First Project
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {projects.map((project) => (
-                      <Card key={project.id} className="overflow-hidden">
-                        <div className="aspect-video bg-muted relative">
+                      <Card key={project.id} className="overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 group">
+                        <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 relative overflow-hidden">
                           {project.images?.[0] ? (
                             <img 
                               src={project.images[0]} 
                               alt={project.name}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
                           ) : (
                             <div className="flex items-center justify-center h-full">
-                              <Building className="h-12 w-12 text-muted-foreground" />
+                              <Building className="h-12 w-12 text-gray-400 dark:text-gray-500" />
                             </div>
                           )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </div>
                         
-                        <CardContent className="p-4">
-                          <div className="space-y-2">
-                            <h3 className="font-semibold text-lg line-clamp-1">{project.name}</h3>
+                        <CardContent className="p-6">
+                          <div className="space-y-3">
+                            <h3 className="font-bold text-xl line-clamp-1 text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">{project.name}</h3>
                             
                             <div className="flex items-center text-sm text-muted-foreground">
                               <MapPin className="w-4 h-4 mr-1" />
-                              <span className="line-clamp-1">{project.location}</span>
+                              <span className="line-clamp-1">
+                                {typeof project.location === 'object' 
+                                  ? `${project.location?.city || ''}${project.location?.state ? ', ' + project.location.state : ''}`.trim() || 'Location not specified'
+                                  : project.location || 'Location not specified'
+                                }
+                              </span>
                             </div>
                             
                             <div className="flex items-center justify-between">
@@ -699,20 +785,30 @@ const DeveloperDashboard = () => {
                               </div>
                             )}
                             
-                            <div className="flex gap-2 pt-2">
-                              <Button asChild size="sm" variant="outline">
+                            <div className="flex gap-2 pt-4">
+                              <Button asChild size="sm" variant="outline" className="flex-1 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 transition-all duration-300">
                                 <Link to={`/project/${project.id}`}>
-                                  View Details
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  View
                                 </Link>
                               </Button>
                               <Button 
                                 size="sm" 
-                                onClick={() => {
-                                  setEditingProject(project);
-                                  setShowProjectForm(true);
-                                }}
+                                variant="outline"
+                                onClick={() => handleEditProject(project)}
+                                className="bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border-green-200 hover:border-green-300 text-green-700 hover:text-green-800 transition-all duration-300"
                               >
+                                <Edit className="w-4 h-4 mr-1" />
                                 Edit
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                onClick={() => handleDeleteProject(project.id)}
+                                className="bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 border-red-200 hover:border-red-300 text-red-700 hover:text-red-800 transition-all duration-300"
+                              >
+                                <Trash2 className="w-4 h-4 mr-1" />
+                                Delete
                               </Button>
                             </div>
                           </div>
@@ -742,30 +838,36 @@ const DeveloperDashboard = () => {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {properties.map((property) => (
-                      <Card key={property.id} className="overflow-hidden">
-                        <div className="aspect-video bg-muted relative">
+                      <Card key={property.id} className="overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-indigo-500/20 group">
+                        <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 relative overflow-hidden">
                           {property.images?.[0] ? (
                             <img 
                               src={property.images[0]} 
                               alt={property.title}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
                           ) : (
                             <div className="flex items-center justify-center h-full">
-                              <Home className="h-12 w-12 text-muted-foreground" />
+                              <Home className="h-12 w-12 text-gray-400 dark:text-gray-500" />
                             </div>
                           )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </div>
                         
-                        <CardContent className="p-4">
-                          <div className="space-y-2">
-                            <h3 className="font-semibold text-lg line-clamp-1">{property.title}</h3>
+                        <CardContent className="p-6">
+                          <div className="space-y-3">
+                            <h3 className="font-bold text-xl line-clamp-1 text-gray-900 dark:text-gray-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-300">{property.title}</h3>
                             
                             <div className="flex items-center text-sm text-muted-foreground">
                               <MapPin className="w-4 h-4 mr-1" />
-                              <span className="line-clamp-1">{property.location}, {property.city}</span>
+                              <span className="line-clamp-1">
+                                {typeof property.location === 'object' 
+                                  ? `${property.location?.address || ''}${property.location?.city ? ', ' + property.location.city : ''}`.trim() || property.city || 'Location not specified'
+                                  : `${property.location || ''}${property.city ? ', ' + property.city : ''}`.trim() || 'Location not specified'
+                                }
+                              </span>
                             </div>
                             
                             <div className="flex items-center justify-between">
@@ -788,15 +890,15 @@ const DeveloperDashboard = () => {
                               </Badge>
                             </div>
                             
-                            <div className="flex gap-2 pt-2">
-                              <Button asChild size="sm" variant="outline" className="flex-1">
+                            <div className="flex gap-2 pt-4">
+                              <Button asChild size="sm" variant="outline" className="flex-1 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 border-indigo-200 hover:border-indigo-300 text-indigo-700 hover:text-indigo-800 transition-all duration-300">
                                 <Link to={`/property/${property.id}`}>
                                   <Eye className="w-4 h-4 mr-1" />
                                   View
                                 </Link>
                               </Button>
                               
-                              <Button asChild size="sm" variant="outline">
+                              <Button asChild size="sm" variant="outline" className="bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border-green-200 hover:border-green-300 text-green-700 hover:text-green-800 transition-all duration-300">
                                 <Link to={`/edit-property/${property.id}`}>
                                   <Edit className="w-4 h-4" />
                                 </Link>
@@ -806,6 +908,7 @@ const DeveloperDashboard = () => {
                                 size="sm" 
                                 variant="outline"
                                 onClick={() => handleDeleteProperty(property.id)}
+                                className="bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 border-red-200 hover:border-red-300 text-red-700 hover:text-red-800 transition-all duration-300"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -825,51 +928,66 @@ const DeveloperDashboard = () => {
           </TabsContent>
 
           <TabsContent value="inquiries" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Project Inquiries</CardTitle>
-                <CardDescription>Customer inquiries about your projects</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No inquiries yet</h3>
-                  <p className="text-muted-foreground">Project inquiries will appear here</p>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* My Inquiries */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    My Inquiries
+                  </CardTitle>
+                  <CardDescription>Inquiries you've made to property owners</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InquiryList 
+                    inquiries={myInquiries} 
+                    type="sent"
+                    emptyMessage="You haven't made any inquiries yet"
+                    emptyDescription="Browse properties and projects to start making inquiries"
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Property Inquiries */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Home className="h-5 w-5" />
+                    Property Inquiries
+                  </CardTitle>
+                  <CardDescription>Inquiries about your listed properties</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InquiryList 
+                    inquiries={propertyInquiries} 
+                    type="received"
+                    emptyMessage="No inquiries for your properties yet"
+                    emptyDescription="List more properties to attract potential buyers"
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Project Inquiries */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    Project Inquiries
+                  </CardTitle>
+                  <CardDescription>Inquiries about your development projects</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InquiryList 
+                    inquiries={projectInquiries} 
+                    type="received"
+                    emptyMessage="No inquiries for your projects yet"
+                    emptyDescription="Promote your projects to attract potential buyers"
+                  />
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
-          <TabsContent value="analytics" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Project Analytics</CardTitle>
-                <CardDescription>Track project views and customer engagement</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <TrendingUp className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                    <h4 className="font-semibold text-blue-900 dark:text-blue-100">Project Views</h4>
-                    <p className="text-2xl font-bold text-blue-600">{projects.length * 15}</p>
-                    <p className="text-sm text-blue-600/70">Total views this month</p>
-                  </div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <Users className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                    <h4 className="font-semibold text-green-900 dark:text-green-100">Inquiries</h4>
-                    <p className="text-2xl font-bold text-green-600">{projects.length * 3}</p>
-                    <p className="text-sm text-green-600/70">New inquiries</p>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                    <Star className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                    <h4 className="font-semibold text-purple-900 dark:text-purple-100">Engagement</h4>
-                    <p className="text-2xl font-bold text-purple-600">85%</p>
-                    <p className="text-sm text-purple-600/70">Response rate</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="company" className="space-y-4">
             <DeveloperProfileForm 
@@ -936,11 +1054,7 @@ const DeveloperDashboard = () => {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               <ProjectForm
-                onSuccess={() => {
-                  setShowProjectForm(false);
-                  setEditingProject(null);
-                  fetchDashboardData();
-                }}
+                onSuccess={handleProjectFormSuccess}
                 onCancel={() => {
                   setShowProjectForm(false);
                   setEditingProject(null);

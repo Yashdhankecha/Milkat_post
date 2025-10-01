@@ -254,6 +254,26 @@ class ApiClient {
     return this.request('/projects/my/projects');
   }
 
+  async createProject(projectData: any) {
+    return this.request('/projects', {
+      method: 'POST',
+      body: JSON.stringify(projectData),
+    });
+  }
+
+  async updateProject(projectId: string, projectData: any) {
+    return this.request(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(projectData),
+    });
+  }
+
+  async deleteProject(projectId: string) {
+    return this.request(`/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Requirements endpoints
   async getRequirements(params?: any) {
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';

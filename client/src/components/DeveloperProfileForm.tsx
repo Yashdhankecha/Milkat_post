@@ -5,25 +5,106 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
+import { 
+  Building, 
+  Plus, 
+  X, 
+  Upload, 
+  Star, 
+  Award, 
+  Users, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  Globe, 
+  Linkedin, 
+  Twitter, 
+  Facebook, 
+  Instagram, 
+  Youtube,
+  FileText,
+  Shield,
+  CheckCircle,
+  AlertCircle,
+  Sparkles
+} from "lucide-react";
 
 interface DeveloperProfile {
   id?: string;
-  company_name: string;
-  company_description: string;
-  established_year: number | null;
+  _id?: string;
+  companyName: string;
+  companyDescription: string;
+  establishedYear: number | null;
   website: string;
-  contact_info: {
-    email?: string;
+  contactInfo: {
     phone?: string;
+    email?: string;
+    alternatePhone?: string;
     address?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
   };
-  social_media: {
-    linkedin?: string;
-    twitter?: string;
+  socialMedia: {
     facebook?: string;
+    twitter?: string;
+    linkedin?: string;
+    instagram?: string;
+    youtube?: string;
+    website?: string;
   };
+  businessType: string;
+  registrationNumber: string;
+  panNumber: string;
+  gstNumber: string;
+  reraRegistration: Array<{
+    state: string;
+    registrationNumber: string;
+    registrationDate: string;
+    expiryDate: string;
+    documentUrl: string;
+  }>;
+  specializations: string[];
+  serviceAreas: Array<{
+    city: string;
+    state: string;
+    localities: string[];
+  }>;
+  languages: string[];
+  certifications: Array<{
+    name: string;
+    issuingAuthority: string;
+    issueDate: string;
+    expiryDate: string;
+    certificateUrl: string;
+  }>;
+  awards: Array<{
+    title: string;
+    description: string;
+    year: number;
+    organization: string;
+    category: string;
+  }>;
+  team: Array<{
+    name: string;
+    designation: string;
+    experience: number;
+    specialization: string;
+    photo: string;
+    linkedin: string;
+  }>;
+  status: string;
+  verificationStatus: string;
+  verificationDocuments: Array<{
+    type: string;
+    url: string;
+    status: string;
+    uploadedAt: string;
+  }>;
 }
 
 interface DeveloperProfileFormProps {
@@ -36,39 +117,81 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<DeveloperProfile>({
-    company_name: '',
-    company_description: '',
-    established_year: null,
+    companyName: '',
+    companyDescription: '',
+    establishedYear: null,
     website: '',
-    contact_info: {
-      email: '',
+    contactInfo: {
       phone: '',
-      address: ''
+      email: '',
+      alternatePhone: '',
+      address: '',
+      city: '',
+      state: '',
+      pincode: ''
     },
-    social_media: {
-      linkedin: '',
+    socialMedia: {
+      facebook: '',
       twitter: '',
-      facebook: ''
-    }
+      linkedin: '',
+      instagram: '',
+      youtube: '',
+      website: ''
+    },
+    businessType: 'private_limited',
+    registrationNumber: '',
+    panNumber: '',
+    gstNumber: '',
+    reraRegistration: [],
+    specializations: [],
+    serviceAreas: [],
+    languages: [],
+    certifications: [],
+    awards: [],
+    team: [],
+    status: 'active',
+    verificationStatus: 'unverified',
+    verificationDocuments: []
   });
 
   useEffect(() => {
     if (existingProfile) {
       setFormData({
-        company_name: existingProfile.company_name || '',
-        company_description: existingProfile.company_description || '',
-        established_year: existingProfile.established_year || null,
+        companyName: existingProfile.companyName || existingProfile.company_name || '',
+        companyDescription: existingProfile.companyDescription || existingProfile.company_description || '',
+        establishedYear: existingProfile.establishedYear || existingProfile.established_year || null,
         website: existingProfile.website || '',
-        contact_info: {
-          email: existingProfile.contact_info?.email || '',
-          phone: existingProfile.contact_info?.phone || '',
-          address: existingProfile.contact_info?.address || ''
+        contactInfo: {
+          phone: existingProfile.contactInfo?.phone || existingProfile.contact_info?.phone || '',
+          email: existingProfile.contactInfo?.email || existingProfile.contact_info?.email || '',
+          alternatePhone: existingProfile.contactInfo?.alternatePhone || '',
+          address: existingProfile.contactInfo?.address || existingProfile.contact_info?.address || '',
+          city: existingProfile.contactInfo?.city || '',
+          state: existingProfile.contactInfo?.state || '',
+          pincode: existingProfile.contactInfo?.pincode || ''
         },
-        social_media: {
-          linkedin: existingProfile.social_media?.linkedin || '',
-          twitter: existingProfile.social_media?.twitter || '',
-          facebook: existingProfile.social_media?.facebook || ''
-        }
+        socialMedia: {
+          facebook: existingProfile.socialMedia?.facebook || existingProfile.social_media?.facebook || '',
+          twitter: existingProfile.socialMedia?.twitter || existingProfile.social_media?.twitter || '',
+          linkedin: existingProfile.socialMedia?.linkedin || existingProfile.social_media?.linkedin || '',
+          instagram: existingProfile.socialMedia?.instagram || '',
+          youtube: existingProfile.socialMedia?.youtube || '',
+          website: existingProfile.socialMedia?.website || ''
+        },
+        businessType: existingProfile.businessType || 'private_limited',
+        registrationNumber: existingProfile.registrationNumber || '',
+        panNumber: existingProfile.panNumber || '',
+        gstNumber: existingProfile.gstNumber || '',
+        reraRegistration: existingProfile.reraRegistration || [],
+        specializations: existingProfile.specializations || [],
+        serviceAreas: existingProfile.serviceAreas || [],
+        languages: existingProfile.languages || [],
+        certifications: existingProfile.certifications || [],
+        awards: existingProfile.awards || [],
+        team: existingProfile.team || [],
+        status: existingProfile.status || 'active',
+        verificationStatus: existingProfile.verificationStatus || 'unverified',
+        verificationDocuments: existingProfile.verificationDocuments || []
       });
     }
   }, [existingProfile]);
@@ -83,8 +206,8 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
   const handleContactInfoChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
-      contact_info: {
-        ...prev.contact_info,
+      contactInfo: {
+        ...prev.contactInfo,
         [field]: value
       }
     }));
@@ -93,8 +216,8 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
   const handleSocialMediaChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
-      social_media: {
-        ...prev.social_media,
+      socialMedia: {
+        ...prev.socialMedia,
         [field]: value
       }
     }));
@@ -109,7 +232,7 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
     
     try {
       // Validate required fields
-      if (!formData.company_name || formData.company_name.trim().length < 2) {
+      if (!formData.companyName || formData.companyName.trim().length < 2) {
         toast({
           title: "Validation Error",
           description: "Company name is required and must be at least 2 characters long.",
@@ -119,12 +242,19 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
       }
 
       const updateData = {
-        companyName: formData.company_name.trim(),
-        ...(formData.company_description && { companyDescription: formData.company_description.trim() }),
-        ...(formData.established_year && { establishedYear: parseInt(formData.established_year) }),
+        companyName: formData.companyName.trim(),
+        ...(formData.companyDescription && { companyDescription: formData.companyDescription.trim() }),
+        ...(formData.establishedYear && { establishedYear: parseInt(formData.establishedYear.toString()) }),
         ...(formData.website && formData.website.trim() && { website: formData.website.trim() }),
-        ...(formData.contact_info && Object.keys(formData.contact_info).length > 0 && { contactInfo: formData.contact_info }),
-        ...(formData.social_media && Object.keys(formData.social_media).length > 0 && { socialMedia: formData.social_media })
+        ...(formData.contactInfo && Object.keys(formData.contactInfo).length > 0 && { contactInfo: formData.contactInfo }),
+        ...(formData.socialMedia && Object.keys(formData.socialMedia).length > 0 && { socialMedia: formData.socialMedia }),
+        ...(formData.businessType && { businessType: formData.businessType }),
+        ...(formData.registrationNumber && { registrationNumber: formData.registrationNumber }),
+        ...(formData.panNumber && { panNumber: formData.panNumber }),
+        ...(formData.gstNumber && { gstNumber: formData.gstNumber }),
+        ...(formData.specializations && formData.specializations.length > 0 && { specializations: formData.specializations }),
+        ...(formData.serviceAreas && formData.serviceAreas.length > 0 && { serviceAreas: formData.serviceAreas }),
+        ...(formData.languages && formData.languages.length > 0 && { languages: formData.languages })
       };
 
       console.log('Sending developer data:', updateData);
@@ -175,138 +305,401 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Company Information</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Company Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="company_name">Company Name</Label>
-              <Input
-                id="company_name"
-                value={formData.company_name}
-                onChange={(e) => handleInputChange('company_name', e.target.value)}
-                required
-              />
+    <div className="space-y-6">
+      {/* Header Card */}
+      <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-blue-900/20">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-indigo-500/5 dark:from-blue-900/10 dark:to-indigo-900/10 opacity-70 blur-3xl pointer-events-none"></div>
+        <CardHeader className="relative">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-full bg-blue-500/20 dark:bg-blue-700/30 backdrop-blur-sm">
+              <Building className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             </div>
-            
             <div>
-              <Label htmlFor="established_year">Established Year</Label>
-              <Input
-                id="established_year"
-                type="number"
-                min="1900"
-                max={new Date().getFullYear()}
-                value={formData.established_year || ''}
-                onChange={(e) => handleInputChange('established_year', parseInt(e.target.value) || null)}
-              />
+              <CardTitle className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                Company Profile
+                {formData.verificationStatus === 'verified' && (
+                  <Badge className="px-2 py-1 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 shadow-md">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Verified
+                  </Badge>
+                )}
+                {formData.verificationStatus === 'pending' && (
+                  <Badge className="px-2 py-1 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-md">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    Pending
+                  </Badge>
+                )}
+              </CardTitle>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">
+                Complete your company information to build trust with potential clients
+              </p>
             </div>
           </div>
+        </CardHeader>
+      </Card>
 
-          <div>
-            <Label htmlFor="company_description">Company Description</Label>
-            <Textarea
-              id="company_description"
-              placeholder="Tell us about your company, specialization, and experience..."
-              className="min-h-[100px]"
-              value={formData.company_description}
-              onChange={(e) => handleInputChange('company_description', e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="website">Website URL</Label>
-            <Input
-              id="website"
-              type="url"
-              placeholder="https://www.yourcompany.com"
-              value={formData.website}
-              onChange={(e) => handleInputChange('website', e.target.value)}
-            />
-          </div>
-
-          {/* Contact Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Contact Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basic Company Information */}
+        <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-green-50 dark:from-gray-800 dark:to-green-900/20">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 dark:from-green-900/10 dark:to-emerald-900/10 opacity-70 blur-3xl pointer-events-none"></div>
+          <CardHeader className="relative">
+            <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-green-500" />
+              Basic Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="relative space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="contact_email">Business Email</Label>
+                <Label htmlFor="companyName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Company Name *
+                </Label>
                 <Input
-                  id="contact_email"
-                  type="email"
-                  value={formData.contact_info.email || ''}
-                  onChange={(e) => handleContactInfoChange('email', e.target.value)}
+                  id="companyName"
+                  value={formData.companyName}
+                  onChange={(e) => handleInputChange('companyName', e.target.value)}
+                  required
+                  className="mt-1"
+                  placeholder="Enter your company name"
                 />
               </div>
               
               <div>
-                <Label htmlFor="contact_phone">Business Phone</Label>
+                <Label htmlFor="establishedYear" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Established Year
+                </Label>
                 <Input
-                  id="contact_phone"
-                  value={formData.contact_info.phone || ''}
-                  onChange={(e) => handleContactInfoChange('phone', e.target.value)}
+                  id="establishedYear"
+                  type="number"
+                  min="1900"
+                  max={new Date().getFullYear()}
+                  value={formData.establishedYear || ''}
+                  onChange={(e) => handleInputChange('establishedYear', parseInt(e.target.value) || null)}
+                  className="mt-1"
+                  placeholder="e.g., 2010"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="companyDescription" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Company Description
+              </Label>
+              <Textarea
+                id="companyDescription"
+                placeholder="Tell us about your company, specialization, and experience..."
+                className="min-h-[120px] mt-1"
+                value={formData.companyDescription}
+                onChange={(e) => handleInputChange('companyDescription', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="website" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Website URL
+              </Label>
+              <div className="relative mt-1">
+                <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="website"
+                  type="url"
+                  placeholder="https://www.yourcompany.com"
+                  value={formData.website}
+                  onChange={(e) => handleInputChange('website', e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Contact Information */}
+        <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-purple-900/20">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5 dark:from-purple-900/10 dark:to-pink-900/10 opacity-70 blur-3xl pointer-events-none"></div>
+          <CardHeader className="relative">
+            <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Phone className="h-5 w-5 text-purple-500" />
+              Contact Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="relative space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="contactEmail" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Business Email
+                </Label>
+                <div className="relative mt-1">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="contactEmail"
+                    type="email"
+                    value={formData.contactInfo.email || ''}
+                    onChange={(e) => handleContactInfoChange('email', e.target.value)}
+                    className="pl-10"
+                    placeholder="contact@yourcompany.com"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="contactPhone" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Business Phone
+                </Label>
+                <div className="relative mt-1">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="contactPhone"
+                    value={formData.contactInfo.phone || ''}
+                    onChange={(e) => handleContactInfoChange('phone', e.target.value)}
+                    className="pl-10"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div>
+                <Label htmlFor="contactCity" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  City
+                </Label>
+                <div className="relative mt-1">
+                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="contactCity"
+                    value={formData.contactInfo.city || ''}
+                    onChange={(e) => handleContactInfoChange('city', e.target.value)}
+                    className="pl-10"
+                    placeholder="Mumbai"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="contactState" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  State
+                </Label>
+                <Input
+                  id="contactState"
+                  value={formData.contactInfo.state || ''}
+                  onChange={(e) => handleContactInfoChange('state', e.target.value)}
+                  className="mt-1"
+                  placeholder="Maharashtra"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="contactPincode" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Pincode
+                </Label>
+                <Input
+                  id="contactPincode"
+                  value={formData.contactInfo.pincode || ''}
+                  onChange={(e) => handleContactInfoChange('pincode', e.target.value)}
+                  className="mt-1"
+                  placeholder="400001"
                 />
               </div>
             </div>
             
             <div>
-              <Label htmlFor="contact_address">Business Address</Label>
+              <Label htmlFor="contactAddress" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Complete Address
+              </Label>
               <Textarea
-                id="contact_address"
+                id="contactAddress"
                 placeholder="Complete business address..."
-                value={formData.contact_info.address || ''}
+                className="min-h-[100px] mt-1"
+                value={formData.contactInfo.address || ''}
                 onChange={(e) => handleContactInfoChange('address', e.target.value)}
               />
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* Social Media */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Social Media (Optional)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Social Media */}
+        <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-orange-900/20">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 dark:from-orange-900/10 dark:to-red-900/10 opacity-70 blur-3xl pointer-events-none"></div>
+          <CardHeader className="relative">
+            <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Users className="h-5 w-5 text-orange-500" />
+              Social Media & Online Presence
+            </CardTitle>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Connect your social media profiles to increase visibility
+            </p>
+          </CardHeader>
+          <CardContent className="relative space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="linkedin">LinkedIn Profile</Label>
-                <Input
-                  id="linkedin"
-                  placeholder="https://linkedin.com/company/..."
-                  value={formData.social_media.linkedin || ''}
-                  onChange={(e) => handleSocialMediaChange('linkedin', e.target.value)}
-                />
+                <Label htmlFor="linkedin" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  LinkedIn Profile
+                </Label>
+                <div className="relative mt-1">
+                  <Linkedin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-600" />
+                  <Input
+                    id="linkedin"
+                    placeholder="https://linkedin.com/company/..."
+                    value={formData.socialMedia.linkedin || ''}
+                    onChange={(e) => handleSocialMediaChange('linkedin', e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </div>
               
               <div>
-                <Label htmlFor="twitter">Twitter Handle</Label>
-                <Input
-                  id="twitter"
-                  placeholder="@yourcompany"
-                  value={formData.social_media.twitter || ''}
-                  onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
-                />
+                <Label htmlFor="twitter" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Twitter Handle
+                </Label>
+                <div className="relative mt-1">
+                  <Twitter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400" />
+                  <Input
+                    id="twitter"
+                    placeholder="@yourcompany"
+                    value={formData.socialMedia.twitter || ''}
+                    onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="facebook" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Facebook Page
+                </Label>
+                <div className="relative mt-1">
+                  <Facebook className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-600" />
+                  <Input
+                    id="facebook"
+                    placeholder="https://facebook.com/yourcompany"
+                    value={formData.socialMedia.facebook || ''}
+                    onChange={(e) => handleSocialMediaChange('facebook', e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
               </div>
               
               <div>
-                <Label htmlFor="facebook">Facebook Page</Label>
+                <Label htmlFor="instagram" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Instagram Profile
+                </Label>
+                <div className="relative mt-1">
+                  <Instagram className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-pink-500" />
+                  <Input
+                    id="instagram"
+                    placeholder="https://instagram.com/yourcompany"
+                    value={formData.socialMedia.instagram || ''}
+                    onChange={(e) => handleSocialMediaChange('instagram', e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Business Information */}
+        <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-teal-50 dark:from-gray-800 dark:to-teal-900/20">
+          <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-cyan-500/5 dark:from-teal-900/10 dark:to-cyan-900/10 opacity-70 blur-3xl pointer-events-none"></div>
+          <CardHeader className="relative">
+            <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-teal-500" />
+              Business Information
+            </CardTitle>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Legal and registration details for verification
+            </p>
+          </CardHeader>
+          <CardContent className="relative space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="businessType" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Business Type
+                </Label>
+                <Select value={formData.businessType} onValueChange={(value) => handleInputChange('businessType', value)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select business type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private_limited">Private Limited</SelectItem>
+                    <SelectItem value="public_limited">Public Limited</SelectItem>
+                    <SelectItem value="partnership">Partnership</SelectItem>
+                    <SelectItem value="sole_proprietorship">Sole Proprietorship</SelectItem>
+                    <SelectItem value="llp">LLP</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="registrationNumber" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Registration Number
+                </Label>
                 <Input
-                  id="facebook"
-                  placeholder="https://facebook.com/yourcompany"
-                  value={formData.social_media.facebook || ''}
-                  onChange={(e) => handleSocialMediaChange('facebook', e.target.value)}
+                  id="registrationNumber"
+                  value={formData.registrationNumber}
+                  onChange={(e) => handleInputChange('registrationNumber', e.target.value)}
+                  className="mt-1"
+                  placeholder="Company registration number"
                 />
               </div>
             </div>
-          </div>
 
-          <div className="flex justify-end">
-            <Button type="submit" disabled={saving}>
-              {saving ? "Updating..." : "Update Profile"}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="panNumber" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  PAN Number
+                </Label>
+                <Input
+                  id="panNumber"
+                  value={formData.panNumber}
+                  onChange={(e) => handleInputChange('panNumber', e.target.value.toUpperCase())}
+                  className="mt-1"
+                  placeholder="ABCDE1234F"
+                  maxLength={10}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="gstNumber" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  GST Number
+                </Label>
+                <Input
+                  id="gstNumber"
+                  value={formData.gstNumber}
+                  onChange={(e) => handleInputChange('gstNumber', e.target.value.toUpperCase())}
+                  className="mt-1"
+                  placeholder="22ABCDE1234F1Z5"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Submit Button */}
+        <div className="flex justify-end">
+          <Button 
+            type="submit" 
+            disabled={saving}
+            className="px-8 py-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-blue-500/30 transition-all duration-300 group text-lg font-semibold"
+          >
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                Updating...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                Update Profile
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 };
 

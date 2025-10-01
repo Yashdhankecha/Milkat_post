@@ -12,11 +12,6 @@ const projectSchema = new mongoose.Schema({
     trim: true,
     maxlength: 2000
   },
-  builder: {
-    type: String,
-    required: true,
-    trim: true
-  },
   developer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -46,10 +41,6 @@ const projectSchema = new mongoose.Schema({
     country: {
       type: String,
       default: 'India',
-      trim: true
-    },
-    pincode: {
-      type: String,
       trim: true
     },
     coordinates: {
@@ -153,10 +144,21 @@ const projectSchema = new mongoose.Schema({
       default: 0
     }
   }],
+  brochures: [{
+    url: {
+      type: String,
+      required: true
+    },
+    name: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   documents: [{
     type: {
       type: String,
-      enum: ['brochure', 'floor_plan', 'legal_documents', 'approval_documents', 'other']
+      enum: ['floor_plan', 'legal_documents', 'approval_documents', 'other']
     },
     url: String,
     name: String,

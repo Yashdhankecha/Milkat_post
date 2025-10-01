@@ -20,7 +20,28 @@ const BuilderProjects = () => {
       
       if (result.error) throw new Error(result.error);
       const projectsData = result.data?.projects || result.data || [];
-      setProjects(projectsData);
+      
+      // Transform project data to match ProjectCard interface
+      const transformedProjects = projectsData.map((project: any) => ({
+        id: project._id || project.id,
+        name: project.name,
+        location: project.location ? 
+          `${project.location.address || ''}, ${project.location.city || ''}, ${project.location.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '') :
+          'Location not specified',
+        price_range: project.priceRange ? 
+          `₹${project.priceRange.min}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''} - ₹${project.priceRange.max}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''}` :
+          'Price on request',
+        completion_date: project.completionDate,
+        images: project.images || [],
+        status: project.status === 'under_construction' ? 'ongoing' : 
+                project.status === 'ready_to_move' ? 'completed' :
+                project.status === 'planning' ? 'planned' : project.status,
+        project_type: project.projectType || 'residential',
+        total_units: project.totalUnits,
+        available_units: project.availableUnits
+      }));
+      
+      setProjects(transformedProjects);
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast({
@@ -34,8 +55,8 @@ const BuilderProjects = () => {
         {
           id: "sample-1",
           name: "Skyline Residences",
-          location: "Downtown Seattle, Washington",
-          price_range: "$450K - $1.2M",
+          location: "Downtown Mumbai, Maharashtra",
+          price_range: "₹45L - ₹1.2Cr",
           completion_date: "2024-12-31",
           images: ["/assets/apartment-1.jpg"],
           status: "ongoing",
@@ -46,8 +67,8 @@ const BuilderProjects = () => {
         {
           id: "sample-2",
           name: "Garden Villas Estate",
-          location: "Suburban Phoenix, Arizona",  
-          price_range: "$800K - $2.5M",
+          location: "Suburban Bangalore, Karnataka",  
+          price_range: "₹80L - ₹2.5Cr",
           completion_date: "2025-06-30",
           images: ["/assets/villa-1.jpg"],
           status: "planned",
@@ -58,8 +79,8 @@ const BuilderProjects = () => {
         {
           id: "sample-3",
           name: "Metro Business Hub",
-          location: "Financial District, Boston",
-          price_range: "$2M - $8M", 
+          location: "Financial District, Delhi", 
+          price_range: "₹2Cr - ₹8Cr", 
           completion_date: "2025-03-31",
           images: ["/assets/commercial-1.jpg"],
           status: "ongoing",

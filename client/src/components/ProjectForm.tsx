@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { X, Upload, FileText, Image, Video, Trash2 } from "lucide-react";
+import { indianStatesAndCities, getCitiesByState, getAllStates } from "@/data/indianStatesCities";
 
 interface ProjectFormProps {
   onSuccess: () => void;
@@ -27,36 +28,74 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
   
   const [formData, setFormData] = useState({
     name: '',
-    location: '',
     description: '',
-    builder: '',
-    project_type: 'residential',
-    status: 'planned',
-    price_range: '',
-    total_units: '',
-    available_units: '',
-    completion_date: '',
+    projectType: 'residential',
+    status: 'planning',
+    location: {
+      address: '',
+      city: '',
+      state: '',
+      country: 'India'
+    },
+    priceRange: {
+      min: '',
+      max: '',
+      unit: 'lakh'
+    },
+    totalUnits: '',
+    availableUnits: '',
+    completionDate: '',
+    possessionDate: '',
+    launchDate: '',
     amenities: [] as string[],
-    images: [] as string[]
+    images: [] as string[],
+    videos: [] as string[],
+    brochures: [] as string[],
+    reraNumber: ''
   });
+  
+  const [uploading, setUploading] = useState({
+    images: false,
+    videos: false,
+    brochures: false
+  });
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   useEffect(() => {
     fetchDeveloperProfile();
     if (existingProject) {
       setFormData({
         name: existingProject.name || '',
-        location: existingProject.location || '',
         description: existingProject.description || '',
-        builder: existingProject.builder || '',
-        project_type: existingProject.project_type || 'residential',
-        status: existingProject.status || 'planned',
-        price_range: existingProject.price_range || '',
-        total_units: existingProject.total_units?.toString() || '',
-        available_units: existingProject.available_units?.toString() || '',
-        completion_date: existingProject.completion_date || '',
+        projectType: existingProject.projectType || 'residential',
+        status: existingProject.status || 'planning',
+        location: {
+          address: existingProject.location?.address || '',
+          city: existingProject.location?.city || '',
+          state: existingProject.location?.state || '',
+          country: existingProject.location?.country || 'India'
+        },
+        priceRange: {
+          min: existingProject.priceRange?.min?.toString() || '',
+          max: existingProject.priceRange?.max?.toString() || '',
+          unit: existingProject.priceRange?.unit || 'lakh'
+        },
+        totalUnits: existingProject.totalUnits?.toString() || '',
+        availableUnits: existingProject.availableUnits?.toString() || '',
+        completionDate: existingProject.completionDate || '',
+        possessionDate: existingProject.possessionDate || '',
+        launchDate: existingProject.launchDate || '',
         amenities: existingProject.amenities || [],
-        images: existingProject.images || []
+        images: existingProject.images || [],
+        videos: existingProject.videos || [],
+        brochures: existingProject.brochures || [],
+        reraNumber: existingProject.reraNumber || ''
       });
+      
+      // Set available cities based on existing state
+      if (existingProject.location?.state) {
+        setAvailableCities(getCitiesByState(existingProject.location.state));
+      }
       setAmenities(existingProject.amenities || []);
     }
   }, [existingProject, profile]);
@@ -70,10 +109,7 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
 
     try {
       console.log('Fetching developer profile for user_id:', profile.id);
-      const { data, error } = await apiClient
-        
-        
-        .maybeSingle();
+      const { data, error } = await apiClient.getMyDeveloperProfile();
 
       console.log('Developer profile query result:', { data, error });
 
@@ -82,9 +118,9 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
         throw error;
       }
       
-      if (data) {
-        console.log('Developer profile found:', data);
-        setDeveloperProfile(data);
+      if (data?.developer) {
+        console.log('Developer profile found:', data.developer);
+        setDeveloperProfile(data.developer);
       } else {
         console.log('No developer profile found for user');
         toast({
@@ -110,6 +146,36 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     }));
   };
 
+  const handleLocationChange = (field: string, value: string) => {
+    setFormData(prev => {
+      const newLocation = {
+        ...prev.location,
+        [field]: value
+      };
+      
+      // If state changes, reset city and update available cities
+      if (field === 'state') {
+        newLocation.city = '';
+        setAvailableCities(getCitiesByState(value));
+      }
+      
+      return {
+        ...prev,
+        location: newLocation
+      };
+    });
+  };
+
+  const handlePriceRangeChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      priceRange: {
+        ...prev.priceRange,
+        [field]: value
+      }
+    }));
+  };
+
   const addAmenity = () => {
     if (newAmenity.trim() && !amenities.includes(newAmenity.trim())) {
       const updatedAmenities = [...amenities, newAmenity.trim()];
@@ -123,6 +189,82 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     const updatedAmenities = amenities.filter(a => a !== amenity);
     setAmenities(updatedAmenities);
     setFormData(prev => ({ ...prev, amenities: updatedAmenities }));
+  };
+
+  const handleFileUpload = async (file: File, type: 'images' | 'videos' | 'brochures') => {
+    if (!file) return;
+
+    // Validate file types
+    if (type === 'images' && !file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please select an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (type === 'videos' && !file.type.startsWith('video/')) {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please select a video file',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (type === 'brochures' && file.type !== 'application/pdf') {
+      toast({
+        title: 'Invalid File Type',
+        description: 'Please select a PDF file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'File Too Large',
+        description: 'File size must be less than 10MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploading(prev => ({ ...prev, [type]: true }));
+
+    try {
+      const { data, error } = await apiClient.uploadSingleFile(file, `project_${type}`);
+
+      if (error) throw error;
+
+      setFormData(prev => ({
+        ...prev,
+        [type]: [...prev[type], data.url]
+      }));
+
+      toast({
+        title: 'Upload Successful',
+        description: `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`,
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload Failed',
+        description: 'Failed to upload file. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploading(prev => ({ ...prev, [type]: false }));
+    }
+  };
+
+  const removeFile = (type: 'images' | 'videos' | 'brochures', index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      [type]: prev[type].filter((_, i) => i !== index)
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,29 +293,33 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     try {
       const projectData = {
         name: formData.name,
-        location: formData.location,
         description: formData.description,
-        builder: formData.builder,
-        project_type: formData.project_type,
+        projectType: formData.projectType,
         status: formData.status,
-        price_range: formData.price_range,
-        total_units: formData.total_units ? parseInt(formData.total_units) : null,
-        available_units: formData.available_units ? parseInt(formData.available_units) : null,
-        completion_date: formData.completion_date || null,
+        location: formData.location,
+        priceRange: {
+          min: parseFloat(formData.priceRange.min) || 0,
+          max: parseFloat(formData.priceRange.max) || 0,
+          unit: formData.priceRange.unit
+        },
+        totalUnits: formData.totalUnits ? parseInt(formData.totalUnits) : null,
+        availableUnits: formData.availableUnits ? parseInt(formData.availableUnits) : null,
+        completionDate: formData.completionDate || null,
+        possessionDate: formData.possessionDate || null,
+        launchDate: formData.launchDate || null,
         amenities: formData.amenities,
         images: formData.images,
-        developer_id: developerProfile.id
+        videos: formData.videos,
+        brochures: formData.brochures,
+        reraNumber: formData.reraNumber
       };
 
       if (existingProject) {
-        const { error } = await apiClient
-          (projectData)
-          ;
+        const { error } = await apiClient.updateProject(existingProject.id, projectData);
         
         if (error) throw error;
       } else {
-        const { error } = await apiClient
-          (projectData);
+        const { error } = await apiClient.createProject(projectData);
         
         if (error) throw error;
       }
@@ -224,34 +370,12 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Project Name</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="builder">Builder/Developer</Label>
-              <Input
-                id="builder"
-                value={formData.builder}
-                onChange={(e) => handleInputChange('builder', e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
           <div>
-            <Label htmlFor="location">Location</Label>
+            <Label htmlFor="name">Project Name</Label>
             <Input
-              id="location"
-              value={formData.location}
-              onChange={(e) => handleInputChange('location', e.target.value)}
+              id="name"
+              value={formData.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
               required
             />
           </div>
@@ -266,18 +390,70 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
             />
           </div>
 
+          {/* Location Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Location Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={formData.location.address}
+                  onChange={(e) => handleLocationChange('address', e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="state">State</Label>
+                <Select value={formData.location.state} onValueChange={(value) => handleLocationChange('state', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAllStates().map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Select 
+                  value={formData.location.city} 
+                  onValueChange={(value) => handleLocationChange('city', value)}
+                  disabled={!formData.location.state}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formData.location.state ? "Select City" : "Select State first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCities.map((city) => (
+                      <SelectItem key={city} value={city}>
+                        {city}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="project_type">Project Type</Label>
-              <Select value={formData.project_type} onValueChange={(value) => handleInputChange('project_type', value)}>
+              <Label htmlFor="projectType">Project Type</Label>
+              <Select value={formData.projectType} onValueChange={(value) => handleInputChange('projectType', value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="residential">Residential</SelectItem>
                   <SelectItem value="commercial">Commercial</SelectItem>
-                  <SelectItem value="luxury_villas">Luxury Villas</SelectItem>
                   <SelectItem value="mixed_use">Mixed Use</SelectItem>
+                  <SelectItem value="industrial">Industrial</SelectItem>
+                  <SelectItem value="hospitality">Hospitality</SelectItem>
+                  <SelectItem value="retail">Retail</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -289,55 +465,250 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="planned">Planned</SelectItem>
-                  <SelectItem value="ongoing">Ongoing</SelectItem>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="under_construction">Under Construction</SelectItem>
+                  <SelectItem value="ready_to_move">Ready to Move</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="on_hold">On Hold</SelectItem>
+                  <SelectItem value="sold_out">Sold Out</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label htmlFor="completion_date">Expected Completion</Label>
+              <Label htmlFor="reraNumber">RERA Number</Label>
               <Input
-                id="completion_date"
-                type="date"
-                value={formData.completion_date}
-                onChange={(e) => handleInputChange('completion_date', e.target.value)}
+                id="reraNumber"
+                value={formData.reraNumber}
+                onChange={(e) => handleInputChange('reraNumber', e.target.value)}
+                placeholder="e.g., P51700012345"
               />
+            </div>
+          </div>
+
+          {/* Price Range Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Price Range</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="priceMin">Minimum Price</Label>
+                <Input
+                  id="priceMin"
+                  type="number"
+                  value={formData.priceRange.min}
+                  onChange={(e) => handlePriceRangeChange('min', e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="priceMax">Maximum Price</Label>
+                <Input
+                  id="priceMax"
+                  type="number"
+                  value={formData.priceRange.max}
+                  onChange={(e) => handlePriceRangeChange('max', e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="priceUnit">Price Unit</Label>
+                <Select value={formData.priceRange.unit} onValueChange={(value) => handlePriceRangeChange('unit', value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lakh">Lakh</SelectItem>
+                    <SelectItem value="crore">Crore</SelectItem>
+                    <SelectItem value="sqft">Per Sq Ft</SelectItem>
+                    <SelectItem value="sqm">Per Sq M</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="price_range">Price Range</Label>
+              <Label htmlFor="totalUnits">Total Units</Label>
               <Input
-                id="price_range"
-                placeholder="e.g., ₹50L - ₹1.2Cr"
-                value={formData.price_range}
-                onChange={(e) => handleInputChange('price_range', e.target.value)}
-                required
+                id="totalUnits"
+                type="number"
+                value={formData.totalUnits}
+                onChange={(e) => handleInputChange('totalUnits', e.target.value)}
               />
             </div>
 
             <div>
-              <Label htmlFor="total_units">Total Units</Label>
+              <Label htmlFor="availableUnits">Available Units</Label>
               <Input
-                id="total_units"
+                id="availableUnits"
                 type="number"
-                value={formData.total_units}
-                onChange={(e) => handleInputChange('total_units', e.target.value)}
+                value={formData.availableUnits}
+                onChange={(e) => handleInputChange('availableUnits', e.target.value)}
               />
             </div>
 
             <div>
-              <Label htmlFor="available_units">Available Units</Label>
+              <Label htmlFor="completionDate">Expected Completion</Label>
               <Input
-                id="available_units"
-                type="number"
-                value={formData.available_units}
-                onChange={(e) => handleInputChange('available_units', e.target.value)}
+                id="completionDate"
+                type="date"
+                value={formData.completionDate}
+                onChange={(e) => handleInputChange('completionDate', e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="possessionDate">Possession Date</Label>
+              <Input
+                id="possessionDate"
+                type="date"
+                value={formData.possessionDate}
+                onChange={(e) => handleInputChange('possessionDate', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="launchDate">Launch Date</Label>
+              <Input
+                id="launchDate"
+                type="date"
+                value={formData.launchDate}
+                onChange={(e) => handleInputChange('launchDate', e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Media Upload Section */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold">Project Media</h3>
+            
+            {/* Brochures Upload */}
+            <div className="space-y-2">
+              <Label>Project Brochures (PDF)</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'brochures');
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id="brochure-upload"
+                />
+                <label htmlFor="brochure-upload" className="cursor-pointer flex flex-col items-center">
+                  {uploading.brochures ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span>Uploading...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span>Click to upload PDF brochure</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+              {formData.brochures.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.brochures.map((brochure, index) => (
+                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      Brochure {index + 1}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile('brochures', index)} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Images Upload */}
+            <div className="space-y-2">
+              <Label>Project Images</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'images');
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id="image-upload"
+                />
+                <label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center">
+                  {uploading.images ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span>Uploading...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Image className="h-4 w-4" />
+                      <span>Click to upload project images</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+              {formData.images.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.images.map((image, index) => (
+                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                      <Image className="h-3 w-3" />
+                      Image {index + 1}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile('images', index)} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Videos Upload */}
+            <div className="space-y-2">
+              <Label>Project Videos</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file, 'videos');
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id="video-upload"
+                />
+                <label htmlFor="video-upload" className="cursor-pointer flex flex-col items-center">
+                  {uploading.videos ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span>Uploading...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4" />
+                      <span>Click to upload project videos</span>
+                    </div>
+                  )}
+                </label>
+              </div>
+              {formData.videos.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.videos.map((video, index) => (
+                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                      <Video className="h-3 w-3" />
+                      Video {index + 1}
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile('videos', index)} />
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

@@ -89,10 +89,6 @@ router.post('/',
       .trim()
       .isLength({ max: 2000 })
       .withMessage('Description must not exceed 2000 characters'),
-    body('builder')
-      .trim()
-      .isLength({ min: 2, max: 100 })
-      .withMessage('Builder name must be between 2 and 100 characters'),
     body('projectType')
       .isIn(['residential', 'commercial', 'mixed_use', 'industrial', 'hospitality', 'retail'])
       .withMessage('Invalid project type'),
@@ -184,9 +180,9 @@ router.put('/:id',
     }
 
     const allowedUpdates = [
-      'name', 'description', 'builder', 'projectType', 'location', 'priceRange',
+      'name', 'description', 'projectType', 'location', 'priceRange',
       'totalUnits', 'availableUnits', 'completionDate', 'possessionDate',
-      'launchDate', 'amenities', 'status', 'reraNumber', 'approvals'
+      'launchDate', 'amenities', 'images', 'videos', 'brochures', 'status', 'reraNumber', 'approvals'
     ];
 
     const updates = {};
