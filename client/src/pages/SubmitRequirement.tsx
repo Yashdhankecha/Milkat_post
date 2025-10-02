@@ -309,7 +309,6 @@ const SubmitRequirement = () => {
                         <SelectContent>
                           <SelectItem value="buy">Buy</SelectItem>
                           <SelectItem value="rent">Rent</SelectItem>
-                          <SelectItem value="lease">Lease</SelectItem>
                           <SelectItem value="invest">Invest</SelectItem>
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>

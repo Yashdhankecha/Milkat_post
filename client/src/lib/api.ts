@@ -522,7 +522,7 @@ class ApiClient {
   }
 
   // Cloudinary upload methods
-  async uploadSingleFile(file: File, documentType?: string) {
+  async uploadSingleFile(file: File, documentType?: string, folder?: string) {
     // First check if server is reachable
     const isServerReachable = await this.checkServerConnection();
     if (!isServerReachable) {
@@ -536,6 +536,9 @@ class ApiClient {
     formData.append('file', file);
     if (documentType) {
       formData.append('documentType', documentType);
+    }
+    if (folder) {
+      formData.append('folder', folder);
     }
 
     const headers: HeadersInit = {};

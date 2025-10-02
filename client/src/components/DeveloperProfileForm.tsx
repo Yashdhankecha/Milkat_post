@@ -115,6 +115,20 @@ interface DeveloperProfileFormProps {
 const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFormProps) => {
   const { profile } = useProfile();
   const { toast } = useToast();
+
+  // Function to format website URL
+  const formatWebsiteUrl = (url: string): string => {
+    if (!url.trim()) return '';
+    
+    let formattedUrl = url.trim();
+    
+    // If it doesn't start with http:// or https://, add https://
+    if (!formattedUrl.match(/^https?:\/\//i)) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+    
+    return formattedUrl;
+  };
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<DeveloperProfile>({
     companyName: '',
@@ -245,7 +259,7 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
         companyName: formData.companyName.trim(),
         ...(formData.companyDescription && { companyDescription: formData.companyDescription.trim() }),
         ...(formData.establishedYear && { establishedYear: parseInt(formData.establishedYear.toString()) }),
-        ...(formData.website && formData.website.trim() && { website: formData.website.trim() }),
+        ...(formData.website && formData.website.trim() && { website: formatWebsiteUrl(formData.website.trim()) }),
         ...(formData.contactInfo && Object.keys(formData.contactInfo).length > 0 && { contactInfo: formData.contactInfo }),
         ...(formData.socialMedia && Object.keys(formData.socialMedia).length > 0 && { socialMedia: formData.socialMedia }),
         ...(formData.businessType && { businessType: formData.businessType }),
@@ -403,9 +417,12 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
                 <Input
                   id="website"
                   type="url"
-                  placeholder="https://www.yourcompany.com"
+                  placeholder="www.yourcompany.com"
                   value={formData.website}
-                  onChange={(e) => handleInputChange('website', e.target.value)}
+                  onChange={(e) => {
+                    const formattedUrl = formatWebsiteUrl(e.target.value);
+                    handleInputChange('website', formattedUrl);
+                  }}
                   className="pl-10"
                 />
               </div>

@@ -8,17 +8,33 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, MapPin, Calendar, Building, IndianRupee } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ProjectCard from "@/components/ProjectCard";
 
 interface Project {
-  id: string;
+  _id: string;
   name: string;
   description: string;
-  location: string;
-  price_range: string;
-  completion_date: string;
-  images: string[];
-  builder: string;
+  location: {
+    address: string;
+    city: string;
+    state: string;
+    country: string;
+  };
+  priceRange: {
+    min: number;
+    max: number;
+    unit: string;
+  };
+  completionDate: string;
+  images: any[];
+  developer: {
+    _id: string;
+    phone: string;
+  };
   status: string;
+  projectType: string;
+  totalUnits: number;
+  availableUnits: number;
 }
 
 const Projects = () => {
@@ -53,7 +69,7 @@ const Projects = () => {
       const result = await apiClient.getProjects();
 
       if (result.error) throw result.error;
-      setProjects(result.data || []);
+      setProjects(result.data?.projects || []);
     } catch (error) {
       console.error('Error fetching projects:', error);
       toast({
@@ -68,16 +84,34 @@ const Projects = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
-        return 'bg-estate-success text-white';
-      case 'ongoing':
-        return 'bg-estate-blue text-white';
+      case 'ready_to_move':
+        return 'bg-green-500 text-white';
+      case 'under_construction':
+        return 'bg-blue-500 text-white';
       case 'planning':
-        return 'bg-estate-warning text-white';
+        return 'bg-yellow-500 text-white';
+      case 'launched':
+        return 'bg-purple-500 text-white';
       default:
-        return 'bg-estate-gray text-white';
+        return 'bg-gray-500 text-white';
     }
   };
+
+  const formatStatus = (status: string) => {
+    switch (status) {
+      case 'ready_to_move':
+        return 'Ready to Move';
+      case 'under_construction':
+        return 'Under Construction';
+      case 'planning':
+        return 'Planning';
+      case 'launched':
+        return 'Launched';
+      default:
+        return status;
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -118,8 +152,9 @@ const Projects = () => {
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="planning">Planning</SelectItem>
-                    <SelectItem value="ongoing">Ongoing</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="under_construction">Under Construction</SelectItem>
+                    <SelectItem value="ready_to_move">Ready to Move</SelectItem>
+                    <SelectItem value="launched">Launched</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -159,60 +194,24 @@ const Projects = () => {
           ) : projects.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {projects.map((project) => (
-                <Card key={project.id} className="overflow-hidden hover:shadow-medium transition-shadow cursor-pointer">
-                  <div className="relative h-48 bg-gradient-card">
-                    {project.images && project.images[0] ? (
-                      <img
-                        src={project.images[0]}
-                        alt={project.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Building className="w-16 h-16 text-estate-gray" />
-                      </div>
-                    )}
-                    <div className="absolute top-3 left-3">
-                      <Badge className={getStatusColor(project.status)}>
-                        {project.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  <CardContent className="p-6">
-                    <h3 className="text-xl font-semibold mb-2">{project.name}</h3>
-                    
-                    <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                      <div className="flex items-center">
-                        <MapPin className="w-4 h-4 mr-2" />
-                        <span>{project.location}</span>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <Building className="w-4 h-4 mr-2" />
-                        <span>by {project.builder}</span>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <IndianRupee className="w-4 h-4 mr-2" />
-                        <span>{project.price_range}</span>
-                      </div>
-                      
-                      {project.completion_date && (
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-2" />
-                          <span>Completion: {new Date(project.completion_date).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {project.description && (
-                      <p className="text-muted-foreground text-sm line-clamp-3">
-                        {project.description}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
+                <ProjectCard
+                  key={project._id}
+                  id={project._id}
+                  name={project.name}
+                  location={`${project.location?.city || ''}, ${project.location?.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')}
+                  price_range={`₹${project.priceRange?.min || 0} - ₹${project.priceRange?.max || 0} ${project.priceRange?.unit || ''}`}
+                  completion_date={project.completionDate}
+                  images={project.images?.map((img: any) => {
+                    if (!img) return null;
+                    return typeof img === 'string' ? img : img?.url || null;
+                  }).filter(Boolean) || []}
+                  status={project.status === 'under_construction' ? 'ongoing' : 
+                          project.status === 'ready_to_move' ? 'completed' :
+                          project.status === 'planning' ? 'planned' : project.status}
+                  project_type={project.projectType || 'residential'}
+                  total_units={project.totalUnits}
+                  available_units={project.availableUnits}
+                />
               ))}
             </div>
           ) : (

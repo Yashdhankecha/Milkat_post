@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
 import { 
   Building2, 
   Users, 
@@ -15,7 +14,6 @@ import {
   Download,
   Eye,
   TrendingUp,
-  Calendar,
   AlertCircle,
   CheckCircle,
   Clock,
@@ -25,15 +23,12 @@ import {
   BarChart3,
   Home,
   Shield,
-  Zap,
   ArrowRight,
-  ChevronRight,
   Mail,
   Phone,
   MapPin,
   ExternalLink,
   Sparkles,
-  Target,
   TrendingDown
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -638,117 +633,6 @@ const SocietyMemberDashboard: React.FC = () => {
                 </Card>
               </div>
 
-              {/* Recent Projects */}
-              {projects.length > 0 ? (
-                <Card className="border-0 shadow-2xl bg-gradient-to-br from-white to-gray-50">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
-                        <Zap className="h-6 w-6 text-indigo-600" />
-                        Recent Redevelopment Projects
-                      </CardTitle>
-                      <Button
-                        onClick={() => setActiveTab('redevelopment')}
-                        variant="outline"
-                        className="border-2 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 rounded-xl"
-                      >
-                        View All
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {projects.slice(0, 3).map((project) => (
-                        <Card key={project._id} className="border-2 border-gray-200 hover:border-indigo-400 hover:shadow-lg transition-all duration-300 overflow-hidden group">
-                          <CardContent className="p-6">
-                            <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-                              <div className="flex-1 space-y-3">
-                                <div className="flex items-start gap-3">
-                                  <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 group-hover:scale-110 transition-transform duration-300">
-                                    <Building2 className="h-6 w-6 text-white" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                      <h4 className="font-bold text-xl text-gray-800">{project.title}</h4>
-                                      <Badge className={`${getStatusColor(project.status)} shadow-md px-3 py-1`}>
-                                        {project.status.replace('_', ' ').toUpperCase()}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-gray-600 mt-2 line-clamp-2 text-sm">
-                                      {project.description}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-4 text-sm">
-                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50">
-                                    <TrendingUp className="h-4 w-4 text-indigo-600" />
-                                    <span className="font-semibold text-gray-700">{project.progress}% Complete</span>
-                                  </div>
-
-                                  {project.votingResults && (
-                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50">
-                                      <Vote className="h-4 w-4 text-green-600" />
-                                      <span className="font-semibold text-gray-700">{project.votingResults.approvalPercentage}% Approval</span>
-                                    </div>
-                                  )}
-
-                                  {project.estimatedBudget && (
-                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-purple-50 to-pink-50">
-                                      <Target className="h-4 w-4 text-purple-600" />
-                                      <span className="font-semibold text-gray-700">{formatCurrency(project.estimatedBudget)}</span>
-                                    </div>
-                                  )}
-
-                                  {project.createdAt && (
-                                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-gray-50 to-slate-50">
-                                      <Calendar className="h-4 w-4 text-gray-600" />
-                                      <span className="font-semibold text-gray-700">{formatDate(project.createdAt)}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Progress Bar */}
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-600 font-medium">Project Progress</span>
-                                    <span className="text-indigo-600 font-bold">{project.progress}%</span>
-                                  </div>
-                                  <Progress value={project.progress} className="h-2" />
-                                </div>
-                              </div>
-
-                              <Button 
-                                onClick={() => setActiveTab('redevelopment')}
-                                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6"
-                              >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                                <ArrowRight className="h-4 w-4 ml-2" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="border-0 shadow-2xl bg-gradient-to-br from-white to-gray-50">
-                  <CardContent className="text-center py-16">
-                    <div className="inline-flex p-6 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 mb-6">
-                      <Building2 className="h-16 w-16 text-white" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                      No Redevelopment Projects
-                    </h3>
-                    <p className="text-gray-600 max-w-md mx-auto text-lg">
-                      No redevelopment projects are currently active in your society. Check back later for updates!
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
             </TabsContent>
 
             <TabsContent value="invitations">

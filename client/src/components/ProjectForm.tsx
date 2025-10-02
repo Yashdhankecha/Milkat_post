@@ -126,9 +126,9 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
         },
         totalUnits: existingProject.totalUnits?.toString() || '',
         availableUnits: existingProject.availableUnits?.toString() || '',
-        completionDate: existingProject.completionDate || '',
-        possessionDate: existingProject.possessionDate || '',
-        launchDate: existingProject.launchDate || '',
+        completionDate: existingProject.completionDate ? new Date(existingProject.completionDate).toISOString().split('T')[0] : '',
+        possessionDate: existingProject.possessionDate ? new Date(existingProject.possessionDate).toISOString().split('T')[0] : '',
+        launchDate: existingProject.launchDate ? new Date(existingProject.launchDate).toISOString().split('T')[0] : '',
         amenities: existingProject.amenities || [],
         images: existingProject.images?.map((img: any) => 
           typeof img === 'string' ? { url: img, caption: '', isPrimary: false } : (img as MediaItem)
@@ -286,7 +286,7 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     setUploading(prev => ({ ...prev, [type]: true }));
 
     try {
-      const { data, error } = await apiClient.uploadSingleFile(file, `project_${type}`);
+      const { data, error } = await apiClient.uploadSingleFile(file, `project_${type}`, `nestly_estate/project_${type}`);
 
       if (error) throw error;
 

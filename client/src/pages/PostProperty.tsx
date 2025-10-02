@@ -139,12 +139,29 @@ const PostProperty = () => {
   };
 
   const addOtherAmenity = () => {
-    if (otherAmenity.trim() && !formData.amenities.includes(otherAmenity.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        amenities: [...prev.amenities, otherAmenity.trim()]
-      }));
-      setOtherAmenity('');
+    const amenity = otherAmenity.trim();
+    if (amenity && !formData.amenities.includes(amenity)) {
+      // Check if this amenity can be mapped to a valid server enum value
+      const mappedAmenity = amenity.toLowerCase().replace(/\s+/g, '_');
+      const validServerAmenities = [
+        'parking', 'security', 'gym', 'swimming_pool', 'garden', 'playground',
+        'clubhouse', 'power_backup', 'water_supply', 'elevator', 'balcony',
+        'terrace', 'modular_kitchen', 'wardrobe', 'ac', 'furnished', 'semi_furnished'
+      ];
+      
+      if (validServerAmenities.includes(mappedAmenity)) {
+        setFormData(prev => ({
+          ...prev,
+          amenities: [...prev.amenities, amenity]
+        }));
+        setOtherAmenity('');
+      } else {
+        toast({
+          title: "Invalid amenity",
+          description: "This amenity is not supported. Please choose from the predefined list or use a supported amenity.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -353,7 +370,11 @@ const PostProperty = () => {
   const removeImage = (imageUrl: string) => {
     setFormData(prev => ({
       ...prev,
-      images: prev.images.filter(img => img !== imageUrl)
+      images: prev.images.filter(img => {
+        // Handle both string and object formats
+        const currentUrl = typeof img === 'string' ? img : img.url;
+        return currentUrl !== imageUrl;
+      })
     }));
   };
 
@@ -502,7 +523,7 @@ const PostProperty = () => {
           'Redevelopment': 'lease'
         };
 
-        // Map amenities to backend enum values
+        // Map amenities to backend enum values (only valid server enum values)
         const amenityMap: { [key: string]: string } = {
           'Swimming Pool': 'swimming_pool',
           'Gym/Fitness Center': 'gym',
@@ -513,12 +534,18 @@ const PostProperty = () => {
           'Garden/Landscaping': 'garden',
           'Playground': 'playground',
           'Club House': 'clubhouse',
-          'Internet/Wi-Fi': 'water_supply', // Using water_supply as closest match
           'Air Conditioning': 'ac',
           'Balcony': 'balcony',
           'Furnished': 'furnished',
           'Semi-Furnished': 'semi_furnished'
         };
+
+        // Valid server enum values for validation
+        const validAmenities = [
+          'parking', 'security', 'gym', 'swimming_pool', 'garden', 'playground',
+          'clubhouse', 'power_backup', 'water_supply', 'elevator', 'balcony',
+          'terrace', 'modular_kitchen', 'wardrobe', 'ac', 'furnished', 'semi_furnished'
+        ];
 
         // Prepare data for API call
         const propertyData = {
@@ -554,7 +581,22 @@ const PostProperty = () => {
             url: url,
             caption: `Property video ${index + 1}`
           })),
-          amenities: formData.amenities.map(amenity => amenityMap[amenity] || amenity.toLowerCase().replace(/\s+/g, '_'))
+          amenities: (() => {
+            const mappedAmenities = formData.amenities.map(amenity => amenityMap[amenity] || amenity.toLowerCase().replace(/\s+/g, '_'));
+            const validAmenitiesList = mappedAmenities.filter(amenity => validAmenities.includes(amenity));
+            
+            // Show warning if some amenities were filtered out
+            const invalidCount = mappedAmenities.length - validAmenitiesList.length;
+            if (invalidCount > 0) {
+              toast({
+                title: "Some amenities removed",
+                description: `${invalidCount} amenity(ies) were removed as they are not supported. Only predefined amenities are allowed.`,
+                variant: "destructive",
+              });
+            }
+            
+            return validAmenitiesList;
+          })()
         };
 
         // Debug: Log the data being sent
@@ -787,7 +829,7 @@ const PostProperty = () => {
                         id="other-amenity"
                         value={otherAmenity}
                         onChange={(e) => setOtherAmenity(e.target.value)}
-                        placeholder="Enter a custom amenity"
+                        placeholder="e.g., terrace, wardrobe, modular kitchen"
                         onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addOtherAmenity())}
                       />
                       <Button 
@@ -800,6 +842,9 @@ const PostProperty = () => {
                         Add Amenity
                       </Button>
                     </div>
+                    <p className="text-xs text-gray-500">
+                      Supported amenities: terrace, wardrobe, modular kitchen, water supply
+                    </p>
                   </div>
                   
                   {/* Selected Amenities Display */}
@@ -878,18 +923,18 @@ const PostProperty = () => {
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                                     onError={(e) => {
                                       console.error('Image failed to load:', imageUrl);
-                                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2UgRXJyb3I8L3RleHQ+PC9zdmc+';
-                                  }}
-                                />
+                                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YzZjRmNiIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSIjOWNhM2FmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2UgRXJyb3I8L3RleHQ+PC9zdmc+';
+                                    }}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeImage(imageUrl)}
+                                  className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => removeImage(imageUrl)}
-                                className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
                             );
                           })}
                         </div>

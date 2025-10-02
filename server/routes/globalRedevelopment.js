@@ -80,15 +80,32 @@ router.get('/projects', authenticate, async (req, res) => {
       });
     }
     
+    // Add proposal status for each project
+    const projectsWithProposalStatus = await Promise.all(projects.map(async (project) => {
+      const projectObj = project.toObject();
+      
+      // Check if current developer has submitted a proposal for this project
+      const existingProposal = await DeveloperProposal.findOne({
+        redevelopmentProject: project._id,
+        developer: req.user._id
+      });
+      
+      projectObj.hasProposal = !!existingProposal;
+      projectObj.proposalStatus = existingProposal ? existingProposal.status : null;
+      
+      return projectObj;
+    }));
+    
     // Apply pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    const paginatedProjects = projects.slice(skip, skip + parseInt(limit));
+    const paginatedProjects = projectsWithProposalStatus.slice(skip, skip + parseInt(limit));
     
     console.log('Found projects:', paginatedProjects.length);
     
     if (paginatedProjects.length > 0) {
-      console.log('Sample project structure:', Object.keys(paginatedProjects[0].toObject()));
+      console.log('Sample project structure:', Object.keys(paginatedProjects[0]));
       console.log('Sample society data:', paginatedProjects[0].society);
+      console.log('Sample proposal status:', paginatedProjects[0].proposalStatus);
     }
     
     const response = {
@@ -123,7 +140,7 @@ router.get('/projects', authenticate, async (req, res) => {
 });
 
 // Get specific redevelopment project details (for builders)
-router.get('/projects/:projectId', authenticate, async (req, res) => {
+router.get('/projects/:projectId', async (req, res) => {
   try {
     const { projectId } = req.params;
     
@@ -139,11 +156,14 @@ router.get('/projects/:projectId', authenticate, async (req, res) => {
       });
     }
     
-    // Check if developer has already submitted a proposal
-    const existingProposal = await DeveloperProposal.findOne({
-      redevelopmentProject: projectId,
-      developer: req.user._id
-    });
+    // Check if developer has already submitted a proposal (only if authenticated)
+    let existingProposal = null;
+    if (req.user && req.user._id) {
+      existingProposal = await DeveloperProposal.findOne({
+        redevelopmentProject: projectId,
+        developer: req.user._id
+      });
+    }
     
     const projectObj = project.toObject();
     projectObj.hasProposal = !!existingProposal;
@@ -177,7 +197,8 @@ router.post('/projects/:projectId/proposals', authenticate, async (req, res) => 
       amenities,
       financialBreakdown,
       developerCredentials,
-      additionalTerms
+      additionalTerms,
+      documents
     } = req.body;
     
     // Validation
@@ -272,6 +293,7 @@ router.post('/projects/:projectId/proposals', authenticate, async (req, res) => 
       financialBreakdown: financialBreakdown || {},
       developerCredentials: developerCredentials || {},
       additionalTerms: additionalTerms || '',
+      documents: documents || [], // Include uploaded documents
       status: 'submitted',
       metadata: {
         source: 'global_tender',

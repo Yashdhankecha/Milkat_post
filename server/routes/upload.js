@@ -45,67 +45,47 @@ const upload = multer({
   }
 });
 
-// Helper function to upload file to Cloudinary or save locally for development
-const uploadToCloudinary = async (filePath, options = {}) => {
+// Helper function to save files locally on server (both development and production)
+const uploadToServer = async (filePath, options = {}) => {
   try {
-    console.log('Uploading file:', { filePath, options });
+    console.log('Saving file to server:', { filePath, options });
     
-     // Check if Cloudinary is properly configured
-     const config = (await import('../config-loader.js')).default;
-     const isCloudinaryConfigured = config.CLOUDINARY_CLOUD_NAME && 
-                                    config.CLOUDINARY_CLOUD_NAME !== 'your-cloudinary-cloud-name' &&
-                                    config.CLOUDINARY_API_KEY && 
-                                    config.CLOUDINARY_API_KEY !== 'your-cloudinary-api-key' &&
-                                    config.CLOUDINARY_API_SECRET &&
-                                    config.CLOUDINARY_API_SECRET !== 'your-cloudinary-api-secret';
+    const stats = fs.statSync(filePath);
+    const fileName = path.basename(filePath);
+    const publicId = `server_${Date.now()}_${Math.round(Math.random() * 1E9)}`;
     
-    if (isCloudinaryConfigured) {
-      // Use Cloudinary if properly configured
-      const result = await cloudinary.uploader.upload(filePath, {
-        resource_type: 'auto', // Automatically detect image or video
-        folder: 'nestly_estate',
-        ...options
-      });
-      
-      console.log('Cloudinary upload successful:', result.public_id);
-      
-      // Delete temporary file
-      fs.unlinkSync(filePath);
-      
-      return result;
-    } else {
-      // For development: save file locally and return mock Cloudinary response
-      console.log('Cloudinary not configured, saving file locally for development');
-      
-      const stats = fs.statSync(filePath);
-      const fileName = path.basename(filePath);
-      const publicId = `local_${Date.now()}_${Math.round(Math.random() * 1E9)}`;
-      
-      // Move file from temp-uploads to uploads directory
-      const uploadsDir = path.join(path.dirname(filePath), '../uploads');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-      const newFilePath = path.join(uploadsDir, fileName);
-      fs.renameSync(filePath, newFilePath);
-      
-      // Create a mock Cloudinary response
-      const mockResult = {
-        public_id: publicId,
-        secure_url: `http://localhost:5000/uploads/${fileName}`,
-        url: `http://localhost:5000/uploads/${fileName}`,
-        resource_type: 'raw', // Use 'raw' for documents
-        format: path.extname(fileName).substring(1),
-        bytes: stats.size,
-        width: null,
-        height: null,
-        created_at: new Date().toISOString()
-      };
-      
-      console.log('File saved locally:', newFilePath);
-      
-      return mockResult;
+    // Move file from temp-uploads to uploads directory with folder structure
+    const baseUploadsDir = path.join(path.dirname(filePath), '../uploads');
+    const folderPath = options.folder ? options.folder.replace('nestly_estate/', '') : 'general';
+    const uploadsDir = path.join(baseUploadsDir, folderPath);
+    
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
     }
+    const newFilePath = path.join(uploadsDir, fileName);
+    fs.renameSync(filePath, newFilePath);
+    
+    // Get server base URL from environment or use default
+    const serverBaseUrl = process.env.SERVER_BASE_URL || 'http://localhost:5000';
+    
+    // Create response object similar to Cloudinary
+    const relativePath = path.relative(baseUploadsDir, newFilePath).replace(/\\/g, '/');
+    const result = {
+      public_id: publicId,
+      secure_url: `${serverBaseUrl}/uploads/${relativePath}`,
+      url: `${serverBaseUrl}/uploads/${relativePath}`,
+      resource_type: 'raw', // Use 'raw' for documents
+      format: path.extname(fileName).substring(1),
+      bytes: stats.size,
+      width: null,
+      height: null,
+      created_at: new Date().toISOString()
+    };
+    
+    console.log('File saved to server:', newFilePath);
+    console.log('Access URL:', result.url);
+    
+    return result;
   } catch (error) {
     console.error('Upload error:', error);
     // Clean up temp file on error
@@ -121,11 +101,26 @@ const saveMediaToDB = async (cloudinaryResult, userId, additionalData = {}) => {
   try {
     console.log('Saving media to database:', { userId, additionalData });
     
+    // Extract format from file extension if not provided by Cloudinary
+    let format = cloudinaryResult.format;
+    if (!format && cloudinaryResult.secure_url) {
+      const url = cloudinaryResult.secure_url;
+      const match = url.match(/\.([^.]+)(?:\?|$)/);
+      if (match) {
+        format = match[1].toLowerCase();
+      }
+    }
+    
+    // Fallback format for raw files
+    if (!format) {
+      format = 'unknown';
+    }
+    
     const media = new Media({
       url: cloudinaryResult.secure_url,
       public_id: cloudinaryResult.public_id,
       resource_type: cloudinaryResult.resource_type,
-      format: cloudinaryResult.format,
+      format: format,
       bytes: cloudinaryResult.bytes,
       width: cloudinaryResult.width,
       height: cloudinaryResult.height,
@@ -134,7 +129,7 @@ const saveMediaToDB = async (cloudinaryResult, userId, additionalData = {}) => {
     });
     
     const savedMedia = await media.save();
-    console.log('Media saved to database:', savedMedia._id);
+    console.log('Media saved to database:', savedMedia._id, 'Format:', format);
     return savedMedia;
   } catch (error) {
     console.error('Error saving media to database:', error);
@@ -161,7 +156,7 @@ router.post('/single',
       
       // Determine upload folder based on context
       let uploadOptions = {
-        folder: 'nestly_estate/general'
+        folder: req.body.folder || 'nestly_estate/general'
       };
       
       // Check if this is a society document upload (based on request headers or body)
@@ -171,11 +166,17 @@ router.post('/single',
         uploadOptions.tags = ['society_document', documentType];
       }
       
-      // Upload to Cloudinary
-      const cloudinaryResult = await uploadToCloudinary(req.file.path, uploadOptions);
+      // For proposal documents, use the specified folder
+      if (req.body.folder === 'proposal_documents') {
+        uploadOptions.folder = 'nestly_estate/proposal_documents';
+        uploadOptions.tags = ['proposal_document'];
+      }
+      
+      // Upload to server
+      const uploadResult = await uploadToServer(req.file.path, uploadOptions);
       
       // Save to database
-      const media = await saveMediaToDB(cloudinaryResult, req.user._id, {
+      const media = await saveMediaToDB(uploadResult, req.user._id, {
         documentType: req.body.documentType || 'general'
       });
 
@@ -248,12 +249,12 @@ router.post('/multiple',
 
     try {
       const uploadPromises = req.files.map(file => 
-        uploadToCloudinary(file.path)
+        uploadToServer(file.path)
       );
       
-      const cloudinaryResults = await Promise.all(uploadPromises);
+      const uploadResults = await Promise.all(uploadPromises);
       
-      const mediaPromises = cloudinaryResults.map(result => 
+      const mediaPromises = uploadResults.map(result => 
         saveMediaToDB(result, req.user._id)
       );
       
@@ -305,15 +306,15 @@ router.post('/property-images',
 
     try {
       const uploadPromises = req.files.map((file, index) => 
-        uploadToCloudinary(file.path, {
+        uploadToServer(file.path, {
           folder: 'nestly_estate/properties',
           tags: ['property', `primary_${index === 0}`]
         })
       );
       
-      const cloudinaryResults = await Promise.all(uploadPromises);
+      const uploadResults = await Promise.all(uploadPromises);
       
-      const mediaPromises = cloudinaryResults.map((result, index) => 
+      const mediaPromises = uploadResults.map((result, index) => 
         saveMediaToDB(result, req.user._id, {
           tags: ['property'],
           alt: `Property image ${index + 1}`,
@@ -378,15 +379,15 @@ router.post('/society-documents',
 
     try {
       const uploadPromises = req.files.map((file, index) => 
-        uploadToCloudinary(file.path, {
+        uploadToServer(file.path, {
           folder: 'nestly_estate/society_documents',
           tags: ['society_document', req.body.type || 'general']
         })
       );
       
-      const cloudinaryResults = await Promise.all(uploadPromises);
+      const uploadResults = await Promise.all(uploadPromises);
       
-      const mediaPromises = cloudinaryResults.map((result, index) => 
+      const mediaPromises = uploadResults.map((result, index) => 
         saveMediaToDB(result, req.user._id, {
           tags: ['society_document'],
           alt: `Society document ${index + 1}`,
@@ -444,17 +445,14 @@ router.post('/profile-picture',
     }
 
     try {
-      // Upload to Cloudinary with specific folder and transformations
-      const cloudinaryResult = await uploadToCloudinary(req.file.path, {
+      // Upload to server with specific folder
+      const uploadResult = await uploadToServer(req.file.path, {
         folder: 'nestly_estate/profile_pictures',
-        transformation: [
-          { width: 400, height: 400, crop: 'fill', gravity: 'face' }
-        ],
         tags: ['profile_picture']
       });
       
       // Save to database
-      const media = await saveMediaToDB(cloudinaryResult, req.user._id, {
+      const media = await saveMediaToDB(uploadResult, req.user._id, {
         tags: ['profile_picture'],
         alt: 'Profile picture'
       });
@@ -595,5 +593,8 @@ router.get('/uploads/:filename', (req, res) => {
     });
   }
 });
+
+// Serve uploaded files statically
+router.use('/uploads', express.static('uploads'));
 
 export default router;

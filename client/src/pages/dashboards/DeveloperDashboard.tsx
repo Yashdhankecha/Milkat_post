@@ -47,7 +47,9 @@ import {
   Target,
   Award,
   Zap,
-  Loader2
+  Loader2,
+  Download,
+  ExternalLink
 } from "lucide-react"
 
 interface DeveloperProfile {
@@ -70,6 +72,14 @@ interface DeveloperProject {
   completion_date: string | null
   price_range: string
   images: string[]
+  documents?: Array<{
+    name: string
+    type: string
+    url: string
+    uploadedBy: string
+    uploadedAt: string
+    isPublic: boolean
+  }>
   created_at: string
 }
 
@@ -120,6 +130,63 @@ interface Proposal {
     }
   }
 }
+
+// PDF Viewer Component
+const PDFViewer = ({ url, name }: { url: string; name: string }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen(true)}
+        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300"
+      >
+        <FileText className="h-4 w-4 mr-1" />
+        {name}
+      </Button>
+      
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-background rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-red-500" />
+                {name}
+              </h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(url, '_blank')}
+                  className="gap-2"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open in New Tab
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="p-4 h-[calc(90vh-120px)]">
+              <iframe
+                src={url}
+                className="w-full h-full border rounded"
+                title={name}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 const DeveloperDashboard = () => {
   const [developerProfile, setDeveloperProfile] = useState<DeveloperProfile | null>(null)
@@ -174,17 +241,19 @@ const DeveloperDashboard = () => {
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const [
-        developerResult, 
-        projectsResult, 
-        propertiesResult, 
-        myInquiriesResult, 
-        propertyInquiriesResult
+        developerResult,
+        projectsResult,
+        propertiesResult,
+        myInquiriesResult,
+        propertyInquiriesResult,
+        proposalsResult
       ] = await Promise.allSettled([
         apiClient.getMyDeveloperProfile(),
         apiClient.getMyProjects(),
         apiClient.getProperties({ owner_id: profileId }),
         apiClient.getMyInquiries(),
-        apiClient.getMyPropertyInquiries()
+        apiClient.getMyPropertyInquiries(),
+        apiClient.getDeveloperProposals()
       ]);
       
       clearTimeout(timeoutId);
@@ -199,6 +268,8 @@ const DeveloperDashboard = () => {
       // Process projects
       if (projectsResult.status === 'fulfilled' && !projectsResult.value.error) {
         const projectsData = projectsResult.value.data?.projects || [];
+        console.log('Projects data received:', projectsData);
+        console.log('First project images:', projectsData[0]?.images);
         setProjects(projectsData);
         
         // Calculate project stats
@@ -272,6 +343,26 @@ const DeveloperDashboard = () => {
         setProjectInquiries([]);
       }
 
+      // Process proposals
+      if (proposalsResult.status === 'fulfilled' && !proposalsResult.value.error) {
+        const proposalsData = proposalsResult.value.data?.proposals || [];
+        setProposals(proposalsData);
+        
+        // Calculate proposal stats
+        const totalProposals = proposalsData.length;
+        const acceptedProposals = proposalsData.filter((p: any) => 
+          p.status === 'selected' || p.status === 'approved'
+        ).length;
+        
+        setStats(prev => ({
+          ...prev,
+          totalProposals,
+          acceptedProposals
+        }));
+      } else {
+        setProposals([]);
+      }
+
     } catch (error) {
       console.error('Error fetching developer dashboard data:', error)
       setDeveloperProfile(null)
@@ -280,8 +371,8 @@ const DeveloperDashboard = () => {
       setMyInquiries([])
       setPropertyInquiries([])
       setProjectInquiries([])
-      setRequirements([])
       setProposals([])
+      setRequirements([])
       setStats({
         totalProjects: 0,
         totalProperties: 0,
@@ -642,7 +733,7 @@ const DeveloperDashboard = () => {
               <div className="absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-purple-400/20 dark:bg-purple-600/20 blur-xl animate-pulse-slow delay-300"></div>
               <CardContent className="p-6 flex flex-col justify-between h-full">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-medium text-purple-800 dark:text-purple-200">Project Inquiries</p>
+                  <p className="text-sm font-medium text-purple-800 dark:text-purple-200">Project Listed</p>
                   <div className="p-2 rounded-full bg-purple-500/20 dark:bg-purple-700/30 backdrop-blur-sm">
                     <MessageSquare className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                   </div>
@@ -650,7 +741,7 @@ const DeveloperDashboard = () => {
                 <p className="text-3xl font-extrabold text-purple-900 dark:text-purple-100 leading-none">
                   {stats.totalInquiries}
                 </p>
-                <p className="text-sm text-purple-700 dark:text-purple-300 mt-2">Customer interest</p>
+                <p className="text-sm text-purple-700 dark:text-purple-300 mt-2">Projects Listed</p>
               </CardContent>
             </Card>
 
@@ -740,20 +831,42 @@ const DeveloperDashboard = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {projects.map((project, index) => (
+                    {projects.map((project, index) => {
+                      console.log('Rendering project:', project);
+                      console.log('Project images:', project.images);
+                      console.log('First image:', project.images?.[0]);
+                      return (
                       <Card key={project.id || project._id || `project-${index}`} className="overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 group">
                         <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 relative overflow-hidden">
-                          {project.images?.[0] ? (
-                            <img 
-                              src={project.images[0]} 
-                              alt={project.name}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex items-center justify-center h-full">
-                              <Building className="h-12 w-12 text-gray-400 dark:text-gray-500" />
-                            </div>
-                          )}
+                          {(() => {
+                            const firstImage = project.images?.[0];
+                            const imageUrl = firstImage?.url || (typeof firstImage === 'string' ? firstImage : null);
+                            
+                            if (imageUrl) {
+                              return (
+                                <img 
+                                  src={imageUrl}
+                                  alt={project.name || 'Project image'}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  onError={(e) => {
+                                    console.log('Image failed to load:', imageUrl);
+                                    console.log('Project data:', project);
+                                    e.currentTarget.src = '/placeholder.svg';
+                                    e.currentTarget.onerror = null; // Prevent infinite loop
+                                  }}
+                                  onLoad={() => {
+                                    console.log('Image loaded successfully:', imageUrl);
+                                  }}
+                                />
+                              );
+                            } else {
+                              return (
+                                <div className="flex items-center justify-center h-full">
+                                  <Building className="h-12 w-12 text-gray-400 dark:text-gray-500" />
+                                </div>
+                              );
+                            }
+                          })()}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </div>
                         
@@ -784,10 +897,35 @@ const DeveloperDashboard = () => {
                                 <span>Completion: {new Date(project.completion_date).toLocaleDateString()}</span>
                               </div>
                             )}
+
+                            {/* PDF Documents Section */}
+                            {project.documents && project.documents.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="flex items-center text-sm text-muted-foreground">
+                                  <FileText className="w-4 h-4 mr-1" />
+                                  <span className="font-medium">Documents ({project.documents.length})</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {project.documents.map((doc, index) => (
+                                    <PDFViewer
+                                      key={index}
+                                      url={doc.url}
+                                      name={doc.name}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             
                             <div className="flex gap-2 pt-4">
                               <Button asChild size="sm" variant="outline" className="flex-1 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 transition-all duration-300">
-                                <Link to={`/project/${project.id}`}>
+                                <Link 
+                                  to={`/project/${project.id || project._id}`}
+                                  onClick={() => {
+                                    console.log('Navigating to project:', project.id || project._id);
+                                    console.log('Full project data:', project);
+                                  }}
+                                >
                                   <Eye className="w-4 h-4 mr-1" />
                                   View
                                 </Link>
@@ -814,7 +952,8 @@ const DeveloperDashboard = () => {
                           </div>
                         </CardContent>
                       </Card>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -965,12 +1104,12 @@ const DeveloperDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Project Inquiries */}
+              {/* Project Listed */}
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Project Inquiries
+                    Project Listed
                   </CardTitle>
                   <CardDescription>Inquiries about your development projects</CardDescription>
                 </CardHeader>

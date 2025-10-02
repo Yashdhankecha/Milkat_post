@@ -171,6 +171,9 @@ developerProposalSchema.index({ developer: 1 });
 developerProposalSchema.index({ status: 1 });
 developerProposalSchema.index({ 'evaluation.overallScore': -1 });
 
+// Unique compound index to prevent duplicate proposals from same developer for same project
+developerProposalSchema.index({ redevelopmentProject: 1, developer: 1 }, { unique: true });
+
 // Virtual for proposal URL
 developerProposalSchema.virtual('proposalUrl').get(function() {
   return `/api/developer-proposals/${this._id}`;

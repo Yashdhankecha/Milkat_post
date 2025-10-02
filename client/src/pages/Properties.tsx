@@ -343,7 +343,6 @@ const Properties = () => {
                       <SelectItem value="all">All Listings</SelectItem>
                       <SelectItem value="sale">For Sale</SelectItem>
                       <SelectItem value="rent">For Rent</SelectItem>
-                      <SelectItem value="lease">For Lease</SelectItem>
                     </SelectContent>
                   </Select>
 

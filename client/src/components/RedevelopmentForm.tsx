@@ -17,7 +17,10 @@ import {
   Building2,
   MapPin,
   Clock,
-  CheckCircle
+  CheckCircle,
+  Upload,
+  FileText,
+  Trash2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -63,6 +66,8 @@ const RedevelopmentForm: React.FC<RedevelopmentFormProps> = ({
   });
   
   const [newAmenity, setNewAmenity] = useState('');
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
 
   useEffect(() => {
     if (!societyId) {
@@ -136,11 +141,100 @@ const RedevelopmentForm: React.FC<RedevelopmentFormProps> = ({
     }));
   };
 
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !user) return;
+
+    setUploadingDocs(true);
+
+    try {
+      const uploadedDocs: any[] = [];
+      
+      for (const file of Array.from(files)) {
+        // Check file type
+        if (file.type !== 'application/pdf') {
+          toast({
+            title: "Invalid File Type",
+            description: `${file.name} is not a PDF file. Please upload only PDF files.`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        // Check file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          toast({
+            title: "File Too Large",
+            description: `${file.name} is larger than 10MB. Please choose a smaller file.`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        try {
+          const result = await apiClient.uploadSingleFile(file, 'redevelopment_document');
+          
+          if (result.error) {
+            console.error(`Error uploading ${file.name}:`, result.error);
+            toast({
+              title: "Upload Warning",
+              description: `Failed to upload ${file.name}. Please try again.`,
+              variant: "destructive",
+            });
+            continue;
+          }
+
+          const uploadedDoc = {
+            name: file.name,
+            type: 'other', // Default type, can be changed later
+            url: result.data.media.url,
+            uploadedBy: user.id,
+            uploadedAt: new Date(),
+            isPublic: false
+          };
+          
+          uploadedDocs.push(uploadedDoc);
+        } catch (error) {
+          console.error(`Error uploading ${file.name}:`, error);
+          toast({
+            title: "Upload Warning",
+            description: `Failed to upload ${file.name}. Please try again.`,
+            variant: "destructive",
+          });
+        }
+      }
+      
+      if (uploadedDocs.length > 0) {
+        setDocuments(prev => [...prev, ...uploadedDocs]);
+
+        toast({
+          title: "Success!",
+          description: `${uploadedDocs.length} document(s) uploaded successfully.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error uploading documents:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload documents. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingDocs(false);
+    }
+  };
+
+  const removeDocument = (index: number) => {
+    setDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
   const validateForm = () => {
     const errors: string[] = [];
 
     if (!formData.title.trim()) errors.push('Project title is required');
+    if (formData.title.trim().length < 5) errors.push('Project title must be at least 5 characters');
     if (!formData.description.trim()) errors.push('Project description is required');
+    if (formData.description.trim().length < 10) errors.push('Project description must be at least 10 characters');
     if (!formData.society_id) errors.push('Please select a society');
     if (formData.estimatedBudget && parseFloat(formData.estimatedBudget) < 0) {
       errors.push('Estimated budget must be a positive number');
@@ -175,17 +269,22 @@ const RedevelopmentForm: React.FC<RedevelopmentFormProps> = ({
         estimatedBudget: formData.estimatedBudget ? parseFloat(formData.estimatedBudget) : undefined,
         minimumApprovalPercentage: parseInt(formData.minimumApprovalPercentage),
         timeline: {
-          startDate: formData.timeline.startDate || undefined,
-          expectedCompletionDate: formData.timeline.expectedCompletionDate || undefined
-        }
+          startDate: formData.timeline.startDate ? new Date(formData.timeline.startDate).toISOString() : undefined,
+          expectedCompletionDate: formData.timeline.expectedCompletionDate ? new Date(formData.timeline.expectedCompletionDate).toISOString() : undefined
+        },
+        documents: documents
       };
 
+      console.log('Submitting redevelopment project data:', submitData);
+      
       let response;
       if (editingProject) {
         response = await apiClient.updateRedevelopmentProject(editingProject._id, submitData);
       } else {
         response = await apiClient.createRedevelopmentProject(submitData);
       }
+      
+      console.log('API response:', response);
 
       if (response.error) {
         toast({
@@ -385,6 +484,88 @@ const RedevelopmentForm: React.FC<RedevelopmentFormProps> = ({
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Document Upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Project Documents
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600 mb-2">
+                  Upload PDF documents (max 10MB each)
+                </p>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  multiple
+                  onChange={handleDocumentUpload}
+                  disabled={uploadingDocs}
+                  className="hidden"
+                  id="document-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('document-upload')?.click()}
+                  disabled={uploadingDocs}
+                  className="gap-2"
+                >
+                  {uploadingDocs ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      Choose PDF Files
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {documents.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Uploaded Documents:</h4>
+                  {documents.map((doc, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-red-500" />
+                        <span className="text-sm font-medium">{doc.name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {doc.type}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(doc.url, '_blank')}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeDocument(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

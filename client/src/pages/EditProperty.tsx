@@ -57,36 +57,82 @@ const EditProperty = () => {
     'Semi-Furnished'
   ];
 
+  // Mapping from server enum values to display names
+  const amenityDisplayMap: { [key: string]: string } = {
+    'swimming_pool': 'Swimming Pool',
+    'gym': 'Gym/Fitness Center',
+    'parking': 'Parking',
+    'security': 'Security',
+    'power_backup': '24/7 Power Backup',
+    'elevator': 'Elevator/Lift',
+    'garden': 'Garden/Landscaping',
+    'playground': 'Playground',
+    'clubhouse': 'Club House',
+    'water_supply': 'Internet/Wi-Fi',
+    'ac': 'Air Conditioning',
+    'balcony': 'Balcony',
+    'furnished': 'Furnished',
+    'semi_furnished': 'Semi-Furnished'
+  };
+
+  // Reverse mapping from display names to server enum values
+  const amenityServerMap: { [key: string]: string } = {
+    'Swimming Pool': 'swimming_pool',
+    'Gym/Fitness Center': 'gym',
+    'Parking': 'parking',
+    'Security': 'security',
+    '24/7 Power Backup': 'power_backup',
+    'Elevator/Lift': 'elevator',
+    'Garden/Landscaping': 'garden',
+    'Playground': 'playground',
+    'Club House': 'clubhouse',
+    'Internet/Wi-Fi': 'water_supply',
+    'Air Conditioning': 'ac',
+    'Balcony': 'balcony',
+    'Furnished': 'furnished',
+    'Semi-Furnished': 'semi_furnished'
+  };
+
   // Fetch property data for editing
   useEffect(() => {
     const fetchProperty = async () => {
-      if (!id || !user) return;
+      if (!id || !user) {
+        console.log('Missing id or user:', { id, user });
+        return;
+      }
 
+      console.log('Fetching property with ID:', id);
       try {
         setFetchingProperty(true);
-        const { data, error } = await apiClient
-          
-          
-           // Ensure user owns the property
-          ;
+        const { data, error } = await apiClient.getProperty(id);
+
+        console.log('Property API response:', { data, error });
 
         if (error) throw error;
 
         if (data) {
+          // Server returns { data: { property: {...} } }
+          const property = data.property || data;
+          console.log('Setting form data with property:', property);
           setFormData({
-            title: data.title || '',
-            description: data.description || '',
-            price: data.price?.toString() || '',
-            area: data.area?.toString() || '',
-            location: data.location || '',
-            city: data.city || '',
-            state: data.state || '',
-            country: data.country || 'India',
-            property_type: data.property_type || '',
-            listing_type: data.listing_type || '',
-            images: data.images || [],
-            amenities: data.amenities || []
+            title: property.title || '',
+            description: property.description || '',
+            price: property.price?.toString() || '',
+            area: property.area?.toString() || '',
+            location: property.location?.address || property.location || '',
+            city: property.location?.city || property.city || '',
+            state: property.location?.state || property.state || '',
+            country: property.location?.country || property.country || 'India',
+            property_type: property.propertyType || property.property_type || '',
+            listing_type: property.listingType || property.listing_type || '',
+            images: property.images || [],
+            amenities: (property.amenities || []).map(amenity => 
+              amenityDisplayMap[amenity] || amenity
+            )
           });
+          console.log('Form data set successfully');
+        } else {
+          console.log('No data received from API');
         }
       } catch (error) {
         console.error('Error fetching property:', error);
@@ -95,7 +141,7 @@ const EditProperty = () => {
           description: "Failed to load property data",
           variant: "destructive",
         });
-        navigate('/seller/dashboard');
+        navigate('/buyer-seller/dashboard');
       } finally {
         setFetchingProperty(false);
       }
@@ -170,35 +216,66 @@ const EditProperty = () => {
     if (!files || !user) return;
 
     setUploadingImages(true);
-    const uploadedUrls: string[] = [];
 
     try {
-      for (const file of Array.from(files)) {
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+      // Check if we're in mock mode
+      const isMockMode = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true';
+      
+      if (isMockMode) {
+        // In mock mode, create data URLs for images to avoid network errors
+        const uploadedUrls: string[] = [];
+        let processedCount = 0;
+        
+        for (const file of Array.from(files)) {
+          const fileReader = new FileReader();
+          fileReader.onload = (event) => {
+            if (event.target?.result) {
+              uploadedUrls.push(event.target.result as string);
+              processedCount++;
+              // Update state when all files are processed
+              if (processedCount === files.length) {
+                setFormData(prev => ({
+                  ...prev,
+                  images: [...prev.images, ...uploadedUrls]
+                }));
+                
+                toast({
+                  title: "Success!",
+                  description: `${uploadedUrls.length} image(s) uploaded successfully.`,
+                });
+                setUploadingImages(false);
+              }
+            }
+          };
+          fileReader.readAsDataURL(file);
+        }
+      } else {
+        // Real MERN stack upload using Express + Multer
+        const fileArray = Array.from(files);
+        const result = await apiClient.uploadPropertyImages(fileArray);
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
 
-        const { error: uploadError } = await apiClient.storage
-          .from('property-images')
-          .upload(filePath, file);
+        // New Cloudinary response format - images are already objects with url, caption, isPrimary
+        const uploadedImages = result.data.images.map((img: any) => ({
+          url: img.url, // Cloudinary URLs are already absolute
+          caption: img.caption || `Property image`,
+          isPrimary: img.isPrimary || false
+        }));
+        
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, ...uploadedImages]
+        }));
 
-        if (uploadError) throw uploadError;
-
-        const { data } = apiClient.storage
-          .from('property-images')
-          .getPublicUrl(filePath);
-
-        uploadedUrls.push(data.publicUrl);
+        toast({
+          title: "Success!",
+          description: `${uploadedImages.length} image(s) uploaded successfully.`,
+        });
+        setUploadingImages(false);
       }
-
-      setFormData(prev => ({
-        ...prev,
-        images: [...prev.images, ...uploadedUrls]
-      }));
-
-      toast({
-        title: "Success!",
-        description: `${uploadedUrls.length} image(s) uploaded successfully.`,
-      });
     } catch (error) {
       console.error('Error uploading images:', error);
       toast({
@@ -206,7 +283,6 @@ const EditProperty = () => {
         description: "Failed to upload images. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setUploadingImages(false);
     }
   };
@@ -214,7 +290,11 @@ const EditProperty = () => {
   const removeImage = (imageUrl: string) => {
     setFormData(prev => ({
       ...prev,
-      images: prev.images.filter(img => img !== imageUrl)
+      images: prev.images.filter(img => {
+        // Handle both string and object formats
+        const currentUrl = typeof img === 'string' ? img : img.url;
+        return currentUrl !== imageUrl;
+      })
     }));
   };
 
@@ -226,23 +306,24 @@ const EditProperty = () => {
     setLoading(true);
     
     try {
-      const { error } = await apiClient
-        ({
-          title: formData.title,
-          description: formData.description,
-          price: parseFloat(formData.price),
-          area: parseInt(formData.area),
-          location: formData.location,
+      const { error } = await apiClient.updateProperty(id, {
+        title: formData.title,
+        description: formData.description,
+        price: parseFloat(formData.price),
+        area: parseInt(formData.area),
+        location: {
+          address: formData.location,
           city: formData.city,
           state: formData.state,
-          country: formData.country,
-          property_type: formData.property_type,
-          listing_type: formData.listing_type,
-          images: formData.images,
-          amenities: formData.amenities,
-        })
-        
-        ; // Ensure user owns the property
+          country: formData.country
+        },
+        propertyType: formData.property_type,
+        listingType: formData.listing_type,
+        images: formData.images,
+        amenities: formData.amenities.map(amenity => 
+          amenityServerMap[amenity] || amenity.toLowerCase().replace(/\s+/g, '_')
+        ),
+      });
 
       if (error) throw error;
 
@@ -272,7 +353,7 @@ const EditProperty = () => {
           <div className="flex items-center mb-4">
               <Button
                 variant="ghost"
-                onClick={() => navigate('/seller/dashboard')}
+                onClick={() => navigate('/buyer-seller/dashboard')}
                 className="text-white hover:text-white/80 p-0 h-auto"
               >
               <ArrowLeft className="w-6 h-6 mr-2" />
@@ -345,7 +426,6 @@ const EditProperty = () => {
                       <SelectContent>
                         <SelectItem value="sale">For Sale</SelectItem>
                         <SelectItem value="rent">For Rent</SelectItem>
-                        <SelectItem value="lease">For Lease</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -546,22 +626,25 @@ const EditProperty = () => {
                   <div>
                     <Label className="text-sm font-medium mb-2 block">Current Images</Label>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {formData.images.map((image, index) => (
-                        <div key={index} className="relative group">
-                          <img 
-                            src={image} 
-                            alt={`Property ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-lg border"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeImage(image)}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                      {formData.images.map((image, index) => {
+                        const imageUrl = typeof image === 'string' ? image : image.url;
+                        return (
+                          <div key={index} className="relative group">
+                            <img 
+                              src={imageUrl} 
+                              alt={`Property ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeImage(imageUrl)}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -573,7 +656,7 @@ const EditProperty = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/seller/dashboard')}
+                onClick={() => navigate('/buyer-seller/dashboard')}
                 className="flex-1"
               >
                 Cancel

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, MapPin, Calendar, Users, Eye, FileText, TrendingUp, Filter, X } from 'lucide-react';
+import { Building2, MapPin, Calendar, Users, FileText, TrendingUp, Filter, X, Upload, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
@@ -65,8 +65,10 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
     corpusAmount: '',
     rentAmount: '',
     timeline: '',
-    terms: ''
+    terms: '',
+    documents: [] as Array<{ name: string; type: string; url: string; }>
   });
+  const [uploadingDocuments, setUploadingDocuments] = useState(false);
   const [submittingProposal, setSubmittingProposal] = useState(false);
   const navigate = useNavigate();
 
@@ -86,7 +88,9 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
       if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
 
       const response = await apiClient.get(`/global-redevelopment/projects?${params}`);
+      console.log('Redevelopment projects API response:', response);
       const newProjects = response?.data?.projects || [];
+      console.log('New projects data:', newProjects);
       
       if (pageNum === 1 || resetFilters) {
         setProjects(newProjects);
@@ -126,6 +130,16 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
   };
 
   const handleSubmitProposal = (project: RedevelopmentProject) => {
+    // Check if developer has already submitted a proposal
+    if (project.hasProposal) {
+      toast({
+        title: "Proposal Already Submitted",
+        description: "You have already submitted a proposal for this project.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSelectedProject(project);
     setProposalData({
       title: `Proposal for ${project.title}`,
@@ -133,9 +147,62 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
       corpusAmount: '',
       rentAmount: '',
       timeline: '',
-      terms: ''
+      terms: '',
+      documents: []
     });
     setShowProposalModal(true);
+  };
+
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingDocuments(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        if (file.type !== 'application/pdf') {
+          throw new Error(`${file.name} is not a PDF file. Please upload only PDF documents.`);
+        }
+
+        const response = await apiClient.uploadFile(file);
+        if (response.error) throw new Error(response.error);
+
+        return {
+          name: file.name,
+          type: 'proposal',
+          url: response.data.url
+        };
+      });
+
+      const uploadedDocuments = await Promise.all(uploadPromises);
+      setProposalData(prev => ({
+        ...prev,
+        documents: [...prev.documents, ...uploadedDocuments]
+      }));
+
+      toast({
+        title: "Documents Uploaded",
+        description: `${uploadedDocuments.length} document(s) uploaded successfully.`,
+      });
+    } catch (error: any) {
+      console.error('Error uploading documents:', error);
+      toast({
+        title: "Upload Error",
+        description: error.message || "Failed to upload documents. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingDocuments(false);
+      // Reset the file input
+      event.target.value = '';
+    }
+  };
+
+  const removeDocument = (index: number) => {
+    setProposalData(prev => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index)
+    }));
   };
 
   const handleProposalSubmit = async () => {
@@ -150,7 +217,8 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
         corpus: parseFloat(proposalData.corpusAmount) || 0,
         rent: parseFloat(proposalData.rentAmount) || 0,
         timeline: proposalData.timeline,
-        additionalTerms: proposalData.terms
+        additionalTerms: proposalData.terms,
+        documents: proposalData.documents
       };
 
       await apiClient.post(`/global-redevelopment/projects/${selectedProject._id}/proposals`, proposalPayload);
@@ -168,8 +236,12 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
         corpusAmount: '',
         rentAmount: '',
         timeline: '',
-        terms: ''
+        terms: '',
+        documents: []
       });
+      
+      // Refresh the projects list to show updated proposal status
+      fetchProjects(1, true);
     } catch (error: any) {
       console.error('Error submitting proposal:', error);
       toast({
@@ -494,12 +566,17 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      console.log('View Details clicked for project:', project._id);
+                      console.log('View Details clicked for project:', project);
+                      console.log('Project _id:', project._id);
+                      if (!project._id) {
+                        console.error('Project _id is undefined or null:', project);
+                        return;
+                      }
                       navigate(`/project/${project._id}`);
                     }}
                     className="flex-1"
                   >
-                    <Eye className="h-4 w-4 mr-1" />
+                    <FileText className="h-4 w-4 mr-1" />
                     View Details
                   </Button>
                   
@@ -699,6 +776,52 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                     placeholder="Enter any specific terms and conditions..."
                     rows={3}
                   />
+                </div>
+
+                {/* Document Upload Section */}
+                <div className="space-y-3">
+                  <Label>Supporting Documents (PDF only)</Label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      multiple
+                      onChange={handleDocumentUpload}
+                      disabled={uploadingDocuments}
+                      className="hidden"
+                      id="document-upload"
+                    />
+                    <label
+                      htmlFor="document-upload"
+                      className="flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 p-4 rounded-lg transition-colors"
+                    >
+                      <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                      <span className="text-sm text-gray-600">
+                        {uploadingDocuments ? 'Uploading...' : 'Click to upload PDF documents'}
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        Upload proposal documents, certificates, or other supporting materials
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Display uploaded documents */}
+                  {proposalData.documents.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Uploaded Documents:</Label>
+                      <div className="space-y-2">
+                        {proposalData.documents.map((doc, index) => (
+                          <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                            <FileText className="h-5 w-5 text-red-600" />
+                            <div>
+                              <p className="text-sm font-medium">{doc.name}</p>
+                              <p className="text-xs text-gray-500 capitalize">{doc.type} Document</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

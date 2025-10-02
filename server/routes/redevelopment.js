@@ -10,10 +10,16 @@ import Profile from '../models/Profile.js';
 
 const router = express.Router();
 
+// Test route to verify the route is working
+router.get('/test', (req, res) => {
+  res.json({ message: 'Redevelopment routes are working' });
+});
+
 // Validation middleware
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('Validation errors:', errors.array());
     return res.status(400).json({
       status: 'error',
       message: 'Validation failed',
@@ -134,6 +140,13 @@ router.get('/:id',
 
 // Create a new redevelopment project
 router.post('/',
+  (req, res, next) => {
+    console.log('=== REDEVELOPMENT PROJECT CREATION ROUTE HIT ===');
+    console.log('Method:', req.method);
+    console.log('URL:', req.originalUrl);
+    console.log('Body:', req.body);
+    next();
+  },
   authenticate,
   authorize('society_owner'),
   [
@@ -144,10 +157,14 @@ router.post('/',
     body('timeline.startDate').optional().isISO8601().withMessage('Invalid start date'),
     body('timeline.expectedCompletionDate').optional().isISO8601().withMessage('Invalid completion date'),
     body('estimatedBudget').optional().isNumeric().withMessage('Estimated budget must be a number'),
-    body('minimumApprovalPercentage').optional().isInt({ min: 50, max: 100 }).withMessage('Minimum approval percentage must be between 50 and 100')
+    body('minimumApprovalPercentage').optional().isInt({ min: 50, max: 100 }).withMessage('Minimum approval percentage must be between 50 and 100'),
+    body('documents').optional().isArray().withMessage('Documents must be an array')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
+    console.log('Creating redevelopment project with data:', req.body);
+    console.log('User info:', { id: req.user._id, role: req.user.currentRole });
+    
     const {
       title,
       description,
@@ -155,11 +172,14 @@ router.post('/',
       expectedAmenities,
       timeline,
       estimatedBudget,
-      minimumApprovalPercentage
+      minimumApprovalPercentage,
+      documents
     } = req.body;
 
     // Verify that the society belongs to the user
+    console.log('Looking for society:', society_id, 'owned by user:', req.user._id);
     const society = await Society.findOne({ _id: society_id, owner: req.user._id });
+    console.log('Society found:', society ? 'Yes' : 'No');
     if (!society) {
       return res.status(403).json({
         status: 'error',
@@ -175,11 +195,15 @@ router.post('/',
       expectedAmenities: expectedAmenities || [],
       timeline: timeline || {},
       estimatedBudget,
-      minimumApprovalPercentage: minimumApprovalPercentage || 75
+      minimumApprovalPercentage: minimumApprovalPercentage || 75,
+      documents: documents || []
     };
 
+    console.log('Project data before creation:', projectData);
+    
     const project = new RedevelopmentProject(projectData);
     await project.save();
+    console.log('Project created successfully:', project._id);
 
     await project.populate('society', 'name address city state');
 

@@ -18,9 +18,30 @@ const Header = () => {
   const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true';
 
   const handleSignOut = async () => {
-    // Clear selected role before signing out
-    localStorage.removeItem('selectedRole');
-    await signOut();
+    try {
+      // Clear selected role before signing out
+      localStorage.removeItem('selectedRole');
+      const { error } = await signOut();
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to sign out",
+          variant: "destructive"
+        });
+      } else {
+        navigate("/");
+        toast({
+          title: "Signed out",
+          description: "You have been successfully signed out",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Something went wrong",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleAuthRedirect = () => {
@@ -86,10 +107,10 @@ const Header = () => {
             {/* Desktop nav with overflow handling - centered */}
             <nav className="hidden lg:flex items-center justify-center flex-1 gap-4 sm:gap-6 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none]" style={{ WebkitOverflowScrolling: 'touch' }}>
               <Link to="/" className="text-foreground hover:text-estate-blue transition-colors font-medium text-sm sm:text-base">Home</Link>
-              <Link to="/about" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">About Us</Link>
-              <Link to="/post-property" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">Post Your Property</Link>
-              {/* <Link to="/submit-requirement" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">Submit Requirement</Link> */}
+              <Link to="/projects" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">Projects</Link>
               <Link to="/properties" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">Properties</Link>
+              <Link to="/post-property" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">Post Your Property</Link>
+              <Link to="/about" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">About Us</Link>
               <Link to="/contact" className="text-foreground hover:text-estate-blue transition-colors text-sm sm:text-base">Contact Us</Link>
             </nav>
           </div>
@@ -155,10 +176,10 @@ const Header = () => {
           <div className="container mx-auto px-4 py-3">
             <nav className="flex flex-col gap-2">
               <Link to="/" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Home</Link>
-              <Link to="/about" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">About Us</Link>
-              <Link to="/post-property" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Post Your Property</Link>
-              {/* <Link to="/submit-requirement" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Submit Requirement</Link> */}
+              <Link to="/projects" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Projects</Link>
               <Link to="/properties" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Properties</Link>
+              <Link to="/post-property" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Post Your Property</Link>
+              <Link to="/about" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">About Us</Link>
               <Link to="/contact" onClick={() => setMobileOpen(false)} className="px-2 py-2 rounded-md text-foreground hover:bg-secondary hover:text-estate-blue transition-colors">Contact Us</Link>
 
               <div className="mt-2 border-t border-border pt-2">

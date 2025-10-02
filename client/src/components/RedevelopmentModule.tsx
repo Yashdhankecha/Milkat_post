@@ -21,7 +21,6 @@ import {
   ExternalLink,
   Upload,
   Download,
-  Eye,
   Edit,
   Trash2,
   MessageSquare,
@@ -29,7 +28,8 @@ import {
   Award,
   Target,
   BarChart3,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -140,6 +140,11 @@ interface DeveloperProposal {
       milestones: string[];
     }>;
   };
+  documents: Array<{
+    name: string;
+    type: string;
+    url: string;
+  }>;
   developerInfo: {
     companyName: string;
     experience: number;
@@ -192,8 +197,17 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
   const [votingResults, setVotingResults] = useState<any>(null);
   const [userSubmittedVotes, setUserSubmittedVotes] = useState<any[]>([]);
   const [votingResultsData, setVotingResultsData] = useState<any[]>([]);
+  const [loadingProjectData, setLoadingProjectData] = useState(false);
 
   useEffect(() => {
+    // Clear all data when society changes
+    setSelectedProject(null);
+    setProposals([]);
+    setVotingResultsData([]);
+    setVotesFinalized(false);
+    setVotingState({});
+    setActiveTab('overview');
+    
     fetchProjects();
   }, [societyId]);
 
@@ -320,6 +334,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
 
   const fetchProposals = async (projectId: string) => {
     try {
+      console.log('Fetching proposals for project:', projectId);
       const response = await apiClient.getDeveloperProposals(`?project_id=${projectId}`);
       
       if (response.error) {
@@ -331,7 +346,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
         return;
       }
 
-      console.log('Proposals data:', response.data?.proposals);
+      console.log('Proposals data for project', projectId, ':', response.data?.proposals);
       setProposals(response.data?.proposals || []);
     } catch (error) {
       console.error('Error fetching proposals:', error);
@@ -485,6 +500,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
     setSelectedProposal(proposal);
     setIsViewModalOpen(true);
   };
+
 
   const handleApproveProposal = async (proposal: DeveloperProposal) => {
     try {
@@ -833,13 +849,25 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
     }
   };
 
-  const handleProjectSelect = (project: RedevelopmentProject) => {
+  const handleProjectSelect = async (project: RedevelopmentProject) => {
     setSelectedProject(project);
     setActiveTab('overview');
+    setLoadingProjectData(true);
+    
+    // Clear previous proposals immediately when switching projects
+    setProposals([]);
+    setVotingResultsData([]);
+    setVotesFinalized(false);
+    setVotingState({});
+    
     if (project.status === 'proposals_received' || project.status === 'voting' || project.status === 'developer_selected') {
-      fetchProposals(project._id);
-      fetchVotingResults(project._id); // Also fetch voting results
+      await Promise.all([
+        fetchProposals(project._id),
+        fetchVotingResults(project._id)
+      ]);
     }
+    
+    setLoadingProjectData(false);
   };
 
   const handleProjectCreated = (newProject: RedevelopmentProject) => {
@@ -850,6 +878,48 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
       title: "Success",
       description: "Redevelopment project created successfully",
     });
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    const confirmed = confirm(
+      'Are you sure you want to delete this redevelopment project? This action cannot be undone and will permanently remove all project data, proposals, and voting records.'
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      const response = await apiClient.deleteRedevelopmentProject(projectId);
+      
+      if (response.error) {
+        toast({
+          title: "Error",
+          description: response.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Remove project from state
+      setProjects(prev => prev.filter(p => p._id !== projectId));
+      
+      // Clear selected project if it was the deleted one
+      if (selectedProject?._id === projectId) {
+        setSelectedProject(null);
+        setActiveTab('overview');
+      }
+
+      toast({
+        title: "Project Deleted",
+        description: "The redevelopment project has been successfully deleted.",
+      });
+    } catch (error: any) {
+      console.error('Error deleting project:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete project. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -961,12 +1031,27 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                       {project.society.name}, {project.society.city}
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
                   <Badge className={getStatusColor(project.status)}>
                     <span className="flex items-center gap-1">
                       {getStatusIcon(project.status)}
                       {project.status.replace('_', ' ').toUpperCase()}
                     </span>
                   </Badge>
+                    {isOwner && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProject(project._id);
+                        }}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1010,6 +1095,17 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                         <span className="font-medium">{project.queries.length}</span>
                       </div>
                     </div>
+
+                    {/* Documents count */}
+                    {project.documents && project.documents.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium text-muted-foreground">Documents</div>
+                        <div className="flex items-center gap-1">
+                          <FileText className="h-4 w-4" />
+                          <span className="font-medium">{project.documents.length}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -1029,12 +1125,29 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              <ProjectOverview project={selectedProject} proposals={proposals} />
+              {loadingProjectData ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p className="text-muted-foreground">Loading project data...</p>
+                  </div>
+                </div>
+              ) : (
+              <ProjectOverview project={selectedProject} proposals={proposals} onViewProposal={handleViewProposal} />
+              )}
             </TabsContent>
 
             {/* Voting Management Tab - Only for Society Owners */}
             {isOwner && (
               <TabsContent value="voting" className="space-y-6">
+                {loadingProjectData ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                      <p className="text-muted-foreground">Loading voting data...</p>
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-6">
                   <Card>
                     <CardHeader>
@@ -1293,15 +1406,25 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                                          
                                          <div className="flex-shrink-0">
                                            <div className="flex gap-2">
-                                             <Button
-                                               variant="outline"
-                                               size="sm"
-                                               onClick={() => handleViewProposal(proposal)}
-                                               className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                                             >
-                                               <Eye className="h-4 w-4 mr-1" />
-                                               View Details
-                                             </Button>
+                                               <Button
+                                                 variant="outline"
+                                                 size="sm"
+                                                 onClick={() => handleViewProposal(proposal)}
+                                                 className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                               >
+                                                 <FileText className="h-4 w-4 mr-1" />
+                                                 View Details
+                                               </Button>
+                                               <Button
+                                                 variant="outline"
+                                                 size="sm"
+                                                 onClick={() => handleViewProposal(proposal)}
+                                                 className="text-green-600 border-green-200 hover:bg-green-50"
+                                               >
+                                                 <FileText className="h-4 w-4 mr-1" />
+                                                 View Proposal
+                                               </Button>
+                                             </div>
                                              
                                              {/* Only show select button if no developer has been selected yet */}
                                              {!proposals.some(p => p.status === 'selected') && proposal.status !== 'selected' && proposal.status !== 'rejected' && (
@@ -1329,7 +1452,6 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                                              )}
                                            </div>
                                          </div>
-                                       </div>
                                      </CardContent>
                                    </Card>
                                  );
@@ -1341,497 +1463,19 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                     </CardContent>
                   </Card>
                 </div>
-              </TabsContent>
+                )}
+                </TabsContent>
             )}
 
-            <TabsContent value="proposals" className="space-y-6">
-              {proposals.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Voting Section - Only show to members who haven't voted */}
-                  {!isOwner && !votesFinalized && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                          <Vote className="h-5 w-5" />
-                        Vote on Proposals
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        Select your preferred proposal and provide your reason for the vote.
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {proposals.map((proposal) => (
-                          <Card key={proposal._id} className="border-l-4 border-l-blue-500">
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between gap-4">
-                                {/* Proposal Info */}
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-lg">
-                                    {proposal.developerInfo?.companyName || 'Developer'}
-                                  </h4>
-                                  <p className="text-sm text-muted-foreground mb-2">{proposal.title}</p>
-                                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                                    <div>
-                                      <span className="text-muted-foreground">Corpus:</span>
-                                      <p className="font-medium">
-                                        {proposal.corpusAmount ? 
-                                          (proposal.corpusAmount >= 10000000 ? 
-                                            `₹${(proposal.corpusAmount / 10000000).toFixed(2)} Cr` : 
-                                            `₹${proposal.corpusAmount.toLocaleString()}`
-                                          ) : 
-                                          'Not specified'
-                                        }
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">Rent:</span>
-                                      <p className="font-medium">
-                                        {proposal.rentAmount ? 
-                                          `₹${proposal.rentAmount.toLocaleString()}` : 
-                                          'Not specified'
-                                        }
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">Duration:</span>
-                                      <p className="font-medium">
-                                        {proposal.timeline?.toLowerCase().includes('month') 
-                                          ? proposal.timeline 
-                                          : `${proposal.timeline} months`}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">FSI:</span>
-                                      <p className="font-medium">{proposal.fsi}</p>
-                                    </div>
-                                    <div>
-                                      <span className="text-muted-foreground">Status:</span>
-                                      <Badge className={getStatusColor(proposal.status)}>
-                                        {proposal.status.replace('_', ' ').toUpperCase()}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Owner Management Interface */}
-                                <div className="flex-shrink-0 min-w-[300px]">
-                                  <div className="space-y-3">
-                                     <div className="flex gap-2">
-                                       <Button
-                                         variant="outline"
-                                         size="default"
-                                         className="text-blue-600 border-blue-200 hover:bg-blue-50 px-6 py-3 w-full"
-                                         onClick={() => handleViewProposal(proposal)}
-                                       >
-                                         <Eye className="h-5 w-5 mr-2" />
-                                         View Proposal
-                                       </Button>
-                                     </div>
-                                    
-                                    {isOwner && (
-                                      <div className="space-y-2">
-                                        <div className="text-sm font-medium text-gray-700">Owner Actions:</div>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-green-600 border-green-200 hover:bg-green-50 flex-1"
-                                            onClick={() => handleApproveProposal(proposal)}
-                                          >
-                                            <CheckCircle className="h-4 w-4 mr-1" />
-                                            Approve
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-red-600 border-red-200 hover:bg-red-50 flex-1"
-                                            onClick={() => handleRejectProposal(proposal)}
-                                          >
-                                            <X className="h-4 w-4 mr-1" />
-                                            Reject
-                                          </Button>
-                                        </div>
-                                        
-                                        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                                          As society owner, you can approve/reject proposals or start member voting.
-                                        </div>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Member Voting Interface - Only show to non-owners */}
-                                    {!isOwner && (
-                                      <div className="space-y-2">
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant={votingState[proposal._id]?.vote === 'yes' ? 'default' : 'outline'}
-                                        onClick={() => !votesFinalized && handleVote(proposal._id, 'yes', votingState[proposal._id]?.reason || '')}
-                                        disabled={votesFinalized}
-                                        className={`flex-1 ${
-                                          votingState[proposal._id]?.vote === 'yes' 
-                                            ? 'bg-green-600 hover:bg-green-700 text-white' 
-                                            : 'border-green-200 text-green-600 hover:bg-green-50'
-                                        } ${votesFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                      >
-                                            âœ“ Yes
-                                      </Button>
-                                      <Button
-                                        variant={votingState[proposal._id]?.vote === 'no' ? 'default' : 'outline'}
-                                        onClick={() => !votesFinalized && handleVote(proposal._id, 'no', votingState[proposal._id]?.reason || '')}
-                                        disabled={votesFinalized}
-                                        className={`flex-1 ${
-                                          votingState[proposal._id]?.vote === 'no' 
-                                            ? 'bg-red-600 hover:bg-red-700 text-white' 
-                                            : 'border-red-200 text-red-600 hover:bg-red-50'
-                                        } ${votesFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                      >
-                                            âœ— No
-                                      </Button>
-                                    </div>
-                                    
-                                    <textarea
-                                      placeholder={votesFinalized ? "Votes finalized - cannot edit" : "Enter your reason for this vote (optional)"}
-                                      value={votingState[proposal._id]?.reason || ''}
-                                      onChange={(e) => !votesFinalized && handleReasonChange(proposal._id, e.target.value)}
-                                      disabled={votesFinalized}
-                                      className={`w-full p-3 border rounded-md resize-none h-20 text-sm ${votesFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                      maxLength={500}
-                                    />
-                                    
-                                    {votingState[proposal._id]?.vote && (
-                                      <div className="text-sm text-muted-foreground">
-                                        Your vote: <span className="font-medium">{votingState[proposal._id].vote.toUpperCase()}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  )}
-
-                  {/* Owner Proposal Management Section */}
-                  {isOwner && (
-                    <Card className="border-purple-200 bg-purple-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-purple-800">
-                          <Building2 className="h-5 w-5" />
-                          Proposal Management
-                        </CardTitle>
-                        <p className="text-sm text-purple-600">
-                          As society owner, you can manage proposals and control the voting process.
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {proposals.map((proposal) => (
-                            <Card key={proposal._id} className="border-l-4 border-l-purple-500">
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                  {/* Proposal Info */}
-                                  <div className="flex-1">
-                                    <h4 className="font-semibold text-lg">
-                                      {proposal.developerInfo?.companyName || 'Developer'}
-                                    </h4>
-                                    <p className="text-sm text-muted-foreground mb-2">{proposal.title}</p>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                                      <div>
-                                        <span className="text-muted-foreground">Corpus:</span>
-                                        <p className="font-medium">
-                                          {proposal.corpusAmount ? 
-                                            (proposal.corpusAmount >= 10000000 ? 
-                                              `₹${(proposal.corpusAmount / 10000000).toFixed(2)} Cr` : 
-                                              `₹${proposal.corpusAmount.toLocaleString()}`
-                                            ) : 
-                                            'Not specified'
-                                          }
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Rent:</span>
-                                        <p className="font-medium">
-                                          {proposal.rentAmount ? 
-                                            `₹${proposal.rentAmount.toLocaleString()}` : 
-                                            'Not specified'
-                                          }
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">FSI:</span>
-                                        <p className="font-medium">{proposal.fsi || 'Not specified'}</p>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Timeline:</span>
-                                        <p className="font-medium">{proposal.timeline || 'Not specified'}</p>
-                                      </div>
-                                      <div>
-                                        <span className="text-muted-foreground">Status:</span>
-                                        <Badge className={getStatusColor(proposal.status)}>
-                                          {proposal.status.replace('_', ' ').toUpperCase()}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Owner Actions */}
-                                  <div className="flex-shrink-0 min-w-[300px]">
-                                    <div className="space-y-3">
-                                      <div className="flex gap-2">
-                                        <Button
-                                          variant="outline"
-                                          size="default"
-                                          className="text-blue-600 border-blue-200 hover:bg-blue-50 px-6 py-3 w-full"
-                                          onClick={() => handleViewProposal(proposal)}
-                                        >
-                                          <Eye className="h-5 w-5 mr-2" />
-                                          View Proposal
-                                        </Button>
-                                      </div>
-                                      
-                                      <div className="space-y-2">
-                                        <div className="text-sm font-medium text-gray-700">Owner Actions:</div>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-green-600 border-green-200 hover:bg-green-50 flex-1"
-                                            onClick={() => handleApproveProposal(proposal)}
-                                          >
-                                            <CheckCircle className="h-4 w-4 mr-1" />
-                                            Approve
-                                          </Button>
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-red-600 border-red-200 hover:bg-red-50 flex-1"
-                                            onClick={() => handleRejectProposal(proposal)}
-                                          >
-                                            <X className="h-4 w-4 mr-1" />
-                                            Reject
-                                          </Button>
-                                        </div>
-                                        
-                                        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                                          As society owner, you can approve/reject proposals or start member voting.
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Finalize Votes Button - Only for Members */}
-                  {!votesFinalized && !isOwner && (
-                    <Card className="border-blue-200 bg-blue-50">
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold text-blue-800">Ready to Submit Your Votes?</h3>
-                            <p className="text-sm text-blue-600 mt-1">
-                              Make sure you have voted on all proposals with reasons before finalizing.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={handleFinalizeVotes}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3"
-                            size="lg"
-                          >
-                            ðŸ—³ï¸ Finalize Votes
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  
-
-                  {/* Member Voting Status - Only show to non-owners */}
-                  {!isOwner && votesFinalized && userSubmittedVotes.length === 0 && (
-                    <Card className="border-blue-200 bg-blue-50">
-                      <CardContent className="p-6">
-                        <div className="flex items-center gap-3">
-                          <CheckCircle className="h-8 w-8 text-blue-600" />
-                          <div>
-                            <h3 className="font-semibold text-blue-800">Voting Complete</h3>
-                            <p className="text-sm text-blue-600">
-                              You have already submitted your votes. Loading your submitted votes...
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Member Submitted Votes - Only show to non-owners */}
-                  {!isOwner && votesFinalized && userSubmittedVotes.length > 0 && (
-                    <Card className="border-green-200 bg-green-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-green-800">
-                          <CheckCircle className="h-5 w-5" />
-                          Your Submitted Votes
-                        </CardTitle>
-                        <CardDescription className="text-green-600">
-                          You have already voted on all proposals. Your votes are locked and cannot be changed.
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {userSubmittedVotes.map((vote, index) => (
-                            <div key={vote.proposal._id || index} className="bg-white rounded-lg p-4 border border-green-200">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-800 mb-2">
-                                    {vote.proposal.developer?.companyName || vote.proposal.title}
-                                  </h4>
-                                  <div className="flex items-center gap-4 mb-3">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium text-gray-600">Your Vote:</span>
-                                      <Badge 
-                                        className={`px-3 py-1 ${
-                                          vote.vote === 'yes' 
-                                            ? 'bg-green-100 text-green-800 border-green-200' 
-                                            : 'bg-red-100 text-red-800 border-red-200'
-                                        }`}
-                                      >
-                                        {vote.vote === 'yes' ? 'âœ“ YES' : 'âœ— NO'}
-                                      </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm font-medium text-gray-600">Submitted:</span>
-                                      <span className="text-sm text-gray-500">
-                                        {new Date(vote.votedAt).toLocaleDateString()} at {new Date(vote.votedAt).toLocaleTimeString()}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  {vote.reason && (
-                                    <div className="bg-gray-50 rounded-md p-3">
-                                      <span className="text-sm font-medium text-gray-600">Your Reason:</span>
-                                      <p className="text-sm text-gray-700 mt-1">{vote.reason}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        <div className="mt-4 p-3 bg-green-100 rounded-md">
-                          <p className="text-sm text-green-700">
-                            <strong>Status:</strong> Your votes have been successfully submitted and are now locked. 
-                            You cannot make any changes to your votes. The society owner will close the voting when ready.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Owner Voting Management - Close Voting */}
-                  {isOwner && votesFinalized && !votingResults && (
-                    <Card className="border-orange-200 bg-orange-50">
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-semibold text-orange-800">Close Voting</h3>
-                            <p className="text-sm text-orange-600 mt-1">
-                              All members have finalized their votes. Click to close voting and see results.
-                            </p>
-                          </div>
-                          <Button
-                            onClick={handleCloseVoting}
-                            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3"
-                            size="lg"
-                          >
-                            ðŸ”’ Close Voting
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Voting Results */}
-                  {(votingResults || votingResultsData.length > 0) && (
-                    <Card className="border-purple-200 bg-purple-50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-purple-800">
-                          <BarChart3 className="h-5 w-5" />
-                          Voting Results
-                        </CardTitle>
-                        <p className="text-sm text-purple-600">
-                          Total votes cast: {votingResults?.totalVotes || votingResultsData.reduce((sum, result) => sum + result.totalVotes, 0)}
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {(votingResults?.results || votingResultsData).map((result: any, index: number) => (
-                            <Card key={result.proposalId} className="border-l-4 border-l-purple-500">
-                              <CardContent className="p-4">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="font-semibold text-lg">{result.proposalTitle}</h4>
-                                    <p className="text-sm text-muted-foreground mb-3">
-                                      by {result.developerName}
-                                    </p>
-                                    <div className="grid grid-cols-3 gap-4">
-                                      <div className="text-center">
-                                        <div className="text-2xl font-bold text-green-600">{result.yesCount || result.yesVotes}</div>
-                                        <div className="text-sm text-muted-foreground">Yes Votes</div>
-                                      </div>
-                                      <div className="text-center">
-                                        <div className="text-2xl font-bold text-red-600">{result.noCount || result.noVotes}</div>
-                                        <div className="text-sm text-muted-foreground">No Votes</div>
-                                      </div>
-                                      <div className="text-center">
-                                        <div className="text-2xl font-bold text-purple-600">{result.approvalRate}%</div>
-                                        <div className="text-sm text-muted-foreground">Approval Rate</div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex-shrink-0 ml-4">
-                                    {result.approvalRate >= 70 ? (
-                                      <Badge className="bg-green-100 text-green-800 border-green-200">
-                                        âœ… Approved
-                                      </Badge>
-                                    ) : (
-                                      <Badge className="bg-red-100 text-red-800 border-red-200">
-                                        âŒ Rejected
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Proposals Yet</h3>
-                    <p className="text-muted-foreground">
-                      Developer proposals will appear here once they submit their bids for this project.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
             <TabsContent value="queries" className="space-y-6">
+              {loadingProjectData ? (
+                <div className="flex items-center justify-center py-12">
+                                      <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p className="text-muted-foreground">Loading queries data...</p>
+                                      </div>
+                                      </div>
+              ) : (
               <MemberQueries 
                 project={{
                   _id: selectedProject._id,
@@ -1842,6 +1486,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                   }))
                 }}
               />
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -1855,73 +1500,125 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
           </DialogHeader>
           {selectedProposal && (
             <div className="space-y-6">
-              {/* Basic Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">Project Details</h3>
-                  <div className="space-y-2">
-                    <div><strong>Title:</strong> {selectedProposal.title}</div>
-                    <div><strong>Description:</strong> {selectedProposal.description}</div>
-                    <div><strong>Corpus Amount:</strong> ₹{selectedProposal.corpusAmount?.toLocaleString() || 'Not specified'}</div>
-                    <div><strong>Monthly Rent:</strong> ₹{selectedProposal.rentAmount?.toLocaleString() || 'Not specified'}</div>
-                    <div><strong>FSI:</strong> {selectedProposal.fsi || 'Not specified'}</div>
-                  </div>
+                <h3 className="text-xl font-bold">{selectedProposal.title}</h3>
+                <p className="text-muted-foreground mt-1">
+                  by {selectedProposal.developerInfo?.companyName || 'Developer'}
+                </p>
                 </div>
                 
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">Timeline</h3>
-                  <div className="space-y-2">
-                    {selectedProposal.timeline && (
-                      <div><strong>Duration:</strong> {selectedProposal.timeline.toLowerCase().includes('month') ? selectedProposal.timeline : `${selectedProposal.timeline} months`}</div>
-                    )}
-                    {selectedProposal.proposedTimeline?.startDate && (
-                      <div><strong>Start Date:</strong> {new Date(selectedProposal.proposedTimeline.startDate).toLocaleDateString()}</div>
-                    )}
-                    {selectedProposal.proposedTimeline?.completionDate && (
-                      <div><strong>Completion Date:</strong> {new Date(selectedProposal.proposedTimeline.completionDate).toLocaleDateString()}</div>
-                    )}
+                <h4 className="font-semibold mb-2">Description</h4>
+                <p className="text-muted-foreground">{selectedProposal.description}</p>
                   </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold mb-1">Corpus Amount</h4>
+                  <p className="text-lg font-bold text-green-600">
+                    ₹{selectedProposal.corpusAmount?.toLocaleString() || 'N/A'}
+                  </p>
               </div>
-
-              {/* Developer Information */}
               <div>
-                <h3 className="text-lg font-semibold mb-3">Developer Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><strong>Company:</strong> {selectedProposal.developerInfo?.companyName || 'Not specified'}</div>
-                  <div><strong>Contact Person:</strong> {selectedProposal.developerInfo?.contactPerson || 'Not specified'}</div>
-                  <div><strong>Experience:</strong> {selectedProposal.developerInfo?.experience ? `${selectedProposal.developerInfo.experience} years` : 'Not specified'}</div>
-                  <div><strong>Completed Projects:</strong> {selectedProposal.developerInfo?.completedProjects || 'Not specified'}</div>
+                  <h4 className="font-semibold mb-1">Rent Amount</h4>
+                  <p className="text-lg font-bold text-blue-600">
+                    ₹{selectedProposal.rentAmount?.toLocaleString() || 'N/A'}/month
+                  </p>
                 </div>
               </div>
 
-              {/* Amenities */}
-              {selectedProposal.proposedAmenities && selectedProposal.proposedAmenities.length > 0 && (
+              {selectedProposal.developerInfo && (
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">Proposed Amenities</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {selectedProposal.proposedAmenities.map((amenity: any, index: number) => (
-                      <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                        <Star className="h-4 w-4 text-yellow-500" />
-                        <span>{amenity}</span>
+                  <h4 className="font-semibold mb-2">Developer Information</h4>
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <div><strong>Company:</strong> {selectedProposal.developerInfo.companyName || 'N/A'}</div>
+                    <div><strong>Experience:</strong> {selectedProposal.developerInfo.experience || 'N/A'}</div>
+                    <div><strong>Completed Projects:</strong> {selectedProposal.developerInfo.completedProjects || 'N/A'}</div>
+                    <div><strong>Contact Person:</strong> {selectedProposal.developerInfo.contactPerson || 'N/A'}</div>
+                    <div><strong>Contact Phone:</strong> {selectedProposal.developerInfo.contactPhone || 'N/A'}</div>
+                    <div><strong>Contact Email:</strong> {selectedProposal.developerInfo.contactEmail || 'N/A'}</div>
+                    {selectedProposal.developerInfo.website && (
+                      <div><strong>Website:</strong> <a href={selectedProposal.developerInfo.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{selectedProposal.developerInfo.website}</a></div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Developer Documents */}
+              {selectedProposal.documents && selectedProposal.documents.length > 0 && (
+                <div>
+                  <h4 className="font-semibold mb-3">Developer Documents</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedProposal.documents.map((document, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                          <FileText className="h-5 w-5 text-red-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {document.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {document.type.replace('_', ' ')} Document
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Direct download approach
+                            const link = window.document.createElement('a');
+                            link.href = document.url;
+                            link.download = document.name;
+                            link.target = '_blank';
+                            window.document.body.appendChild(link);
+                            link.click();
+                            window.document.body.removeChild(link);
+                          }}
+                          className="text-blue-600 hover:text-blue-700"
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          Download PDF
+                        </Button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+              
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+                  Close
+                </Button>
             </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Create Project Form */}
+      {showCreateForm && (
+        <RedevelopmentForm
+          societyId={societyId}
+          onClose={() => setShowCreateForm(false)}
+          onSuccess={(project) => {
+            setShowCreateForm(false);
+            setProjects(prev => [...prev, project]);
+            toast({
+              title: "Success",
+              description: "Redevelopment project has been created successfully.",
+            });
+          }}
+        />
+      )}
     </div>
   );
 };
 
 // Project Overview Component
-const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: DeveloperProposal[] }> = ({ project, proposals }) => {
+const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: DeveloperProposal[]; onViewProposal: (proposal: DeveloperProposal) => void }> = ({ project, proposals, onViewProposal }) => {
   return (
-    <div className="grid gap-6">
+    <div className="space-y-6">
       {/* Project Details */}
       <Card>
         <CardHeader>
@@ -1941,6 +1638,48 @@ const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: Deve
                   <Badge key={index} variant="secondary">
                     {amenity}
                   </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Project Documents */}
+          {project.documents && project.documents.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-2">Project Documents</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {project.documents.map((document, index) => (
+                  <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                      <FileText className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        {document.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {document.type.replace('_', ' ')} Document
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Direct download approach
+                        const link = window.document.createElement('a');
+                        link.href = document.url;
+                        link.download = document.name;
+                        link.target = '_blank';
+                        window.document.body.appendChild(link);
+                        link.click();
+                        window.document.body.removeChild(link);
+                      }}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      Download PDF
+                    </Button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -2024,21 +1763,12 @@ const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: Deve
                       <h4 className="font-medium text-green-700 mb-2">Developer Information</h4>
                       <div className="text-sm text-green-600 space-y-1">
                         <div><strong>Company:</strong> {selectedProposal.developerInfo.companyName || 'N/A'}</div>
-                        <div><strong>Contact:</strong> {selectedProposal.developerInfo.contactEmail || 'N/A'}</div>
+                        <div><strong>Experience:</strong> {selectedProposal.developerInfo.experience || 'N/A'}</div>
+                        <div><strong>Completed Projects:</strong> {selectedProposal.developerInfo.completedProjects || 'N/A'}</div>
+                        <div><strong>Contact Person:</strong> {selectedProposal.developerInfo.contactPerson || 'N/A'}</div>
                       </div>
                     </div>
                   )}
-                  
-                  <div className="pt-4 border-t border-green-200">
-                    <div className="flex items-center gap-2 text-sm text-green-600">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span><strong>Status:</strong> Developer has been notified via email about their selection</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span><strong>Other developers:</strong> Rejection notifications have been sent</span>
-                    </div>
-                  </div>
                 </div>
               );
             })()}
@@ -2046,25 +1776,42 @@ const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: Deve
         </Card>
       )}
 
-      {/* Recent Updates */}
-      {project.updates.length > 0 && (
+      {/* All Proposals */}
+      {proposals.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Recent Updates</CardTitle>
+            <CardTitle>All Proposals ({proposals.length})</CardTitle>
+            <CardDescription>View all submitted proposals for this project</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {project.updates.slice(0, 3).map((update) => (
-                <div key={update._id} className="border-l-4 border-primary pl-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="font-semibold">{update.title}</h4>
-                      <p className="text-muted-foreground text-sm mt-1">
-                        {update.description}
+              {proposals.map((proposal) => (
+                <div key={proposal._id} className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{proposal.title}</h4>
+                      <p className="text-muted-foreground mb-2">
+                        by {proposal.developerInfo?.companyName || 'Developer'}
                       </p>
+                      <p className="text-sm">{proposal.description}</p>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {new Date(update.postedAt).toLocaleDateString()}
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge variant={proposal.status === 'selected' ? 'default' : 'outline'}>
+                        {proposal.status}
+                      </Badge>
+                      <div className="text-right text-sm">
+                        <div className="font-medium">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
+                        <div className="text-muted-foreground">Corpus</div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onViewProposal(proposal)}
+                        className="text-green-600 border-green-200 hover:bg-green-50"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        View Proposal
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -2073,6 +1820,7 @@ const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: Deve
           </CardContent>
         </Card>
       )}
+
     </div>
   );
 };

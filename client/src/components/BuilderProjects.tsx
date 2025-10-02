@@ -4,11 +4,13 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ProjectCard from "./ProjectCard";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const BuilderProjects = () => {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProjects();
@@ -32,9 +34,10 @@ const BuilderProjects = () => {
           `₹${project.priceRange.min}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''} - ₹${project.priceRange.max}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''}` :
           'Price on request',
         completion_date: project.completionDate,
-        images: project.images?.map((img: any) => 
-          typeof img === 'string' ? img : img.url
-        ) || [],
+        images: project.images?.map((img: any) => {
+          if (!img) return null;
+          return typeof img === 'string' ? img : img?.url || null;
+        }).filter(Boolean) || [],
         status: project.status === 'under_construction' ? 'ongoing' : 
                 project.status === 'ready_to_move' ? 'completed' :
                 project.status === 'planning' ? 'planned' : project.status,
@@ -116,7 +119,11 @@ const BuilderProjects = () => {
             <h2 className="text-3xl font-bold text-foreground mb-2">Current Builder Projects</h2>
             <p className="text-muted-foreground">Exclusive new developments from trusted builders</p>
           </div>
-          <Button variant="outline" className="group">
+          <Button 
+            variant="outline" 
+            className="group"
+            onClick={() => navigate('/projects')}
+          >
             See All Projects
             <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
           </Button>

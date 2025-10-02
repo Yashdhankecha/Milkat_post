@@ -1,6 +1,6 @@
 import apiClient from '@/lib/api';
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,13 +22,23 @@ import {
   Mail,
   MessageCircle,
   Home,
-  FileText
+  FileText,
+  ArrowLeft
 } from "lucide-react";
 
 const ProjectDetails = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  // Extract ID from URL if useParams fails
+  const projectId = id || window.location.pathname.split('/').pop();
+  
+  console.log('ProjectDetails component loaded with ID:', id);
+  console.log('Extracted project ID:', projectId);
+  console.log('Current URL:', window.location.href);
+  console.log('URL pathname:', window.location.pathname);
   const [project, setProject] = useState<any>(null);
   const [relatedProjects, setRelatedProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,11 +50,11 @@ const ProjectDetails = () => {
   });
 
   useEffect(() => {
-    if (id && id !== 'undefined') {
+    if (projectId && projectId !== 'undefined' && projectId !== '') {
       fetchProjectDetails();
       fetchRelatedProjects();
     } else {
-      console.error('Project ID is undefined or invalid:', id);
+      console.error('Project ID is undefined or invalid:', { id, projectId });
       toast({
         title: "Error",
         description: "Invalid project ID. Please check the URL.",
@@ -52,55 +62,75 @@ const ProjectDetails = () => {
       });
       setLoading(false);
     }
-  }, [id]);
+  }, [projectId]);
 
   const fetchProjectDetails = async () => {
-    if (!id || id === 'undefined') {
+    if (!projectId || projectId === 'undefined') {
       console.error('Cannot fetch project details: ID is undefined');
       setLoading(false);
       return;
     }
 
     try {
+      console.log('Fetching project details for ID:', projectId);
+      
       // First try to get as regular project
-      let response = await apiClient.getProject(id);
+      let response = await apiClient.getProject(projectId);
+      console.log('Regular project response:', response);
       
       // If that fails, try as redevelopment project
       if (response.error) {
         console.log('Regular project not found, trying redevelopment project...');
-        response = await apiClient.getRedevelopmentProject(id);
+        response = await apiClient.getRedevelopmentProject(projectId);
+        console.log('Redevelopment project response:', response);
       }
       
-      if (response.error) throw new Error(response.error);
+      if (response.error) {
+        console.error('Both project types failed:', response.error);
+        throw new Error(response.error);
+      }
+      
       console.log('Project data received:', response.data);
+      
       // Handle different response structures
       const rawProject = response.data?.project || response.data;
+      console.log('Raw project data:', rawProject);
+      
+      if (!rawProject) {
+        throw new Error('No project data found in response');
+      }
       
       // Transform the data to match the expected structure
       const projectData = {
         ...rawProject,
-        name: rawProject.name,
+        name: rawProject.name || rawProject.title || 'Untitled Project', // Handle both regular and redevelopment projects
         location: rawProject.location ? 
-          `${rawProject.location.address || ''}, ${rawProject.location.city || ''}, ${rawProject.location.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '') :
+          (typeof rawProject.location === 'string' ? rawProject.location :
+           `${rawProject.location.address || ''}, ${rawProject.location.city || ''}, ${rawProject.location.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')) :
           'Location not specified',
         price_range: rawProject.priceRange ? 
           `₹${rawProject.priceRange.min}${rawProject.priceRange.unit === 'lakh' ? 'L' : rawProject.priceRange.unit === 'crore' ? 'Cr' : ''} - ₹${rawProject.priceRange.max}${rawProject.priceRange.unit === 'lakh' ? 'L' : rawProject.priceRange.unit === 'crore' ? 'Cr' : ''}` :
-          'Price on request',
-        total_units: rawProject.totalUnits,
-        available_units: rawProject.availableUnits,
-        completion_date: rawProject.completionDate,
+          rawProject.price_range || 'Price on request',
+        total_units: rawProject.totalUnits || rawProject.total_units,
+        available_units: rawProject.availableUnits || rawProject.available_units,
+        completion_date: rawProject.completionDate || rawProject.completion_date || rawProject.timeline?.expectedCompletionDate,
         status: rawProject.status || 'unknown',
-        amenities: rawProject.amenities || [],
+        amenities: rawProject.amenities || rawProject.expectedAmenities || [],
         images: rawProject.images || [],
-        description: rawProject.description
+        brochures: rawProject.brochures || [], // Keep brochures for regular projects
+        documents: rawProject.documents || [], // Keep documents for redevelopment projects
+        description: rawProject.description || 'No description available',
+        developers: rawProject.developer || rawProject.developers, // Handle developer info
+        project_type: rawProject.projectType || rawProject.project_type || 'residential'
       };
       
+      console.log('Transformed project data:', projectData);
       setProject(projectData);
     } catch (error) {
       console.error('Error fetching project:', error);
       toast({
         title: "Error",
-        description: "Failed to load project details.",
+        description: "Failed to load project details. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -125,12 +155,104 @@ const ProjectDetails = () => {
       }
       
       // Filter out the current project and limit to 3 related projects
-      const related = projects.filter((p: any) => p._id !== id).slice(0, 3);
-      setRelatedProjects(related);
+      const filteredProjects = projects.filter((p: any) => p._id !== id).slice(0, 3);
+      
+      // Transform the related projects to match ProjectCard interface
+      const transformedRelated = filteredProjects.map((project: any) => ({
+        id: project._id || project.id,
+        name: project.name,
+        location: project.location ? 
+          (typeof project.location === 'string' ? project.location :
+           `${project.location.address || ''}, ${project.location.city || ''}, ${project.location.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '')) :
+          'Location not specified',
+        price_range: project.priceRange ? 
+          `₹${project.priceRange.min}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''} - ₹${project.priceRange.max}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''}` :
+          project.price_range || 'Price on request',
+        completion_date: project.completionDate || project.completion_date,
+        images: project.images?.map((img: any) => {
+          if (!img) return null;
+          return typeof img === 'string' ? img : img?.url || null;
+        }).filter(Boolean) || [],
+        status: project.status === 'under_construction' ? 'ongoing' : 
+                project.status === 'ready_to_move' ? 'completed' :
+                project.status === 'planning' ? 'planned' : project.status,
+        project_type: project.projectType || project.project_type || 'residential',
+        total_units: project.totalUnits || project.total_units,
+        available_units: project.availableUnits || project.available_units
+      }));
+      
+      setRelatedProjects(transformedRelated);
     } catch (error) {
       console.error('Error fetching related projects:', error);
       // Set empty array on error to prevent crashes
       setRelatedProjects([]);
+    }
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: project.name,
+      text: `Check out this amazing project: ${project.name}`,
+      url: window.location.href
+    };
+
+    // Check if Web Share API is supported (mainly mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        // User cancelled sharing or error occurred
+        if (error.name !== 'AbortError') {
+          console.error('Error sharing:', error);
+          // Fallback to copy to clipboard
+          await copyToClipboard();
+        }
+      }
+    } else {
+      // Fallback for desktop browsers
+      await copyToClipboard();
+    }
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: "Link Copied!",
+        description: "Project link has been copied to your clipboard.",
+      });
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      // Fallback for older browsers
+      fallbackCopyToClipboard();
+    }
+  };
+
+  const fallbackCopyToClipboard = () => {
+    const textArea = document.createElement('textarea');
+    textArea.value = window.location.href;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      document.execCommand('copy');
+      toast({
+        title: "Link Copied!",
+        description: "Project link has been copied to your clipboard.",
+      });
+    } catch (error) {
+      console.error('Fallback copy failed:', error);
+      toast({
+        title: "Copy Failed",
+        description: "Unable to copy link. Please copy manually from the address bar.",
+        variant: "destructive",
+      });
+    } finally {
+      document.body.removeChild(textArea);
     }
   };
 
@@ -149,7 +271,7 @@ const ProjectDetails = () => {
     try {
       await apiClient.createInquiry({
         user_id: user.id,
-        project_id: id,
+        project_id: projectId,
         developer_id: project?.developer_id,
         inquiry_type: 'project_inquiry',
         subject: `Interest in ${project?.name}`,
@@ -173,7 +295,7 @@ const ProjectDetails = () => {
   };
 
   // Early return for invalid IDs
-  if (!id || id === 'undefined') {
+  if (!projectId || projectId === 'undefined') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -190,7 +312,10 @@ const ProjectDetails = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-estate-blue"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-estate-blue mx-auto mb-4"></div>
+          <p className="text-lg text-muted-foreground">Loading project details...</p>
+        </div>
       </div>
     );
   }
@@ -200,9 +325,15 @@ const ProjectDetails = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Project Not Found</h2>
-          <Link to="/projects">
-            <Button>Browse Projects</Button>
-          </Link>
+          <p className="text-muted-foreground mb-6">The project you're looking for doesn't exist or has been removed.</p>
+          <div className="flex gap-4 justify-center">
+            <Link to="/projects">
+              <Button>Browse Projects</Button>
+            </Link>
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Go Back
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -218,6 +349,8 @@ const ProjectDetails = () => {
     }
   };
 
+  console.log('ProjectDetails rendering with project:', project);
+  
   return (
     <div className="min-h-screen bg-background">
       {/* Project Media Gallery */}
@@ -239,11 +372,21 @@ const ProjectDetails = () => {
           )}
         </div>
         
-        <div className="absolute top-4 right-4 flex gap-2">
+        <div className="absolute top-4 left-4 right-4 flex justify-between">
           <Button
             size="sm"
             variant="secondary"
             className="bg-white/90 hover:bg-white"
+            onClick={() => navigate(-1)}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="bg-white/90 hover:bg-white"
+            onClick={handleShare}
           >
             <Share2 className="w-4 h-4 mr-2" />
             Share
@@ -251,40 +394,40 @@ const ProjectDetails = () => {
         </div>
       </section>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="container mx-auto px-4 sm:px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             {/* Project Header */}
             <div>
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-bold mb-2">{project.name || 'Untitled Project'}</h1>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 gap-4">
+                <div className="flex-1">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3">{project.name || 'Untitled Project'}</h1>
                   <div className="flex items-center text-muted-foreground mb-4">
-                    <MapPin className="w-4 h-4 mr-2" />
-                    <span>{project.location || 'Location not specified'}</span>
+                    <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="break-words">{project.location || 'Location not specified'}</span>
                   </div>
                 </div>
-                <Badge className={getStatusColor(project.status)}>
+                <Badge className={`${getStatusColor(project.status)} self-start`}>
                   {project.status ? project.status.replace('_', ' ').toUpperCase() : 'UNKNOWN'}
                 </Badge>
               </div>
 
-              <div className="flex flex-wrap gap-4 text-lg">
-                <div className="flex items-center">
-                  <Building2 className="w-5 h-5 mr-2 text-estate-blue" />
-                  <span className="font-semibold">{project.price_range || 'Price on request'}</span>
+              <div className="flex flex-wrap gap-4 text-base sm:text-lg">
+                <div className="flex items-center min-w-0">
+                  <Building2 className="w-5 h-5 mr-2 text-estate-blue flex-shrink-0" />
+                  <span className="font-semibold truncate">{project.price_range || 'Price on request'}</span>
                 </div>
                 {project.total_units && (
-                  <div className="flex items-center">
-                    <Users className="w-5 h-5 mr-2 text-estate-blue" />
-                    <span>{project.available_units || 0}/{project.total_units} units</span>
+                  <div className="flex items-center min-w-0">
+                    <Users className="w-5 h-5 mr-2 text-estate-blue flex-shrink-0" />
+                    <span className="truncate">{project.available_units || 0}/{project.total_units} units</span>
                   </div>
                 )}
                 {project.completion_date && (
-                  <div className="flex items-center">
-                    <Calendar className="w-5 h-5 mr-2 text-estate-blue" />
-                    <span>Expected: {new Date(project.completion_date).toLocaleDateString()}</span>
+                  <div className="flex items-center min-w-0">
+                    <Calendar className="w-5 h-5 mr-2 text-estate-blue flex-shrink-0" />
+                    <span className="truncate">Expected: {new Date(project.completion_date).toLocaleDateString()}</span>
                   </div>
                 )}
               </div>
@@ -395,6 +538,44 @@ const ProjectDetails = () => {
               </div>
             )}
 
+            {/* Project Documents (for redevelopment projects) */}
+            {project.documents && project.documents.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-semibold mb-4">Project Documents</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {project.documents.map((document: any, index: number) => (
+                    <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                            <FileText className="h-6 w-6 text-red-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">
+                              {document?.name || `Project Document ${index + 1}`}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {document?.type ? document.type.replace('_', ' ').toUpperCase() : 'PDF Document'}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const url = document?.url || (typeof document === 'string' ? document : null);
+                              if (url) window.open(url, '_blank');
+                            }}
+                          >
+                            View PDF
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Floor Plans */}
             {project.floor_plans && Object.keys(project.floor_plans).length > 0 && (
               <div>
@@ -418,7 +599,7 @@ const ProjectDetails = () => {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-6 lg:sticky lg:top-8">
             {/* Contact Developer */}
             <Card>
               <CardHeader>
@@ -451,35 +632,38 @@ const ProjectDetails = () => {
 
                 <form onSubmit={handleContactSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="name">Name</Label>
+                    <Label htmlFor="name">Name *</Label>
                     <Input
                       id="name"
                       value={contactForm.name}
                       onChange={(e) => setContactForm({...contactForm, name: e.target.value})}
+                      placeholder="Your full name"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email *</Label>
                     <Input
                       id="email"
                       type="email"
                       value={contactForm.email}
                       onChange={(e) => setContactForm({...contactForm, email: e.target.value})}
+                      placeholder="your.email@example.com"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone">Phone *</Label>
                     <Input
                       id="phone"
                       value={contactForm.phone}
                       onChange={(e) => setContactForm({...contactForm, phone: e.target.value})}
+                      placeholder="+91 9876543210"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="message">Message</Label>
+                    <Label htmlFor="message">Message *</Label>
                     <Textarea
                       id="message"
                       placeholder="I'm interested in this project..."

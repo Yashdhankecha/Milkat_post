@@ -43,6 +43,8 @@ const ProjectCard = ({
     }
   };
 
+  console.log('ProjectCard rendering with id:', id);
+  
   return (
     <Link to={`/project/${id}`}>
       <Card className="group hover:shadow-strong transition-all duration-300 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer">
@@ -74,7 +76,12 @@ const ProjectCard = ({
           
           <div className="flex items-center gap-2 text-muted-foreground mb-3">
             <MapPin className="h-4 w-4" />
-            <span className="text-sm">{location}</span>
+            <span className="text-sm">
+              {typeof location === 'string' ? location : 
+               location && typeof location === 'object' ? 
+                 `${location.address || ''}, ${location.city || ''}, ${location.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || 'Location not specified' :
+               'Location not specified'}
+            </span>
           </div>
           
           <div className="flex items-center justify-between mb-3">
