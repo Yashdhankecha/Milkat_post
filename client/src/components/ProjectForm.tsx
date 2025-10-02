@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,41 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
   const [saving, setSaving] = useState(false);
   const [developerProfile, setDeveloperProfile] = useState<any>(null);
   const [amenities, setAmenities] = useState<string[]>([]);
-  const [newAmenity, setNewAmenity] = useState("");
+  
+  // Predefined amenities that match server enum values
+  const predefinedAmenities = [
+    { label: 'Parking', value: 'parking' },
+    { label: 'Security', value: 'security' },
+    { label: 'Gym', value: 'gym' },
+    { label: 'Swimming Pool', value: 'swimming_pool' },
+    { label: 'Garden', value: 'garden' },
+    { label: 'Playground', value: 'playground' },
+    { label: 'Club House', value: 'clubhouse' },
+    { label: 'Power Backup', value: 'power_backup' },
+    { label: 'Water Supply', value: 'water_supply' },
+    { label: 'Elevator', value: 'elevator' },
+    { label: 'Balcony', value: 'balcony' },
+    { label: 'Terrace', value: 'terrace' },
+    { label: 'Modular Kitchen', value: 'modular_kitchen' },
+    { label: 'Wardrobe', value: 'wardrobe' },
+    { label: 'Air Conditioning', value: 'ac' },
+    { label: 'Furnished', value: 'furnished' },
+    { label: 'Semi Furnished', value: 'semi_furnished' },
+    { label: 'Conference Room', value: 'conference_room' },
+    { label: 'Business Center', value: 'business_center' },
+    { label: 'Retail Shops', value: 'retail_shops' },
+    { label: 'Restaurant', value: 'restaurant' },
+    { label: 'Spa', value: 'spa' },
+    { label: 'Tennis Court', value: 'tennis_court' },
+    { label: 'Basketball Court', value: 'basketball_court' },
+    { label: 'Badminton Court', value: 'badminton_court' },
+    { label: 'Cricket Net', value: 'cricket_net' },
+    { label: 'Jogging Track', value: 'jogging_track' },
+    { label: 'Cycling Track', value: 'cycling_track' },
+    { label: 'Amphitheater', value: 'amphitheater' },
+    { label: 'Library', value: 'library' },
+    { label: 'Kids Play Area', value: 'kids_play_area' }
+  ];
   
   const [formData, setFormData] = useState({
     name: '',
@@ -176,13 +211,14 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     }));
   };
 
-  const addAmenity = () => {
-    if (newAmenity.trim() && !amenities.includes(newAmenity.trim())) {
-      const updatedAmenities = [...amenities, newAmenity.trim()];
-      setAmenities(updatedAmenities);
-      setFormData(prev => ({ ...prev, amenities: updatedAmenities }));
-      setNewAmenity("");
-    }
+  const toggleAmenity = (amenityValue: string) => {
+    const isSelected = amenities.includes(amenityValue);
+    const updatedAmenities = isSelected 
+      ? amenities.filter(a => a !== amenityValue)
+      : [...amenities, amenityValue];
+    
+    setAmenities(updatedAmenities);
+    setFormData(prev => ({ ...prev, amenities: updatedAmenities }));
   };
 
   const removeAmenity = (amenity: string) => {
@@ -288,30 +324,102 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       return;
     }
 
+    // Validate required fields
+    if (!formData.name || formData.name.trim().length < 5) {
+      toast({
+        title: "Validation Error",
+        description: "Project name must be at least 5 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.location.address || formData.location.address.trim().length < 5) {
+      toast({
+        title: "Validation Error",
+        description: "Address must be at least 5 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.location.city || formData.location.city.trim().length < 2) {
+      toast({
+        title: "Validation Error",
+        description: "City must be at least 2 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.location.state || formData.location.state.trim().length < 2) {
+      toast({
+        title: "Validation Error",
+        description: "State must be at least 2 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const minPrice = parseFloat(formData.priceRange.min);
+    const maxPrice = parseFloat(formData.priceRange.max);
+
+    if (isNaN(minPrice) || minPrice <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Minimum price must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isNaN(maxPrice) || maxPrice <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Maximum price must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (maxPrice <= minPrice) {
+      toast({
+        title: "Validation Error",
+        description: "Maximum price must be greater than minimum price",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     
     try {
       const projectData = {
-        name: formData.name,
-        description: formData.description,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || undefined,
         projectType: formData.projectType,
         status: formData.status,
-        location: formData.location,
-        priceRange: {
-          min: parseFloat(formData.priceRange.min) || 0,
-          max: parseFloat(formData.priceRange.max) || 0,
-          unit: formData.priceRange.unit
+        location: {
+          address: formData.location.address.trim(),
+          city: formData.location.city.trim(),
+          state: formData.location.state.trim(),
+          country: formData.location.country || 'India'
         },
-        totalUnits: formData.totalUnits ? parseInt(formData.totalUnits) : null,
-        availableUnits: formData.availableUnits ? parseInt(formData.availableUnits) : null,
-        completionDate: formData.completionDate || null,
-        possessionDate: formData.possessionDate || null,
-        launchDate: formData.launchDate || null,
-        amenities: formData.amenities,
-        images: formData.images,
-        videos: formData.videos,
-        brochures: formData.brochures,
-        reraNumber: formData.reraNumber
+        priceRange: {
+          min: minPrice,
+          max: maxPrice,
+          unit: formData.priceRange.unit || 'lakh'
+        },
+        totalUnits: formData.totalUnits ? parseInt(formData.totalUnits) : undefined,
+        availableUnits: formData.availableUnits ? parseInt(formData.availableUnits) : undefined,
+        completionDate: formData.completionDate || undefined,
+        possessionDate: formData.possessionDate || undefined,
+        launchDate: formData.launchDate || undefined,
+        amenities: formData.amenities || [],
+        images: formData.images || [],
+        videos: formData.videos || [],
+        brochures: formData.brochures || [],
+        reraNumber: formData.reraNumber?.trim() || undefined
       };
 
       if (existingProject) {
@@ -330,11 +438,25 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       });
       
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving project:', error);
+      
+      // Show specific validation errors if available
+      let errorMessage = "Failed to save project. Please try again.";
+      
+      if (error?.response?.data?.errors) {
+        // Handle express-validator errors
+        const validationErrors = error.response.data.errors.map((err: any) => err.msg).join(', ');
+        errorMessage = `Validation failed: ${validationErrors}`;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to save project. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -714,23 +836,45 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
 
           <div>
             <Label>Amenities</Label>
-            <div className="flex gap-2 mb-2">
-              <Input
-                placeholder="Add amenity..."
-                value={newAmenity}
-                onChange={(e) => setNewAmenity(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
-              />
-              <Button type="button" onClick={addAmenity}>Add</Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {amenities.map((amenity) => (
-                <Badge key={amenity} variant="secondary" className="flex items-center gap-1">
-                  {amenity}
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => removeAmenity(amenity)} />
-                </Badge>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
+              {predefinedAmenities.map((amenity) => (
+                <div
+                  key={amenity.value}
+                  className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                    amenities.includes(amenity.value)
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => toggleAmenity(amenity.value)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={amenities.includes(amenity.value)}
+                      onChange={() => toggleAmenity(amenity.value)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium">{amenity.label}</span>
+                  </div>
+                </div>
               ))}
             </div>
+            {amenities.length > 0 && (
+              <div className="mt-4">
+                <Label className="text-sm font-medium mb-2 block">Selected Amenities ({amenities.length})</Label>
+                <div className="flex flex-wrap gap-2">
+                  {amenities.map((amenity) => {
+                    const amenityLabel = predefinedAmenities.find(a => a.value === amenity)?.label || amenity;
+                    return (
+                      <Badge key={amenity} variant="secondary" className="flex items-center gap-1">
+                        {amenityLabel}
+                        <X className="h-3 w-3 cursor-pointer" onClick={() => removeAmenity(amenity)} />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-4 justify-end">

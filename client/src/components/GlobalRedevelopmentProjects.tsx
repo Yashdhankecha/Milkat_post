@@ -205,12 +205,30 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
     }).format(amount);
   };
 
+  const formatAmount = (amount: number | undefined | null) => {
+    if (!amount || isNaN(amount)) return 'N/A';
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    if (!dateString || dateString === 'null' || dateString === 'undefined') {
+      return 'N/A';
+    }
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'N/A';
+      }
+      return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return 'N/A';
+    }
   };
 
   if (loading && projects.length === 0) {
@@ -361,10 +379,26 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-lg font-bold text-gray-800 dark:text-gray-100 line-clamp-2">
                     {project.title}
+                    {/* Show submission status indicator */}
+                    {project.hasProposal && (
+                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                        (Proposal Sent)
+                      </span>
+                    )}
                   </CardTitle>
-                  <Badge className={`border ${getStatusColor(project.status)} text-xs px-2 py-1 flex-shrink-0`}>
-                    {project.status.replace('_', ' ')}
-                  </Badge>
+                  <div className="flex flex-col gap-1 flex-shrink-0">
+                    <Badge className={`border ${getStatusColor(project.status)} text-xs px-2 py-1`}>
+                      {project.status.replace('_', ' ')}
+                    </Badge>
+                    {/* Show submission deadline status */}
+                    {(project.status === 'voting' || project.status === 'developer_selected' || 
+                      project.status === 'construction' || project.status === 'completed' || 
+                      project.status === 'cancelled') && (
+                      <Badge variant="outline" className="text-xs px-2 py-1 bg-orange-50 text-orange-700 border-orange-200">
+                        Submission Closed
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               
@@ -389,11 +423,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-blue-500" />
-                    <span className="font-medium">{project.society.totalFlats} Flats</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-blue-500" />
-                    <span>{project.society.totalFlats} flats</span>
+                    <span className="font-medium">{project.society.totalFlats || 0} Flats</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-purple-500" />
@@ -403,23 +433,57 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                     <Calendar className="h-4 w-4 text-orange-500" />
                     <span>{formatDate(project.expectedCompletion)}</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-green-500" />
+                    <span>Status: {project.status.replace('_', ' ')}</span>
+                  </div>
                 </div>
 
                 {/* Requirements */}
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                   <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Requirements</h4>
                   <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                    <div>Corpus: ₹{project.corpusAmount?.toLocaleString() || 'N/A'}</div>
-                    <div>Rent: ₹{project.rentAmount?.toLocaleString() || 'N/A'}/month</div>
-                    <div>Amenities: {project.society?.amenities?.slice(0, 2).join(', ') || 'N/A'}</div>
+                    <div>Corpus: {formatAmount(project.corpusAmount)}</div>
+                    <div>Rent: {project.rentAmount ? `${formatAmount(project.rentAmount)}/month` : 'N/A'}</div>
+                    <div>Amenities: {
+                      project.society?.amenities && project.society.amenities.length > 0 
+                        ? project.society.amenities.slice(0, 2).join(', ') + (project.society.amenities.length > 2 ? '...' : '')
+                        : 'N/A'
+                    }</div>
                   </div>
                 </div>
 
                 {/* Proposal Status */}
                 {project.hasProposal && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2">
-                    <div className="text-xs text-blue-700 dark:text-blue-300">
-                      <strong>Proposal Status:</strong> {project.proposalStatus}
+                  <div className={`border rounded-lg p-2 ${
+                    project.proposalStatus === 'submitted' 
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                      : project.proposalStatus === 'shortlisted'
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                      : project.proposalStatus === 'selected'
+                      ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                      : project.proposalStatus === 'rejected'
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                      : 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800'
+                  }`}>
+                    <div className={`text-xs ${
+                      project.proposalStatus === 'submitted' 
+                        ? 'text-blue-700 dark:text-blue-300'
+                        : project.proposalStatus === 'shortlisted'
+                        ? 'text-green-700 dark:text-green-300'
+                        : project.proposalStatus === 'selected'
+                        ? 'text-purple-700 dark:text-purple-300'
+                        : project.proposalStatus === 'rejected'
+                        ? 'text-red-700 dark:text-red-300'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      <strong>Your Proposal:</strong> {
+                        project.proposalStatus === 'submitted' ? 'Submitted ✓' :
+                        project.proposalStatus === 'shortlisted' ? 'Shortlisted ⭐' :
+                        project.proposalStatus === 'selected' ? 'Selected 🎉' :
+                        project.proposalStatus === 'rejected' ? 'Not Selected' :
+                        'Under Review'
+                      }
                     </div>
                   </div>
                 )}
@@ -438,21 +502,87 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                     <Eye className="h-4 w-4 mr-1" />
                     View Details
                   </Button>
-                  {!project.hasProposal && (
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        console.log('Submit Proposal clicked for project:', project._id);
-                        handleSubmitProposal(project);
-                      }}
-                      disabled={project.status === 'voting' || project.status === 'developer_selected' || project.status === 'construction' || project.status === 'completed' || project.status === 'cancelled'}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500"
-                      title={project.status === 'voting' ? 'Proposal submission is closed as voting has started' : project.status === 'developer_selected' ? 'Developer has already been selected for this project' : project.status === 'construction' ? 'Project is under construction' : project.status === 'completed' ? 'Project is completed' : project.status === 'cancelled' ? 'Project has been cancelled' : undefined}
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      {project.status === 'voting' ? 'Voting Active' : project.status === 'developer_selected' ? 'Developer Selected' : project.status === 'construction' ? 'Under Construction' : project.status === 'completed' ? 'Completed' : project.status === 'cancelled' ? 'Cancelled' : 'Submit Proposal'}
-                    </Button>
-                  )}
+                  
+                  {/* Proposal Button Logic */}
+                  {(() => {
+                    // Check if submission deadline has passed
+                    const isSubmissionClosed = project.status === 'voting' || 
+                                             project.status === 'developer_selected' || 
+                                             project.status === 'construction' || 
+                                             project.status === 'completed' || 
+                                             project.status === 'cancelled';
+                    
+                    // If developer has already submitted a proposal
+                    if (project.hasProposal) {
+                      return (
+                        <Button
+                          size="sm"
+                          disabled
+                          className={`flex-1 ${
+                            project.proposalStatus === 'submitted' 
+                              ? 'bg-blue-100 text-blue-700 border-blue-200' 
+                              : project.proposalStatus === 'shortlisted'
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : project.proposalStatus === 'selected'
+                              ? 'bg-purple-100 text-purple-700 border-purple-200'
+                              : project.proposalStatus === 'rejected'
+                              ? 'bg-red-100 text-red-700 border-red-200'
+                              : 'bg-gray-100 text-gray-700 border-gray-200'
+                          }`}
+                          title="You have already submitted a proposal for this project"
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          {project.proposalStatus === 'submitted' ? 'Already Sent ✓' :
+                           project.proposalStatus === 'shortlisted' ? 'Shortlisted ⭐' :
+                           project.proposalStatus === 'selected' ? 'Selected 🎉' :
+                           project.proposalStatus === 'rejected' ? 'Not Selected' :
+                           'Under Review'}
+                        </Button>
+                      );
+                    }
+                    
+                    // If submission is closed
+                    if (isSubmissionClosed) {
+                      return (
+                        <Button
+                          size="sm"
+                          disabled
+                          className="flex-1 bg-gray-100 text-gray-600 border-gray-200"
+                          title={
+                            project.status === 'voting' ? 'Proposal submission closed - voting has started' :
+                            project.status === 'developer_selected' ? 'Developer has already been selected' :
+                            project.status === 'construction' ? 'Project is under construction' :
+                            project.status === 'completed' ? 'Project is completed' :
+                            project.status === 'cancelled' ? 'Project has been cancelled' :
+                            'Submission deadline has passed'
+                          }
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          {project.status === 'voting' ? 'Voting Active' :
+                           project.status === 'developer_selected' ? 'Developer Selected' :
+                           project.status === 'construction' ? 'Under Construction' :
+                           project.status === 'completed' ? 'Completed' :
+                           project.status === 'cancelled' ? 'Cancelled' :
+                           'Submission Closed'}
+                        </Button>
+                      );
+                    }
+                    
+                    // If submission is still open
+                    return (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          console.log('Submit Proposal clicked for project:', project._id);
+                          handleSubmitProposal(project);
+                        }}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Submit Proposal
+                      </Button>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

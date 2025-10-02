@@ -942,8 +942,7 @@ const DeveloperDashboard = () => {
                   <InquiryList 
                     inquiries={myInquiries} 
                     type="sent"
-                    emptyMessage="You haven't made any inquiries yet"
-                    emptyDescription="Browse properties and projects to start making inquiries"
+                    onRefresh={fetchDashboardData}
                   />
                 </CardContent>
               </Card>
@@ -961,8 +960,7 @@ const DeveloperDashboard = () => {
                   <InquiryList 
                     inquiries={propertyInquiries} 
                     type="received"
-                    emptyMessage="No inquiries for your properties yet"
-                    emptyDescription="List more properties to attract potential buyers"
+                    onRefresh={fetchDashboardData}
                   />
                 </CardContent>
               </Card>
@@ -980,8 +978,7 @@ const DeveloperDashboard = () => {
                   <InquiryList 
                     inquiries={projectInquiries} 
                     type="received"
-                    emptyMessage="No inquiries for your projects yet"
-                    emptyDescription="Promote your projects to attract potential buyers"
+                    onRefresh={fetchDashboardData}
                   />
                 </CardContent>
               </Card>

@@ -39,25 +39,62 @@ const ProjectDetails = () => {
   });
 
   useEffect(() => {
-    if (id) {
+    if (id && id !== 'undefined') {
       fetchProjectDetails();
       fetchRelatedProjects();
+    } else {
+      console.error('Project ID is undefined or invalid:', id);
+      toast({
+        title: "Error",
+        description: "Invalid project ID. Please check the URL.",
+        variant: "destructive",
+      });
+      setLoading(false);
     }
   }, [id]);
 
   const fetchProjectDetails = async () => {
+    if (!id || id === 'undefined') {
+      console.error('Cannot fetch project details: ID is undefined');
+      setLoading(false);
+      return;
+    }
+
     try {
       // First try to get as regular project
-      let response = await apiClient.getProject(id!);
+      let response = await apiClient.getProject(id);
       
       // If that fails, try as redevelopment project
       if (response.error) {
         console.log('Regular project not found, trying redevelopment project...');
-        response = await apiClient.getRedevelopmentProject(id!);
+        response = await apiClient.getRedevelopmentProject(id);
       }
       
       if (response.error) throw new Error(response.error);
-      setProject(response.data);
+      console.log('Project data received:', response.data);
+      // Handle different response structures
+      const rawProject = response.data?.project || response.data;
+      
+      // Transform the data to match the expected structure
+      const projectData = {
+        ...rawProject,
+        name: rawProject.name,
+        location: rawProject.location ? 
+          `${rawProject.location.address || ''}, ${rawProject.location.city || ''}, ${rawProject.location.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '') :
+          'Location not specified',
+        price_range: rawProject.priceRange ? 
+          `₹${rawProject.priceRange.min}${rawProject.priceRange.unit === 'lakh' ? 'L' : rawProject.priceRange.unit === 'crore' ? 'Cr' : ''} - ₹${rawProject.priceRange.max}${rawProject.priceRange.unit === 'lakh' ? 'L' : rawProject.priceRange.unit === 'crore' ? 'Cr' : ''}` :
+          'Price on request',
+        total_units: rawProject.totalUnits,
+        available_units: rawProject.availableUnits,
+        completion_date: rawProject.completionDate,
+        status: rawProject.status || 'unknown',
+        amenities: rawProject.amenities || [],
+        images: rawProject.images || [],
+        description: rawProject.description
+      };
+      
+      setProject(projectData);
     } catch (error) {
       console.error('Error fetching project:', error);
       toast({
@@ -109,16 +146,15 @@ const ProjectDetails = () => {
     }
 
     try {
-      await apiClient
-        ({
-          user_id: user.id,
-          project_id: id,
-          developer_id: project?.developer_id,
-          inquiry_type: 'project_inquiry',
-          subject: `Interest in ${project?.name}`,
-          message: contactForm.message,
-          contact_preference: 'email'
-        });
+      await apiClient.createInquiry({
+        user_id: user.id,
+        project_id: id,
+        developer_id: project?.developer_id,
+        inquiry_type: 'project_inquiry',
+        subject: `Interest in ${project?.name}`,
+        message: contactForm.message,
+        contact_preference: 'email'
+      });
 
       toast({
         title: "Message Sent",
@@ -134,6 +170,21 @@ const ProjectDetails = () => {
       });
     }
   };
+
+  // Early return for invalid IDs
+  if (!id || id === 'undefined') {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Invalid Project ID</h2>
+          <p className="text-muted-foreground mb-4">The project ID in the URL is invalid or missing.</p>
+          <Link to="/projects">
+            <Button>Browse Projects</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -173,7 +224,7 @@ const ProjectDetails = () => {
         <div className="h-96 md:h-[500px] bg-gradient-card">
           {project.images && project.images[0] ? (
             <img
-              src={project.images[0]}
+              src={project.images[0]?.url || project.images[0]}
               alt={project.name}
               className="w-full h-full object-cover"
             />
@@ -204,21 +255,21 @@ const ProjectDetails = () => {
             <div>
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-3xl md:text-4xl font-bold mb-2">{project.name}</h1>
+                  <h1 className="text-3xl md:text-4xl font-bold mb-2">{project.name || 'Untitled Project'}</h1>
                   <div className="flex items-center text-muted-foreground mb-4">
                     <MapPin className="w-4 h-4 mr-2" />
-                    <span>{project.location}</span>
+                    <span>{project.location || 'Location not specified'}</span>
                   </div>
                 </div>
                 <Badge className={getStatusColor(project.status)}>
-                  {project.status.replace('_', ' ').toUpperCase()}
+                  {project.status ? project.status.replace('_', ' ').toUpperCase() : 'UNKNOWN'}
                 </Badge>
               </div>
 
               <div className="flex flex-wrap gap-4 text-lg">
                 <div className="flex items-center">
                   <Building2 className="w-5 h-5 mr-2 text-estate-blue" />
-                  <span className="font-semibold">{project.price_range}</span>
+                  <span className="font-semibold">{project.price_range || 'Price on request'}</span>
                 </div>
                 {project.total_units && (
                   <div className="flex items-center">
@@ -267,7 +318,7 @@ const ProjectDetails = () => {
                   {Object.entries(project.floor_plans).map(([type, details]: [string, any]) => (
                     <Card key={type}>
                       <CardContent className="p-4">
-                        <h3 className="font-semibold mb-2 capitalize">{type.replace('_', ' ')}</h3>
+                        <h3 className="font-semibold mb-2 capitalize">{type ? type.replace('_', ' ') : 'Unknown Type'}</h3>
                         <div className="space-y-2 text-sm">
                           {details.area && <p>Area: {details.area}</p>}
                           {details.price && <p>Price: {details.price}</p>}

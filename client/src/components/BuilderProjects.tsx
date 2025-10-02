@@ -16,7 +16,7 @@ const BuilderProjects = () => {
 
   const fetchProjects = async () => {
     try {
-      const result = await apiClient.getProjects({ limit: 6, status: 'active' });
+      const result = await apiClient.getProjects({ limit: 6 });
       
       if (result.error) throw new Error(result.error);
       const projectsData = result.data?.projects || result.data || [];

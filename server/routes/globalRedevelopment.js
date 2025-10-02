@@ -15,7 +15,7 @@ router.get('/test', (req, res) => {
 });
 
 // Get all redevelopment projects globally (for builders) - STEP BY STEP
-router.get('/projects', async (req, res) => {
+router.get('/projects', authenticate, async (req, res) => {
   console.log('=== DATABASE ROUTE CALLED ===');
   console.log('Query params:', req.query);
   
@@ -37,29 +37,74 @@ router.get('/projects', async (req, res) => {
       throw new Error(`Database not connected. Ready state: ${dbStatus}`);
     }
     
-    // Step 3: Try simple database query
-    console.log('Step 3: Executing simple database query...');
-    const projects = await RedevelopmentProject.find({}).limit(5);
-    console.log('Found projects:', projects.length);
+    // Step 3: Build query filters
+    console.log('Step 3: Building query filters...');
+    const { page = 1, limit = 12, status, city, state, minFlats, maxFlats, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     
-    if (projects.length > 0) {
-      console.log('Sample project structure:', Object.keys(projects[0].toObject()));
+    let query = {};
+    
+    // Status filter
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    // Location filters will be applied after population
+    let projects = await RedevelopmentProject.find(query)
+      .populate('society', 'name address city state pincode societyType totalFlats amenities flatVariants fsi')
+      .populate('owner', 'phone name')
+      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
+      .limit(parseInt(limit) * parseInt(page));
+    
+    // Apply location and flats filters after population
+    if (city || state || minFlats || maxFlats) {
+      projects = projects.filter(project => {
+        if (!project.society) return false;
+        
+        if (city && !project.society.city.toLowerCase().includes(city.toLowerCase())) {
+          return false;
+        }
+        
+        if (state && !project.society.state.toLowerCase().includes(state.toLowerCase())) {
+          return false;
+        }
+        
+        if (minFlats && project.society.totalFlats < parseInt(minFlats)) {
+          return false;
+        }
+        
+        if (maxFlats && project.society.totalFlats > parseInt(maxFlats)) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+    
+    // Apply pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const paginatedProjects = projects.slice(skip, skip + parseInt(limit));
+    
+    console.log('Found projects:', paginatedProjects.length);
+    
+    if (paginatedProjects.length > 0) {
+      console.log('Sample project structure:', Object.keys(paginatedProjects[0].toObject()));
+      console.log('Sample society data:', paginatedProjects[0].society);
     }
     
     const response = {
       success: true,
       data: {
-        projects: projects,
+        projects: paginatedProjects,
         pagination: {
-          current: 1,
-          pages: 1,
+          current: parseInt(page),
+          pages: Math.ceil(projects.length / parseInt(limit)),
           total: projects.length,
-          limit: 12
+          limit: parseInt(limit)
         }
       }
     };
     
-    console.log('Sending response with', projects.length, 'projects');
+    console.log('Sending response with', paginatedProjects.length, 'projects');
     res.json(response);
     
   } catch (error) {
