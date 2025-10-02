@@ -25,6 +25,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { apiClient } from '@/lib/api';
+import { formatDate } from '@/lib/dateUtils';
 
 interface Society {
   _id: string;
@@ -262,10 +263,21 @@ const RedevelopmentForm: React.FC<RedevelopmentFormProps> = ({
       return;
     }
 
+    // Validate societyId
+    if (!societyId || societyId.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Society ID is required to create a redevelopment project.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const submitData = {
         ...formData,
+        society: societyId, // Ensure society ID is included
         estimatedBudget: formData.estimatedBudget ? parseFloat(formData.estimatedBudget) : undefined,
         minimumApprovalPercentage: parseInt(formData.minimumApprovalPercentage),
         timeline: {

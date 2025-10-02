@@ -51,22 +51,41 @@ const Projects = () => {
 
   const fetchProjects = async () => {
     try {
-      // Apply filters
+      setLoading(true);
+      
+      // Build query parameters
+      const params: any = {
+        page: 1,
+        limit: 50
+      };
+
+      // Apply status filter
       if (filterStatus !== 'all') {
-        // Apply status filter
-        // This would be handled by the API client
+        params.status = filterStatus;
       }
 
       // Apply search
       if (searchTerm) {
-        // Apply search filter
-        // This would be handled by the API client
+        params.search = searchTerm;
       }
 
       // Apply sorting
-      // This would be handled by the API client
+      if (sortBy === 'price_asc') {
+        params.sort = 'priceRange.min';
+        params.order = 'asc';
+      } else if (sortBy === 'price_desc') {
+        params.sort = 'priceRange.min';
+        params.order = 'desc';
+      } else if (sortBy === 'name') {
+        params.sort = 'name';
+        params.order = 'asc';
+      } else {
+        params.sort = 'createdAt';
+        params.order = 'desc';
+      }
 
-      const result = await apiClient.getProjects();
+      console.log('Fetching projects with params:', params);
+      const result = await apiClient.getProjects(params);
 
       if (result.error) throw result.error;
       setProjects(result.data?.projects || []);

@@ -35,10 +35,25 @@ const ProjectDetails = () => {
   // Extract ID from URL if useParams fails
   const projectId = id || window.location.pathname.split('/').pop();
   
+  // Additional fallback: try to extract from URL hash or query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashId = window.location.hash.split('/').pop();
+  const finalProjectId = projectId || urlParams.get('id') || hashId;
+  
   console.log('ProjectDetails component loaded with ID:', id);
   console.log('Extracted project ID:', projectId);
   console.log('Current URL:', window.location.href);
   console.log('URL pathname:', window.location.pathname);
+  console.log('URL search params:', window.location.search);
+  console.log('URL hash:', window.location.hash);
+  console.log('useParams result:', useParams());
+  console.log('Final Project ID:', finalProjectId);
+  
+  // Additional debugging for URL parsing
+  const urlParts = window.location.pathname.split('/');
+  console.log('URL parts:', urlParts);
+  console.log('Last URL part:', urlParts[urlParts.length - 1]);
+  console.log('Is last part "undefined"?', urlParts[urlParts.length - 1] === 'undefined');
   const [project, setProject] = useState<any>(null);
   const [relatedProjects, setRelatedProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,44 +65,83 @@ const ProjectDetails = () => {
   });
 
   useEffect(() => {
-    if (projectId && projectId !== 'undefined' && projectId !== '') {
+    // Check if we have a valid project ID (not undefined, not empty, not the string 'undefined')
+    const isValidId = finalProjectId && 
+                     finalProjectId !== 'undefined' && 
+                     finalProjectId !== '' && 
+                     finalProjectId.length > 0 &&
+                     finalProjectId !== 'null' &&
+                     !finalProjectId.includes('undefined');
+    
+    if (isValidId) {
       fetchProjectDetails();
       fetchRelatedProjects();
     } else {
-      console.error('Project ID is undefined or invalid:', { id, projectId });
+      console.error('Project ID is undefined or invalid:', { id, projectId, finalProjectId });
+      console.log('Current URL:', window.location.href);
+      console.log('URL pathname:', window.location.pathname);
+      
+      // Check if the URL itself contains "undefined"
+      const urlContainsUndefined = window.location.href.includes('/undefined');
+      console.log('URL contains "undefined":', urlContainsUndefined);
+      
+      const errorMessage = urlContainsUndefined 
+        ? "The URL contains 'undefined' instead of a valid project ID. This usually happens when navigation occurs with an undefined project ID."
+        : "The project ID in the URL is invalid or missing.";
+      
       toast({
-        title: "Error",
-        description: "Invalid project ID. Please check the URL.",
+        title: "Invalid Project ID",
+        description: errorMessage + " Redirecting to projects page.",
         variant: "destructive",
       });
+      
+      // Redirect to projects page after a short delay
+      setTimeout(() => {
+        navigate('/projects');
+      }, 2000);
+      
       setLoading(false);
     }
-  }, [projectId]);
+  }, [finalProjectId]);
 
   const fetchProjectDetails = async () => {
-    if (!projectId || projectId === 'undefined') {
-      console.error('Cannot fetch project details: ID is undefined');
+    // Use the same validation logic
+    const isValidId = finalProjectId && 
+                     finalProjectId !== 'undefined' && 
+                     finalProjectId !== '' && 
+                     finalProjectId.length > 0 &&
+                     finalProjectId !== 'null' &&
+                     !finalProjectId.includes('undefined');
+    
+    if (!isValidId) {
+      console.error('Cannot fetch project details: ID is invalid:', finalProjectId);
       setLoading(false);
       return;
     }
 
     try {
-      console.log('Fetching project details for ID:', projectId);
+      console.log('Fetching project details for ID:', finalProjectId);
       
       // First try to get as regular project
-      let response = await apiClient.getProject(projectId);
+      let response = await apiClient.getProject(finalProjectId);
       console.log('Regular project response:', response);
       
       // If that fails, try as redevelopment project
       if (response.error) {
         console.log('Regular project not found, trying redevelopment project...');
-        response = await apiClient.getRedevelopmentProject(projectId);
+        response = await apiClient.getRedevelopmentProject(finalProjectId);
         console.log('Redevelopment project response:', response);
       }
       
       if (response.error) {
         console.error('Both project types failed:', response.error);
-        throw new Error(response.error);
+        toast({
+          title: "Project Not Found",
+          description: "The project you're looking for doesn't exist or has been removed.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
       
       console.log('Project data received:', response.data);

@@ -41,6 +41,59 @@ router.get('/projects', authenticate, async (req, res) => {
     console.log('Step 3: Building query filters...');
     const { page = 1, limit = 12, status, city, state, minFlats, maxFlats, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     
+    // Validate and sanitize input parameters
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 12)); // Max 50 items per page
+    const validStatuses = ['planning', 'tender_open', 'proposals_received', 'voting', 'developer_selected', 'construction', 'completed', 'cancelled'];
+    const validSortFields = ['createdAt', 'title', 'status'];
+    const validSortOrders = ['asc', 'desc'];
+    
+    // Validate status filter
+    if (status && status !== 'all' && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status filter. Valid options are: ${validStatuses.join(', ')}, or 'all'`
+      });
+    }
+    
+    // Validate sort parameters
+    if (sortBy && !validSortFields.includes(sortBy)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid sort field. Valid options are: ${validSortFields.join(', ')}`
+      });
+    }
+    
+    if (sortOrder && !validSortOrders.includes(sortOrder)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid sort order. Valid options are: ${validSortOrders.join(', ')}`
+      });
+    }
+    
+    // Validate numeric filters
+    if (minFlats && (isNaN(parseInt(minFlats)) || parseInt(minFlats) < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'minFlats must be a positive number'
+      });
+    }
+    
+    if (maxFlats && (isNaN(parseInt(maxFlats)) || parseInt(maxFlats) < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'maxFlats must be a positive number'
+      });
+    }
+    
+    // Validate minFlats <= maxFlats
+    if (minFlats && maxFlats && parseInt(minFlats) > parseInt(maxFlats)) {
+      return res.status(400).json({
+        success: false,
+        message: 'minFlats cannot be greater than maxFlats'
+      });
+    }
+    
     let query = {};
     
     // Status filter
@@ -48,80 +101,115 @@ router.get('/projects', authenticate, async (req, res) => {
       query.status = status;
     }
     
-    // Location filters will be applied after population
-    let projects = await RedevelopmentProject.find(query)
-      .populate('society', 'name address city state pincode societyType totalFlats amenities flatVariants fsi')
-      .populate('owner', 'phone name')
-      .sort({ [sortBy]: sortOrder === 'desc' ? -1 : 1 })
-      .limit(parseInt(limit) * parseInt(page));
+    // Build aggregation pipeline for efficient filtering
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'societies',
+          localField: 'society',
+          foreignField: '_id',
+          as: 'society'
+        }
+      },
+      {
+        $unwind: '$society'
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'owner',
+          foreignField: '_id',
+          as: 'owner'
+        }
+      },
+      {
+        $unwind: '$owner'
+      }
+    ];
     
-    // Apply location and flats filters after population
-    if (city || state || minFlats || maxFlats) {
-      projects = projects.filter(project => {
-        if (!project.society) return false;
-        
-        if (city && !project.society.city.toLowerCase().includes(city.toLowerCase())) {
-          return false;
-        }
-        
-        if (state && !project.society.state.toLowerCase().includes(state.toLowerCase())) {
-          return false;
-        }
-        
-        if (minFlats && project.society.totalFlats < parseInt(minFlats)) {
-          return false;
-        }
-        
-        if (maxFlats && project.society.totalFlats > parseInt(maxFlats)) {
-          return false;
-        }
-        
-        return true;
-      });
+    // Add match stage for basic filters
+    if (Object.keys(query).length > 0) {
+      pipeline.push({ $match: query });
     }
+    
+    // Add location and flats filters using aggregation
+    const locationFilters = {};
+    if (city) {
+      locationFilters['society.city'] = { $regex: city, $options: 'i' };
+    }
+    if (state) {
+      locationFilters['society.state'] = { $regex: state, $options: 'i' };
+    }
+    if (minFlats) {
+      locationFilters['society.totalFlats'] = { $gte: parseInt(minFlats) };
+    }
+    if (maxFlats) {
+      locationFilters['society.totalFlats'] = { 
+        ...locationFilters['society.totalFlats'], 
+        $lte: parseInt(maxFlats) 
+      };
+    }
+    
+    if (Object.keys(locationFilters).length > 0) {
+      pipeline.push({ $match: locationFilters });
+    }
+    
+    // Add sorting
+    const sortStage = {};
+    sortStage[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    pipeline.push({ $sort: sortStage });
+    
+    // Get total count for pagination
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const countResult = await RedevelopmentProject.aggregate(countPipeline);
+    const totalCount = countResult.length > 0 ? countResult[0].total : 0;
+    
+    // Add pagination
+    const skipCount = (pageNum - 1) * limitNum;
+    pipeline.push(
+      { $skip: skipCount },
+      { $limit: limitNum }
+    );
+    
+    // Execute aggregation
+    let projects = await RedevelopmentProject.aggregate(pipeline);
     
     // Add proposal status for each project
     const projectsWithProposalStatus = await Promise.all(projects.map(async (project) => {
-      const projectObj = project.toObject();
-      
       // Check if current developer has submitted a proposal for this project
       const existingProposal = await DeveloperProposal.findOne({
         redevelopmentProject: project._id,
         developer: req.user._id
       });
       
-      projectObj.hasProposal = !!existingProposal;
-      projectObj.proposalStatus = existingProposal ? existingProposal.status : null;
+      project.hasProposal = !!existingProposal;
+      project.proposalStatus = existingProposal ? existingProposal.status : null;
       
-      return projectObj;
+      return project;
     }));
     
-    // Apply pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const paginatedProjects = projectsWithProposalStatus.slice(skip, skip + parseInt(limit));
+    console.log('Found projects:', projectsWithProposalStatus.length);
     
-    console.log('Found projects:', paginatedProjects.length);
-    
-    if (paginatedProjects.length > 0) {
-      console.log('Sample project structure:', Object.keys(paginatedProjects[0]));
-      console.log('Sample society data:', paginatedProjects[0].society);
-      console.log('Sample proposal status:', paginatedProjects[0].proposalStatus);
+    if (projectsWithProposalStatus.length > 0) {
+      console.log('Sample project structure:', Object.keys(projectsWithProposalStatus[0]));
+      console.log('Sample society data:', projectsWithProposalStatus[0].society);
+      console.log('Sample proposal status:', projectsWithProposalStatus[0].proposalStatus);
     }
     
     const response = {
       success: true,
       data: {
-        projects: paginatedProjects,
+        projects: projectsWithProposalStatus,
         pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(projects.length / parseInt(limit)),
-          total: projects.length,
-          limit: parseInt(limit)
+          current: pageNum,
+          pages: Math.ceil(totalCount / limitNum),
+          total: totalCount,
+          limit: limitNum
         }
       }
     };
     
-    console.log('Sending response with', paginatedProjects.length, 'projects');
+    console.log('Sending response with', projectsWithProposalStatus.length, 'projects');
     res.json(response);
     
   } catch (error) {

@@ -305,27 +305,63 @@ propertySchema.pre('save', function(next) {
 propertySchema.statics.searchProperties = function(filters, page = 1, limit = 10) {
   const query = {};
   
+  // Location filters
   if (filters.city) query['location.city'] = new RegExp(filters.city, 'i');
   if (filters.state) query['location.state'] = new RegExp(filters.state, 'i');
+  if (filters.country) query['location.country'] = new RegExp(filters.country, 'i');
+  
+  // Property type and listing type filters
   if (filters.propertyType) query.propertyType = filters.propertyType;
   if (filters.listingType) query.listingType = filters.listingType;
-  if (filters.minPrice) query.price = { ...query.price, $gte: filters.minPrice };
-  if (filters.maxPrice) query.price = { ...query.price, $lte: filters.maxPrice };
-  if (filters.minArea) query.area = { ...query.area, $gte: filters.minArea };
-  if (filters.maxArea) query.area = { ...query.area, $lte: filters.maxArea };
+  
+  // Price range filters
+  if (filters.minPrice || filters.maxPrice) {
+    query.price = {};
+    if (filters.minPrice) query.price.$gte = parseInt(filters.minPrice);
+    if (filters.maxPrice) query.price.$lte = parseInt(filters.maxPrice);
+  }
+  
+  // Area range filters
+  if (filters.minArea || filters.maxArea) {
+    query.area = {};
+    if (filters.minArea) query.area.$gte = parseInt(filters.minArea);
+    if (filters.maxArea) query.area.$lte = parseInt(filters.maxArea);
+  }
+  
+  // Amenities filter
   if (filters.amenities && filters.amenities.length > 0) {
     query.amenities = { $in: filters.amenities };
   }
+  
+  // Search term filter (search in title and description)
+  if (filters.search) {
+    query.$or = [
+      { title: new RegExp(filters.search, 'i') },
+      { description: new RegExp(filters.search, 'i') },
+      { 'location.address': new RegExp(filters.search, 'i') }
+    ];
+  }
+  
+  // Owner filter
   if (filters.owner_id) query.owner = filters.owner_id;
+  
+  // Status filter
   if (filters.status) query.status = filters.status;
   else query.status = 'active';
   
   const skip = (page - 1) * limit;
   
+  // Apply sorting
+  let sortOptions = { isFeatured: -1, createdAt: -1 };
+  if (filters.sort && filters.order) {
+    sortOptions = {};
+    sortOptions[filters.sort] = filters.order === 'asc' ? 1 : -1;
+  }
+  
   return this.find(query)
     .populate('owner', 'phone profile')
     .populate('broker', 'phone profile')
-    .sort({ isFeatured: -1, createdAt: -1 })
+    .sort(sortOptions)
     .skip(skip)
     .limit(limit);
 };
@@ -334,18 +370,47 @@ propertySchema.statics.searchProperties = function(filters, page = 1, limit = 10
 propertySchema.statics.countProperties = function(filters) {
   const query = {};
   
+  // Location filters
   if (filters.city) query['location.city'] = new RegExp(filters.city, 'i');
   if (filters.state) query['location.state'] = new RegExp(filters.state, 'i');
+  if (filters.country) query['location.country'] = new RegExp(filters.country, 'i');
+  
+  // Property type and listing type filters
   if (filters.propertyType) query.propertyType = filters.propertyType;
   if (filters.listingType) query.listingType = filters.listingType;
-  if (filters.minPrice) query.price = { ...query.price, $gte: filters.minPrice };
-  if (filters.maxPrice) query.price = { ...query.price, $lte: filters.maxPrice };
-  if (filters.minArea) query.area = { ...query.area, $gte: filters.minArea };
-  if (filters.maxArea) query.area = { ...query.area, $lte: filters.maxArea };
+  
+  // Price range filters
+  if (filters.minPrice || filters.maxPrice) {
+    query.price = {};
+    if (filters.minPrice) query.price.$gte = parseInt(filters.minPrice);
+    if (filters.maxPrice) query.price.$lte = parseInt(filters.maxPrice);
+  }
+  
+  // Area range filters
+  if (filters.minArea || filters.maxArea) {
+    query.area = {};
+    if (filters.minArea) query.area.$gte = parseInt(filters.minArea);
+    if (filters.maxArea) query.area.$lte = parseInt(filters.maxArea);
+  }
+  
+  // Amenities filter
   if (filters.amenities && filters.amenities.length > 0) {
     query.amenities = { $in: filters.amenities };
   }
+  
+  // Search term filter (search in title and description)
+  if (filters.search) {
+    query.$or = [
+      { title: new RegExp(filters.search, 'i') },
+      { description: new RegExp(filters.search, 'i') },
+      { 'location.address': new RegExp(filters.search, 'i') }
+    ];
+  }
+  
+  // Owner filter
   if (filters.owner_id) query.owner = filters.owner_id;
+  
+  // Status filter
   if (filters.status) query.status = filters.status;
   else query.status = 'active';
   

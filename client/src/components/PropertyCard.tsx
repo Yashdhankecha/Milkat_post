@@ -107,6 +107,16 @@ const PropertyCard = ({ id, title, location, price, area, image, type, status }:
     // Image loaded successfully
   };
 
+  // Validate ID before rendering
+  if (!id || id === 'undefined' || id === 'null' || id.trim() === '') {
+    console.error('PropertyCard: Invalid property ID:', id);
+    return (
+      <Card className="p-4 text-center">
+        <p className="text-red-500">Invalid Property ID</p>
+      </Card>
+    );
+  }
+
   return (
     <Link to={`/property/${id}`}>
       <Card className="group hover:shadow-strong transition-all duration-500 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer hover-lift smooth-transition">

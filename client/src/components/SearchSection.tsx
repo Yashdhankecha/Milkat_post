@@ -4,23 +4,35 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { indianStatesAndCities, getCitiesByState, getAllStates } from "@/data/indianStatesCities";
 
 const SearchSection = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchFilters, setSearchFilters] = useState({
-    country: '',
     state: '',
     city: '',
     propertyType: '',
     budgetRange: ''
   });
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   const handleFilterChange = (field: string, value: string) => {
-    setSearchFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setSearchFilters(prev => {
+      const newFilters = {
+        ...prev,
+        [field]: value
+      };
+      
+      // If state changes, reset city and update available cities
+      if (field === 'state') {
+        newFilters.city = '';
+        const cities = getCitiesByState(value);
+        setAvailableCities(cities);
+      }
+      
+      return newFilters;
+    });
   };
 
   const handleSearch = () => {
@@ -41,41 +53,11 @@ const SearchSection = () => {
     });
   };
 
-  // Sample data - in a real app this would come from API
-  const countries = [
-    { value: "india", label: "India" },
-    { value: "usa", label: "United States" },
-    { value: "uae", label: "UAE" },
-    { value: "canada", label: "Canada" },
-    { value: "uk", label: "United Kingdom" },
-    { value: "australia", label: "Australia" }
-  ];
-
-  const states = [
-    { value: "maharashtra", label: "Maharashtra" },
-    { value: "karnataka", label: "Karnataka" },
-    { value: "delhi", label: "Delhi" },
-    { value: "california", label: "California" },
-    { value: "texas", label: "Texas" },
-    { value: "florida", label: "Florida" },
-    { value: "dubai", label: "Dubai" },
-    { value: "ontario", label: "Ontario" }
-  ];
-
-  const cities = [
-    { value: "mumbai", label: "Mumbai" },
-    { value: "pune", label: "Pune" },
-    { value: "bangalore", label: "Bangalore" },
-    { value: "chennai", label: "Chennai" },
-    { value: "delhi", label: "Delhi" },
-    { value: "gurgaon", label: "Gurgaon" },
-    { value: "dubai", label: "Dubai" },
-    { value: "abu-dhabi", label: "Abu Dhabi" },
-    { value: "new-york", label: "New York" },
-    { value: "los-angeles", label: "Los Angeles" },
-    { value: "toronto", label: "Toronto" },
-    { value: "vancouver", label: "Vancouver" }
-  ];
+  // Get Indian states and cities
+  const states = getAllStates().map(state => ({
+    value: state,
+    label: state
+  }));
 
   return (
     <section className="bg-gradient-hero py-12">
@@ -90,22 +72,7 @@ const SearchSection = () => {
         </div>
 
         <div className="bg-background rounded-lg shadow-strong p-6 max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Country</label>
-              <Select value={searchFilters.country} onValueChange={(value) => handleFilterChange('country', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {countries.map((country) => (
-                    <SelectItem key={country.value} value={country.value}>
-                      {country.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">State</label>
@@ -125,14 +92,18 @@ const SearchSection = () => {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">City</label>
-              <Select value={searchFilters.city} onValueChange={(value) => handleFilterChange('city', value)}>
+              <Select 
+                value={searchFilters.city} 
+                onValueChange={(value) => handleFilterChange('city', value)}
+                disabled={!searchFilters.state}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select City" />
+                  <SelectValue placeholder={searchFilters.state ? "Select City" : "Select State first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {cities.map((city) => (
-                    <SelectItem key={city.value} value={city.value}>
-                      {city.label}
+                  {availableCities.map((city) => (
+                    <SelectItem key={city} value={city}>
+                      {city}
                     </SelectItem>
                   ))}
                 </SelectContent>

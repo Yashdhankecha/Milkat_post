@@ -73,22 +73,83 @@ export default function VotingPanel({
     try {
       setLoading(true);
       
-      // Fetch my vote if I'm a member
+      console.log('🗳️ Checking voting status for project:', projectId, 'session:', session);
+      
+      // Simple approach: Try to fetch user's vote directly
       if (userRole === 'society_member') {
         try {
+          console.log('🗳️ Fetching user vote for project:', projectId, 'session:', session);
           const myVoteData = await apiClient.getMyVote(projectId, session);
-          // Only set myVote if the data is valid
-          if (myVoteData && myVoteData.vote && myVoteData.vote !== 'Unknown') {
-            setMyVote(myVoteData);
+          console.log('🗳️ Vote data received:', myVoteData);
+          
+          // Check if we got valid vote data
+          if (myVoteData && myVoteData.data && myVoteData.data.vote) {
+            const voteInfo = myVoteData.data.vote;
+            console.log('✅ User has already voted:', voteInfo);
+            
+            // Set the vote data in the expected format
+            setMyVote({
+              vote: voteInfo.vote === true ? 'yes' : voteInfo.vote === false ? 'no' : 'abstain',
+              reason: voteInfo.reason || '',
+              votedAt: voteInfo.votedAt || new Date().toISOString()
+            });
           } else {
             setMyVote(null);
+            console.log('ℹ️ User has not voted yet');
           }
         } catch (error: any) {
-          // 404 means no vote cast yet, which is fine
-          if (error.status !== 404) {
-            console.error('Error fetching my vote:', error);
+          console.log('🗳️ Error fetching vote:', error.status, error.message);
+          
+          if (error.status === 404) {
+            console.log('ℹ️ No vote found - user can vote');
+            setMyVote(null);
+          } else if (error.status === 401) {
+            console.log('⚠️ Authentication required');
+            toast({
+              variant: 'destructive',
+              title: 'Authentication Required',
+              description: 'Please log in to access voting features.',
+            });
+            setMyVote(null);
+          } else {
+            console.log('⚠️ Other error, trying alternative vote check...');
+            
+            // Try alternative approach - check if user has any votes for this project
+            try {
+              const altResponse = await apiClient.get(`/member-votes/project/${projectId}`);
+              console.log('🗳️ Alternative vote check response:', altResponse);
+              
+              if (altResponse.data && altResponse.data.votes && altResponse.data.votes.length > 0) {
+                console.log('🗳️ Found votes in project, checking for session match...');
+                console.log('🗳️ Looking for session:', session);
+                console.log('🗳️ Available votes:', altResponse.data.votes);
+                
+                // User has votes, find the one for this session
+                const sessionVote = altResponse.data.votes.find((vote: any) => 
+                  vote.votingSession === session || 
+                  vote.session === session
+                );
+                
+                if (sessionVote) {
+                  console.log('✅ Found vote via alternative method:', sessionVote);
+                  setMyVote({
+                    vote: sessionVote.vote === true ? 'yes' : sessionVote.vote === false ? 'no' : 'abstain',
+                    reason: sessionVote.reason || '',
+                    votedAt: sessionVote.votedAt || new Date().toISOString()
+                  });
+                } else {
+                  console.log('ℹ️ No matching session vote found');
+                  setMyVote(null);
+                }
+              } else {
+                console.log('ℹ️ No votes found in project');
+                setMyVote(null);
+              }
+            } catch (altError) {
+              console.log('⚠️ Alternative vote check also failed:', altError);
+              setMyVote(null);
+            }
           }
-          setMyVote(null);
         }
       }
 
@@ -160,6 +221,16 @@ export default function VotingPanel({
   const deadlineStatus = getDeadlineStatus();
   const hasVoted = !!myVote && myVote.vote && myVote.vote !== 'Unknown';
   const canVote = userRole === 'society_member' && isVotingOpen && !hasVoted && !deadlineStatus?.expired;
+  
+  // Debug logging
+  console.log('🗳️ VotingPanel Debug:', {
+    userRole,
+    isVotingOpen,
+    hasVoted,
+    canVote,
+    myVote,
+    deadlineStatus: deadlineStatus?.expired
+  });
 
   if (loading) {
     return (
@@ -172,6 +243,7 @@ export default function VotingPanel({
       </Card>
     );
   }
+
 
   return (
     <div className="space-y-6">
@@ -269,6 +341,48 @@ export default function VotingPanel({
             </div>
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Previous Vote Display */}
+      {hasVoted && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Your Vote
+            </CardTitle>
+            <CardDescription>
+              You have already voted on this proposal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-start gap-3">
+                {myVote?.vote === 'yes' && <CheckCircle2 className="h-6 w-6 text-green-600 mt-0.5" />}
+                {myVote?.vote === 'no' && <XCircle className="h-6 w-6 text-red-600 mt-0.5" />}
+                {myVote?.vote === 'abstain' && <MinusCircle className="h-6 w-6 text-gray-600 mt-0.5" />}
+                <div className="flex-1">
+                  <div className="font-semibold text-lg">
+                    {myVote?.vote === 'yes' && '✅ Yes - Approved'}
+                    {myVote?.vote === 'no' && '❌ No - Disapproved'}
+                    {myVote?.vote === 'abstain' && '➖ Abstain - No Opinion'}
+                  </div>
+                  {myVote?.reason && (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Your reason:</p>
+                      <p className="text-gray-600 dark:text-gray-400 italic">"{myVote.reason}"</p>
+                    </div>
+                  )}
+                  {myVote?.votedAt && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Voted on: {new Date(myVote.votedAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Voting Form (if can vote) */}

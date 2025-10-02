@@ -65,7 +65,7 @@ const RedevelopmentVotingSystem: React.FC<RedevelopmentVotingSystemProps> = ({
 }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [votingResults, setVotingResults] = useState<VotingResults | null>(project.votingResults || null);
+  const [votingResults, setVotingResults] = useState<VotingResults | null>(null);
   const [userVote, setUserVote] = useState<string>('');
   const [voteReason, setVoteReason] = useState('');
   const [selectedProposal, setSelectedProposal] = useState<string>('');
@@ -103,7 +103,7 @@ const RedevelopmentVotingSystem: React.FC<RedevelopmentVotingSystemProps> = ({
     try {
       const voteData = {
         vote: userVote,
-        voting_session: 'developer_selection',
+        voting_session: 'default_session',
         proposal_id: selectedProposal || undefined,
         reason: voteReason.trim() || undefined
       };

@@ -535,11 +535,9 @@ router.post('/:id/reject',
   authorize('society_owner'),
   [
     param('id').isMongoId().withMessage('Invalid proposal ID'),
-    body('reason').trim().notEmpty().withMessage('Rejection reason is required').isLength({ max: 1000 }).withMessage('Reason must be less than 1000 characters')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
-    const { reason } = req.body;
 
     const proposal = await DeveloperProposal.findById(req.params.id)
       .populate('redevelopmentProject', 'owner title');
@@ -561,7 +559,6 @@ router.post('/:id/reject',
 
     // Update proposal status
     proposal.status = 'rejected';
-    proposal.rejectionReason = reason;
     proposal.rejectedAt = new Date();
     proposal.rejectedBy = req.user._id;
     await proposal.save();

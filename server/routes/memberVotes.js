@@ -68,7 +68,6 @@ router.post('/batch',
     body('votes.*.vote').isIn(['yes', 'no', 'abstain']).withMessage('Vote must be yes, no, or abstain'),
     body('votes.*.votingSession').trim().notEmpty().withMessage('Voting session is required'),
     body('votes.*.proposal').optional().isMongoId().withMessage('Invalid proposal ID'),
-    body('votes.*.reason').optional().trim().isLength({ max: 500 }).withMessage('Reason must not exceed 500 characters')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
@@ -80,7 +79,6 @@ router.post('/batch',
         proposal: v.proposal?.toString().slice(-4),
         vote: v.vote,
         session: v.votingSession,
-        reason: v.reason?.slice(0, 20)
       }))
     });
 
@@ -187,7 +185,6 @@ router.post('/batch',
 
       return {
         vote: voteBoolean,
-        reason: vote.reason || undefined,
         proposalId: vote.proposal || undefined,
         developerId: undefined,
         votingSession: vote.votingSession,
@@ -362,7 +359,6 @@ router.post('/',
     body('vote').isIn(['yes', 'no', 'abstain']).withMessage('Vote must be yes, no, or abstain'),
     body('votingSession').trim().notEmpty().withMessage('Voting session is required'),
     body('proposal').optional().isMongoId().withMessage('Invalid proposal ID'),
-    body('reason').optional().trim().isLength({ max: 500 }).withMessage('Reason must not exceed 500 characters')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
@@ -370,8 +366,7 @@ router.post('/',
       redevelopmentProject,
       vote,
       votingSession,
-      proposal,
-      reason
+      proposal
     } = req.body;
 
     // Check voting eligibility
@@ -441,7 +436,6 @@ router.post('/',
     // Prepare vote data for the array
     const voteData = {
       vote: voteBoolean,
-      reason: reason || undefined,
       proposalId: proposal || undefined,
       developerId: undefined,
       votingSession,
@@ -485,33 +479,8 @@ router.post('/',
     const totalVotes = stats.yesVotes + stats.noVotes + stats.abstainVotes;
     const approvalPercentage = totalVotes > 0 ? Math.round((stats.yesVotes / totalVotes) * 100) : 0;
 
-    // Update project voting results (with error handling)
-    try {
-      await RedevelopmentProject.findByIdAndUpdate(redevelopmentProject, {
-        'votingResults.votesCast': totalVotes,
-        'votingResults.yesVotes': stats.yesVotes,
-        'votingResults.noVotes': stats.noVotes,
-        'votingResults.abstainVotes': stats.abstainVotes,
-        'votingResults.approvalPercentage': approvalPercentage
-      });
-    } catch (updateError) {
-      console.warn('⚠️ Failed to update project voting results:', updateError.message);
-    }
-
-    // If voting on a proposal, update proposal voting results
-    if (proposal) {
-      try {
-        await DeveloperProposal.findByIdAndUpdate(proposal, {
-          'votingResults.totalVotes': totalVotes,
-          'votingResults.yesVotes': stats.yesVotes,
-          'votingResults.noVotes': stats.noVotes,
-          'votingResults.abstainVotes': stats.abstainVotes,
-          'votingResults.approvalPercentage': approvalPercentage
-        });
-      } catch (proposalUpdateError) {
-        console.warn('⚠️ Failed to update proposal voting results:', proposalUpdateError.message);
-      }
-    }
+    // Voting results are now fetched dynamically from MemberVote collection
+    // No need to store/update voting results in project or proposal documents
 
     // Get project for notification
     const project = await RedevelopmentProject.findById(redevelopmentProject);

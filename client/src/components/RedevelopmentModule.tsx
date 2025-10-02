@@ -29,7 +29,8 @@ import {
   Target,
   BarChart3,
   X,
-  Loader2
+  Loader2,
+  User
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -192,12 +193,14 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedProposal, setSelectedProposal] = useState<DeveloperProposal | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [votingState, setVotingState] = useState<Record<string, { vote: 'yes' | 'no' | null; reason: string }>>({});
+  const [votingState, setVotingState] = useState<Record<string, { vote: 'yes' | 'no' | null }>>({});
   const [votesFinalized, setVotesFinalized] = useState(false);
   const [votingResults, setVotingResults] = useState<any>(null);
   const [userSubmittedVotes, setUserSubmittedVotes] = useState<any[]>([]);
   const [votingResultsData, setVotingResultsData] = useState<any[]>([]);
   const [loadingProjectData, setLoadingProjectData] = useState(false);
+  const [memberVotes, setMemberVotes] = useState<Record<string, { vote: 'yes' | 'no' }>>({});
+  const [hasMemberVoted, setHasMemberVoted] = useState(false);
 
   useEffect(() => {
     // Clear all data when society changes
@@ -246,7 +249,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
               console.log('ðŸ‘¤ User votes found for project:', projectVoteDoc.votes);
               
               // User has already voted, set the voting state and lock it
-              const existingVotingState: Record<string, { vote: 'yes' | 'no' | null; reason: string }> = {};
+              const existingVotingState: Record<string, { vote: 'yes' | 'no' | null }> = {};
               const submittedVotes: any[] = [];
               
               projectVoteDoc.votes.forEach((vote: any) => {
@@ -255,14 +258,12 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                   const proposal = proposals.find(p => p._id === vote.proposalId._id);
                   if (proposal) {
                     existingVotingState[vote.proposalId._id] = {
-                    vote: vote.vote,
-                    reason: vote.reason || ''
+                    vote: vote.vote
                   };
                     
                     submittedVotes.push({
                       proposal: proposal,
                       vote: vote.vote,
-                      reason: vote.reason || '',
                       votedAt: vote.votedAt
                     });
                   }
@@ -287,6 +288,13 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
 
     checkExistingVotes();
   }, [selectedProject, proposals, user]);
+
+  // Check member voting status for society members
+  useEffect(() => {
+    if (selectedProject && user?.currentRole === 'society_member') {
+      checkMemberVotingStatus(selectedProject._id);
+    }
+  }, [selectedProject, user?.currentRole]);
 
   // Fetch voting results when switching to voting tab
   useEffect(() => {
@@ -430,12 +438,10 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
             // Add vote to appropriate category
             if (vote.vote === true || vote.vote === 'yes') {
               votesByProposal[proposalId].yesVotes.push({
-                reason: vote.reason || 'No reason provided',
                 votedAt: vote.votedAt || new Date().toISOString()
               });
             } else if (vote.vote === false || vote.vote === 'no') {
               votesByProposal[proposalId].noVotes.push({
-                reason: vote.reason || 'No reason provided',
                 votedAt: vote.votedAt || new Date().toISOString()
               });
             }
@@ -535,18 +541,8 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
   };
 
   const handleRejectProposal = async (proposal: DeveloperProposal) => {
-    const reason = prompt('Please provide a reason for rejecting this proposal:');
-    if (!reason || reason.trim() === '') {
-      toast({
-        title: "Reason Required",
-        description: "Please provide a reason for rejecting the proposal.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
-      const response = await apiClient.rejectProposal(proposal._id, reason.trim());
+      const response = await apiClient.rejectProposal(proposal._id);
       
       if (response.error) {
         toast({
@@ -615,14 +611,14 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
     }
   };
 
-  const handleVote = (proposalId: string, vote: 'yes' | 'no', reason: string) => {
+  const handleVote = (proposalId: string, vote: 'yes' | 'no') => {
     setVotingState(prev => ({
       ...prev,
-      [proposalId]: { vote, reason }
+      [proposalId]: { vote }
     }));
     
     // Here you can add API call to save the vote
-    console.log(`Vote recorded for proposal ${proposalId}:`, { vote, reason });
+    console.log(`Vote recorded for proposal ${proposalId}:`, { vote });
     
     toast({
       title: "Vote Recorded",
@@ -630,24 +626,15 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
     });
   };
 
-  const handleReasonChange = (proposalId: string, reason: string) => {
-    setVotingState(prev => ({
-      ...prev,
-      [proposalId]: { ...prev[proposalId], reason }
-    }));
-  };
 
   const validateVotes = () => {
     const missingVotes = proposals.filter(proposal => !votingState[proposal._id]?.vote);
-    const missingReasons = proposals.filter(proposal => 
-      votingState[proposal._id]?.vote && !votingState[proposal._id]?.reason?.trim()
-    );
     
-    return { missingVotes, missingReasons };
+    return { missingVotes };
   };
 
   const handleFinalizeVotes = async () => {
-    const { missingVotes, missingReasons } = validateVotes();
+    const { missingVotes } = validateVotes();
     
     if (missingVotes.length > 0) {
       toast({
@@ -658,14 +645,6 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
       return;
     }
     
-    if (missingReasons.length > 0) {
-      toast({
-        title: "Missing Reasons",
-        description: `Please provide reasons for all votes before finalizing.`,
-        variant: "destructive",
-      });
-      return;
-    }
 
     try {
       // First, check if user has already voted
@@ -692,7 +671,6 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
           redevelopmentProject: selectedProject?._id,
           proposal: proposal._id,
           vote: votingState[proposal._id].vote,
-          reason: votingState[proposal._id].reason,
           votingSession: 'proposal_selection' // This identifies the voting session
       }));
 
@@ -723,7 +701,6 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
       const submittedVotes = proposals.map(proposal => ({
         proposal: proposal,
         vote: votingState[proposal._id].vote,
-        reason: votingState[proposal._id].reason,
         votedAt: new Date().toISOString()
       }));
       setUserSubmittedVotes(submittedVotes);
@@ -738,6 +715,143 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
       toast({
         title: "Error",
         description: "Failed to finalize votes. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartVoting = async () => {
+    if (!isOwner) {
+      toast({
+        title: "Unauthorized",
+        description: "Only society owners can start voting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedProject) {
+      toast({
+        title: "Error",
+        description: "No project selected.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Update project status to start voting
+      const response = await apiClient.put(`/redevelopment-projects/${selectedProject._id}`, {
+        status: 'voting'
+      });
+
+      if (response.error) {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to start voting",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Voting Started",
+        description: "Voting is now open for members to vote on proposals.",
+      });
+
+      // Refresh project data
+      await fetchProjects();
+      
+    } catch (error: any) {
+      console.error('Error starting voting:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start voting. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Check if member has already voted
+  const checkMemberVotingStatus = async (projectId: string) => {
+    if (!user?.id || user.currentRole !== 'society_member') return;
+    
+    try {
+      const response = await apiClient.get(`/member-votes/my-votes?project=${projectId}`);
+      if (response.data?.votes && response.data.votes.length > 0) {
+        const votesMap: Record<string, { vote: 'yes' | 'no' }> = {};
+        response.data.votes.forEach((vote: any) => {
+          if (vote.proposal || vote.proposalId) {
+            const proposalId = vote.proposal || vote.proposalId;
+            votesMap[proposalId] = {
+              vote: vote.vote === true || vote.vote === 'yes' ? 'yes' : 'no'
+            };
+          }
+        });
+        setMemberVotes(votesMap);
+        setHasMemberVoted(true);
+      }
+    } catch (error) {
+      console.log('No existing votes found or error checking votes:', error);
+    }
+  };
+
+  // Handle member voting
+  const handleMemberVote = async (proposalId: string, vote: 'yes' | 'no') => {
+    if (!selectedProject || !user?.id) return;
+
+    try {
+      // Check if user has already voted on this proposal
+      if (memberVotes[proposalId]) {
+        toast({
+          title: "Already Voted",
+          description: "You have already voted on this proposal.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Submit vote to API
+      const response = await apiClient.post('/member-votes', {
+        redevelopmentProject: selectedProject._id,
+        proposal: proposalId,
+        vote: vote, // Send the string value directly ('yes', 'no', 'abstain')
+        votingSession: 'default_session'
+      });
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      // Update local state
+      setMemberVotes(prev => ({
+        ...prev,
+        [proposalId]: { vote }
+      }));
+
+      toast({
+        title: "Vote Recorded",
+        description: `Your ${vote} vote has been recorded successfully.`,
+      });
+
+      // Check if this was the last proposal to vote on
+      const allProposalsVoted = proposals.every(proposal => 
+        memberVotes[proposal._id] || proposal._id === proposalId
+      );
+      
+      if (allProposalsVoted) {
+        setHasMemberVoted(true);
+        toast({
+          title: "All Votes Submitted",
+          description: "You have voted on all proposals. Thank you for participating!",
+        });
+      }
+
+    } catch (error: any) {
+      console.error('Error submitting vote:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit vote. Please try again.",
         variant: "destructive",
       });
     }
@@ -838,6 +952,9 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
         title: "Voting Closed",
         description: "Voting has been closed and results are now available.",
       });
+      
+      // Refresh voting results for all users
+      await fetchVotingResults(selectedProject._id);
       
     } catch (error) {
       console.error('Error closing voting:', error);
@@ -1075,9 +1192,17 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         <span className="font-medium">
-                          {project.timeline?.expectedCompletionDate || 'TBD'}
+                          {project.timeline?.expectedCompletionDate 
+                            ? new Date(project.timeline.expectedCompletionDate).toLocaleDateString('en-IN')
+                            : 'TBD'
+                          }
                         </span>
                       </div>
+                      {project.timeline?.startDate && (
+                        <div className="text-xs text-muted-foreground">
+                          Started: {new Date(project.timeline.startDate).toLocaleDateString('en-IN')}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="space-y-1">
@@ -1133,7 +1258,17 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                   </div>
                 </div>
               ) : (
-              <ProjectOverview project={selectedProject} proposals={proposals} onViewProposal={handleViewProposal} />
+              <ProjectOverview 
+                project={selectedProject} 
+                proposals={proposals} 
+                onViewProposal={handleViewProposal}
+                userRole={user?.currentRole}
+                votingResultsData={votingResultsData}
+                onVote={handleMemberVote}
+                myVotes={memberVotes}
+                hasVoted={hasMemberVoted}
+                votingOpen={selectedProject?.status === 'voting'}
+              />
               )}
             </TabsContent>
 
@@ -1165,15 +1300,30 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <h3 className="font-semibold text-blue-800 mb-2">Voting is Currently Open</h3>
                             <p className="text-blue-600 text-sm mb-4">
-                              Members can now vote on the submitted proposals. You can close voting when ready.
+                              Members can now vote on the submitted proposals. You can stop voting and select a developer when ready.
                             </p>
-                            <Button
-                              onClick={handleCloseVoting}
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Close Voting
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={handleCloseVoting}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Stop Voting
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  // TODO: Implement select developer functionality
+                                  toast({
+                                    title: "Select Developer",
+                                    description: "Developer selection functionality will be implemented soon.",
+                                  });
+                                }}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                <User className="h-4 w-4 mr-2" />
+                                Select Developer
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ) : selectedProject.status === 'developer_selected' ? (
@@ -1183,11 +1333,32 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                             Voting has been completed and a developer has been selected for this project.
                           </p>
                         </div>
+                      ) : selectedProject.status === 'proposals_received' ? (
+                        <div className="space-y-4">
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <h3 className="font-semibold text-yellow-800 mb-2">Proposals Received - Ready to Start Voting</h3>
+                            <p className="text-yellow-600 text-sm mb-4">
+                              Proposals have been received and are ready for member voting. You can start the voting process now.
+                            </p>
+                            <Button
+                              onClick={handleStartVoting}
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                            >
+                              <Vote className="h-4 w-4 mr-2" />
+                              Start Voting
+                            </Button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                          <h3 className="font-semibold text-gray-800 mb-2">Voting Not Started</h3>
+                          <h3 className="font-semibold text-gray-800 mb-2">Voting Not Available</h3>
                           <p className="text-gray-600 text-sm">
-                            Voting will begin once proposals are received and the project status is updated to "voting".
+                            {selectedProject.status === 'planning' 
+                              ? 'Voting will be available once the project moves to the proposal phase.'
+                              : selectedProject.status === 'tender_open'
+                              ? 'Voting will be available once proposals are received.'
+                              : 'Voting is not available for this project status.'
+                            }
                           </p>
                         </div>
                       )}
@@ -1222,7 +1393,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                                            result.yesVotes.map((vote: any, voteIndex: number) => (
                                              <div key={voteIndex} className="bg-green-50 p-3 rounded border-l-2 border-green-200">
                                                <p className="text-sm text-green-800">
-                                                 "{vote.reason}"
+                                                 Vote #{voteIndex + 1}
                                                </p>
                                                <p className="text-xs text-green-600 mt-1">Vote #{voteIndex + 1}</p>
                                              </div>
@@ -1246,7 +1417,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                                            result.noVotes.map((vote: any, voteIndex: number) => (
                                              <div key={voteIndex} className="bg-red-50 p-3 rounded border-l-2 border-red-200">
                                                <p className="text-sm text-red-800">
-                                                 "{vote.reason}"
+                                                 Vote #{voteIndex + 1}
                                                </p>
                                                <p className="text-xs text-red-600 mt-1">Vote #{voteIndex + 1}</p>
                                              </div>
@@ -1616,7 +1787,27 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
 };
 
 // Project Overview Component
-const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: DeveloperProposal[]; onViewProposal: (proposal: DeveloperProposal) => void }> = ({ project, proposals, onViewProposal }) => {
+const ProjectOverview: React.FC<{ 
+  project: RedevelopmentProject; 
+  proposals: DeveloperProposal[]; 
+  onViewProposal: (proposal: DeveloperProposal) => void;
+  userRole?: string;
+  votingResultsData?: any[];
+  onVote?: (proposalId: string, vote: 'yes' | 'no') => Promise<void>;
+  myVotes?: Record<string, { vote: 'yes' | 'no' }>;
+  hasVoted?: boolean;
+  votingOpen?: boolean;
+}> = ({ 
+  project, 
+  proposals, 
+  onViewProposal, 
+  userRole,
+  votingResultsData = [],
+  onVote,
+  myVotes = {},
+  hasVoted = false,
+  votingOpen = false
+}) => {
   return (
     <div className="space-y-6">
       {/* Project Details */}
@@ -1695,22 +1886,32 @@ const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: Deve
             
             <div>
               <h3 className="font-semibold mb-1">Timeline</h3>
-              <p className="text-muted-foreground">
-                {project.timeline?.expectedCompletionDate || 'TBD'}
-              </p>
+              <div className="space-y-1">
+                <p className="text-muted-foreground">
+                  {project.timeline?.expectedCompletionDate 
+                    ? `Expected completion: ${new Date(project.timeline.expectedCompletionDate).toLocaleDateString('en-IN')}`
+                    : 'TBD'
+                  }
+                </p>
+                {project.timeline?.startDate && (
+                  <p className="text-sm text-muted-foreground">
+                    Started: {new Date(project.timeline.startDate).toLocaleDateString('en-IN')}
+                  </p>
+                )}
+              </div>
             </div>
             
             <div>
               <h3 className="font-semibold mb-1">Created</h3>
               <p className="text-muted-foreground">
-                {new Date(project.createdAt).toLocaleDateString()}
+                {new Date(project.createdAt).toLocaleDateString('en-IN')}
               </p>
             </div>
             
             <div>
               <h3 className="font-semibold mb-1">Last Updated</h3>
               <p className="text-muted-foreground">
-                {new Date(project.updatedAt).toLocaleDateString()}
+                {new Date(project.updatedAt).toLocaleDateString('en-IN')}
               </p>
             </div>
           </div>
@@ -1772,6 +1973,191 @@ const ProjectOverview: React.FC<{ project: RedevelopmentProject; proposals: Deve
                 </div>
               );
             })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Society Member Voting Section */}
+      {userRole === 'society_member' && proposals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Vote className="h-5 w-5" />
+              {votingOpen ? 'Vote on Proposals' : 'Voting Results'}
+            </CardTitle>
+            <CardDescription>
+              {votingOpen 
+                ? 'Cast your vote on the submitted proposals. You can only vote once per proposal.'
+                : 'Voting has been completed. Here are the results.'
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {votingOpen && !hasVoted ? (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-blue-800 mb-2">Voting Instructions</h3>
+                  <ul className="text-blue-600 text-sm space-y-1">
+                    <li>• You can vote Yes or No for each proposal</li>
+                    <li>• You can only vote once per proposal</li>
+                    <li>• Your vote will be recorded anonymously</li>
+                  </ul>
+                </div>
+                
+                <div className="space-y-4">
+                  {proposals.map((proposal) => (
+                    <Card key={proposal._id} className="border-l-4 border-l-blue-500">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-lg">{proposal.title}</h4>
+                            <p className="text-muted-foreground mb-2">
+                              by {proposal.developerInfo?.companyName || 'Developer'}
+                            </p>
+                            <p className="text-sm">{proposal.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-semibold">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
+                            <div className="text-sm text-muted-foreground">Corpus Amount</div>
+                          </div>
+                        </div>
+                        
+                        {/* Voting Interface */}
+                        <div className="border-t pt-4">
+                          <div className="flex items-center gap-4 mb-3">
+                            <span className="font-medium">Your Vote:</span>
+                            <div className="flex gap-2">
+                              <Button
+                                variant={myVotes[proposal._id]?.vote === 'yes' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => onVote?.(proposal._id, 'yes')}
+                                className={myVotes[proposal._id]?.vote === 'yes' ? 'bg-green-600 hover:bg-green-700' : ''}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Yes
+                              </Button>
+                              <Button
+                                variant={myVotes[proposal._id]?.vote === 'no' ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => onVote?.(proposal._id, 'no')}
+                                className={myVotes[proposal._id]?.vote === 'no' ? 'bg-red-600 hover:bg-red-700' : ''}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                No
+                              </Button>
+                            </div>
+                          </div>
+                          
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : hasVoted ? (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-green-800 mb-2">✓ You Have Voted</h3>
+                  <p className="text-green-600 text-sm">
+                    Thank you for participating in the voting process. Your votes have been recorded.
+                  </p>
+                </div>
+                
+                {/* Show user's votes */}
+                <div className="space-y-4">
+                  {proposals.map((proposal) => {
+                    const myVote = myVotes[proposal._id];
+                    return (
+                      <Card key={proposal._id} className="border-l-4 border-l-green-500">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-lg">{proposal.title}</h4>
+                              <p className="text-muted-foreground mb-2">
+                                by {proposal.developerInfo?.companyName || 'Developer'}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-semibold">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
+                              <div className="text-sm text-muted-foreground">Corpus Amount</div>
+                            </div>
+                          </div>
+                          
+                          {myVote && (
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="font-medium">Your Vote:</span>
+                                <Badge className={myVote.vote === 'yes' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                  {myVote.vote === 'yes' ? 'Yes' : 'No'}
+                                </Badge>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">
+                  {votingOpen ? 'Voting is not available at this time.' : 'Voting results will be displayed here once voting is completed.'}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Voting Results for All Users */}
+      {!votingOpen && votingResultsData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Voting Results
+            </CardTitle>
+            <CardDescription>
+              Final voting results for all proposals
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {votingResultsData.map((result, index) => (
+                <Card key={result.proposalId || index} className="border-l-4 border-l-purple-500">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-lg">{result.title || 'Proposal'}</h4>
+                        <p className="text-muted-foreground">
+                          by {result.developerName || 'Developer'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-purple-600">{result.approvalRate}%</div>
+                        <div className="text-sm text-muted-foreground">Approval Rate</div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-600">{result.yesVotes || 0}</div>
+                        <div className="text-xs text-muted-foreground">Yes Votes</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-red-600">{result.noVotes || 0}</div>
+                        <div className="text-xs text-muted-foreground">No Votes</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-blue-600">{result.totalVotes || 0}</div>
+                        <div className="text-xs text-muted-foreground">Total Votes</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

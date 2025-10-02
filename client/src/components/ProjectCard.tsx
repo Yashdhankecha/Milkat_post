@@ -44,6 +44,17 @@ const ProjectCard = ({
   };
 
   console.log('ProjectCard rendering with id:', id);
+  console.log('ProjectCard images:', images);
+  
+  // Validate ID before rendering
+  if (!id || id === 'undefined' || id === 'null' || id.trim() === '') {
+    console.error('ProjectCard: Invalid project ID:', id);
+    return (
+      <Card className="p-4 text-center">
+        <p className="text-red-500">Invalid Project ID</p>
+      </Card>
+    );
+  }
   
   return (
     <Link to={`/project/${id}`}>

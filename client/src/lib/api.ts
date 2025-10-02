@@ -22,6 +22,7 @@ class ApiClient {
     this.baseURL = baseURL;
     // Get token from localStorage on initialization
     this.token = localStorage.getItem('auth_token');
+    console.log('🔐 API Client initialized with token:', this.token ? `${this.token.substring(0, 20)}...` : 'null');
   }
 
   setToken(token: string | null) {
@@ -31,6 +32,13 @@ class ApiClient {
     } else {
       localStorage.removeItem('auth_token');
     }
+    console.log('🔐 Token set:', token ? `${token.substring(0, 20)}...` : 'null');
+  }
+
+  refreshToken() {
+    this.token = localStorage.getItem('auth_token');
+    console.log('🔐 Token refreshed:', this.token ? `${this.token.substring(0, 20)}...` : 'null');
+    return this.token;
   }
 
   // Check if server is reachable
@@ -68,6 +76,7 @@ class ApiClient {
         url,
         method: options.method || 'GET',
         hasToken: !!this.token,
+        tokenValue: this.token ? `${this.token.substring(0, 20)}...` : 'null',
         bodyType: options.body ? (options.body instanceof FormData ? 'FormData' : 'JSON') : 'none'
       });
       
@@ -1068,10 +1077,10 @@ class ApiClient {
     });
   }
 
-  async rejectProposal(id: string, reason: string) {
+  async rejectProposal(id: string) {
     return this.request(`/developer-proposals/${id}/reject`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({}),
     });
   }
 

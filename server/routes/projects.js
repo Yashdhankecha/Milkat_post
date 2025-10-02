@@ -31,6 +31,9 @@ router.get('/',
       projectType: req.query.projectType,
       minPrice: req.query.minPrice ? parseInt(req.query.minPrice) : undefined,
       maxPrice: req.query.maxPrice ? parseInt(req.query.maxPrice) : undefined,
+      search: req.query.search,
+      sort: req.query.sort,
+      order: req.query.order,
       status: req.query.status
     };
 

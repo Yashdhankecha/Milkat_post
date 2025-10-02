@@ -22,9 +22,12 @@ const BuilderProjects = () => {
       
       if (result.error) throw new Error(result.error);
       const projectsData = result.data?.projects || result.data || [];
+      console.log('Raw projects data:', projectsData);
       
       // Transform project data to match ProjectCard interface
-      const transformedProjects = projectsData.map((project: any) => ({
+      const transformedProjects = projectsData.map((project: any) => {
+        console.log('Processing project:', project.name, 'Images:', project.images);
+        return {
         id: project._id || project.id,
         name: project.name,
         location: project.location ? 
@@ -44,7 +47,8 @@ const BuilderProjects = () => {
         project_type: project.projectType || 'residential',
         total_units: project.totalUnits,
         available_units: project.availableUnits
-      }));
+      };
+      });
       
       setProjects(transformedProjects);
     } catch (error) {

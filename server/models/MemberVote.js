@@ -19,11 +19,6 @@ const memberVoteSchema = new mongoose.Schema({
       type: Boolean, // true for 'yes', false for 'no', null for 'abstain'
       required: true
     },
-    reason: {
-      type: String,
-      trim: true,
-      maxlength: 500
-    },
     developerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

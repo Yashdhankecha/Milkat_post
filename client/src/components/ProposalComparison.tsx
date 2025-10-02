@@ -24,6 +24,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
+import { formatDate, calculateDuration } from '@/lib/dateUtils';
 
 interface DeveloperProposal {
   _id: string;
@@ -185,35 +186,6 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch (error) {
-      return 'Invalid Date';
-    }
-  };
-
-  const calculateDuration = (startDate: string, endDate: string) => {
-    if (!startDate || !endDate) return null;
-    
-    try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      // Check if dates are valid
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return null;
-      }
-      
-      const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      const months = Math.ceil(diffDays / 30);
-      return months;
-    } catch (error) {
-      return null;
-    }
-  };
 
   if (proposals.length === 0) {
     return (

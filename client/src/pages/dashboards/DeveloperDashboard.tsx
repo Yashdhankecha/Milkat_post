@@ -268,8 +268,6 @@ const DeveloperDashboard = () => {
       // Process projects
       if (projectsResult.status === 'fulfilled' && !projectsResult.value.error) {
         const projectsData = projectsResult.value.data?.projects || [];
-        console.log('Projects data received:', projectsData);
-        console.log('First project images:', projectsData[0]?.images);
         setProjects(projectsData);
         
         // Calculate project stats
@@ -831,42 +829,20 @@ const DeveloperDashboard = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {projects.map((project, index) => {
-                      console.log('Rendering project:', project);
-                      console.log('Project images:', project.images);
-                      console.log('First image:', project.images?.[0]);
-                      return (
+                    {projects.map((project, index) => (
                       <Card key={project.id || project._id || `project-${index}`} className="overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 group">
                         <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 relative overflow-hidden">
-                          {(() => {
-                            const firstImage = project.images?.[0];
-                            const imageUrl = firstImage?.url || (typeof firstImage === 'string' ? firstImage : null);
-                            
-                            if (imageUrl) {
-                              return (
-                                <img 
-                                  src={imageUrl}
-                                  alt={project.name || 'Project image'}
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                  onError={(e) => {
-                                    console.log('Image failed to load:', imageUrl);
-                                    console.log('Project data:', project);
-                                    e.currentTarget.src = '/placeholder.svg';
-                                    e.currentTarget.onerror = null; // Prevent infinite loop
-                                  }}
-                                  onLoad={() => {
-                                    console.log('Image loaded successfully:', imageUrl);
-                                  }}
-                                />
-                              );
-                            } else {
-                              return (
-                                <div className="flex items-center justify-center h-full">
-                                  <Building className="h-12 w-12 text-gray-400 dark:text-gray-500" />
-                                </div>
-                              );
-                            }
-                          })()}
+                          {project.images?.[0] ? (
+                            <img 
+                              src={project.images[0]} 
+                              alt={project.name}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center h-full">
+                              <Building className="h-12 w-12 text-gray-400 dark:text-gray-500" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </div>
                         
@@ -919,13 +895,7 @@ const DeveloperDashboard = () => {
                             
                             <div className="flex gap-2 pt-4">
                               <Button asChild size="sm" variant="outline" className="flex-1 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-blue-200 hover:border-blue-300 text-blue-700 hover:text-blue-800 transition-all duration-300">
-                                <Link 
-                                  to={`/project/${project.id || project._id}`}
-                                  onClick={() => {
-                                    console.log('Navigating to project:', project.id || project._id);
-                                    console.log('Full project data:', project);
-                                  }}
-                                >
+                                <Link to={`/project/${project.id}`}>
                                   <Eye className="w-4 h-4 mr-1" />
                                   View
                                 </Link>
@@ -952,8 +922,7 @@ const DeveloperDashboard = () => {
                           </div>
                         </CardContent>
                       </Card>
-                      );
-                    })}
+                    ))}
                   </div>
                 )}
               </CardContent>

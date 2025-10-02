@@ -326,19 +326,45 @@ projectSchema.pre('save', function(next) {
 projectSchema.statics.searchProjects = function(filters, page = 1, limit = 10) {
   const query = {};
   
+  // Location filters
   if (filters.city) query['location.city'] = new RegExp(filters.city, 'i');
   if (filters.state) query['location.state'] = new RegExp(filters.state, 'i');
+  
+  // Project type filter
   if (filters.projectType) query.projectType = filters.projectType;
-  if (filters.minPrice) query['priceRange.min'] = { $gte: filters.minPrice };
-  if (filters.maxPrice) query['priceRange.max'] = { $lte: filters.maxPrice };
+  
+  // Price range filters
+  if (filters.minPrice || filters.maxPrice) {
+    query['priceRange.min'] = {};
+    if (filters.minPrice) query['priceRange.min'].$gte = parseInt(filters.minPrice);
+    if (filters.maxPrice) query['priceRange.max'] = { $lte: parseInt(filters.maxPrice) };
+  }
+  
+  // Search term filter (search in name and description)
+  if (filters.search) {
+    query.$or = [
+      { name: new RegExp(filters.search, 'i') },
+      { description: new RegExp(filters.search, 'i') },
+      { 'location.address': new RegExp(filters.search, 'i') }
+    ];
+  }
+  
+  // Status filter
   if (filters.status) query.status = filters.status;
   else query.status = { $in: ['planning', 'under_construction', 'ready_to_move'] };
   
   const skip = (page - 1) * limit;
   
+  // Apply sorting
+  let sortOptions = { isFeatured: -1, createdAt: -1 };
+  if (filters.sort && filters.order) {
+    sortOptions = {};
+    sortOptions[filters.sort] = filters.order === 'asc' ? 1 : -1;
+  }
+  
   return this.find(query)
     .populate('developer', 'phone profile')
-    .sort({ isFeatured: -1, createdAt: -1 })
+    .sort(sortOptions)
     .skip(skip)
     .limit(limit);
 };

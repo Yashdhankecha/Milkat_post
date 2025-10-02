@@ -92,15 +92,6 @@ const redevelopmentProjectSchema = new mongoose.Schema({
 
   // Voting
   votingDeadline: Date,
-  votingResults: {
-    totalMembers: Number,
-    votesCast: Number,
-    yesVotes: Number,
-    noVotes: Number,
-    abstainVotes: Number,
-    approvalPercentage: Number,
-    isApproved: Boolean
-  },
   
 
   // Financial Details
@@ -204,19 +195,7 @@ redevelopmentProjectSchema.methods.addQuery = function(title, description, raise
   return this.save();
 };
 
-// Method to update voting results
-redevelopmentProjectSchema.methods.updateVotingResults = function(votingData) {
-  this.votingResults = {
-    totalMembers: votingData.totalMembers,
-    votesCast: votingData.votesCast,
-    yesVotes: votingData.yesVotes,
-    noVotes: votingData.noVotes,
-    abstainVotes: votingData.abstainVotes,
-    approvalPercentage: votingData.approvalPercentage,
-    isApproved: votingData.approvalPercentage >= this.minimumApprovalPercentage
-  };
-  return this.save();
-};
+// Voting results are now fetched dynamically from MemberVote collection
 
 
 export default mongoose.model('RedevelopmentProject', redevelopmentProjectSchema);

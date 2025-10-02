@@ -29,6 +29,7 @@ router.get('/',
     const filters = {
       city: req.query.city,
       state: req.query.state,
+      country: req.query.country,
       propertyType: req.query.propertyType,
       listingType: req.query.listingType,
       minPrice: req.query.minPrice ? parseInt(req.query.minPrice) : undefined,
@@ -36,6 +37,9 @@ router.get('/',
       minArea: req.query.minArea ? parseInt(req.query.minArea) : undefined,
       maxArea: req.query.maxArea ? parseInt(req.query.maxArea) : undefined,
       amenities: req.query.amenities ? req.query.amenities.split(',') : undefined,
+      search: req.query.search,
+      sort: req.query.sort,
+      order: req.query.order,
       status: req.query.status || 'active',
       owner_id: req.query.owner_id
     };

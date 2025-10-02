@@ -143,14 +143,7 @@ const developerProposalSchema = new mongoose.Schema({
     comments: String
   },
 
-  // Voting Results
-  votingResults: {
-    totalVotes: Number,
-    yesVotes: Number,
-    noVotes: Number,
-    abstainVotes: Number,
-    approvalPercentage: Number
-  },
+  // Voting results are fetched dynamically from MemberVote collection
 
   // Response to Society
   responses: [{
@@ -188,17 +181,7 @@ developerProposalSchema.methods.calculateOverallScore = function() {
   return this.save();
 };
 
-// Method to update voting results
-developerProposalSchema.methods.updateVotingResults = function(votingData) {
-  this.votingResults = {
-    totalVotes: votingData.totalVotes,
-    yesVotes: votingData.yesVotes,
-    noVotes: votingData.noVotes,
-    abstainVotes: votingData.abstainVotes,
-    approvalPercentage: votingData.approvalPercentage
-  };
-  return this.save();
-};
+// Voting results are fetched dynamically from MemberVote collection
 
 // Method to add response
 developerProposalSchema.methods.addResponse = function(question, answer) {

@@ -235,7 +235,8 @@ router.put('/:id',
     param('id').isMongoId().withMessage('Invalid project ID'),
     body('title').optional().trim().isLength({ min: 5, max: 200 }).withMessage('Title must be between 5 and 200 characters'),
     body('description').optional().trim().isLength({ min: 10 }).withMessage('Description must be at least 10 characters'),
-    body('status').optional().isIn(['planning', 'tender_open', 'proposals_received', 'voting', 'developer_selected', 'construction', 'completed', 'cancelled'])
+    body('status').optional().isIn(['planning', 'tender_open', 'proposals_received', 'voting', 'developer_selected', 'construction', 'completed', 'cancelled']),
+    body('selectedDeveloper').optional().isMongoId().withMessage('Invalid developer ID')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
@@ -256,7 +257,7 @@ router.put('/:id',
       });
     }
 
-    const allowedUpdates = ['title', 'description', 'expectedAmenities', 'timeline', 'estimatedBudget', 'status', 'progress'];
+    const allowedUpdates = ['title', 'description', 'expectedAmenities', 'timeline', 'estimatedBudget', 'status', 'progress', 'selectedDeveloper'];
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined) {
         project[field] = req.body[field];
@@ -264,6 +265,53 @@ router.put('/:id',
     });
 
     await project.save();
+
+    // If a developer was selected, update proposal statuses and send notification
+    if (req.body.selectedDeveloper && req.body.status === 'developer_selected') {
+      try {
+        // Update proposal statuses
+        // First, mark all proposals as rejected
+        await DeveloperProposal.updateMany(
+          { redevelopmentProject: project._id },
+          { $set: { status: 'rejected' } }
+        );
+        
+        // Then, mark the selected developer's proposal as selected
+        await DeveloperProposal.updateOne(
+          { 
+            redevelopmentProject: project._id,
+            developer: req.body.selectedDeveloper
+          },
+          { $set: { status: 'selected' } }
+        );
+
+        // Get developer profile
+        const developerProfile = await Profile.findOne({ user: req.body.selectedDeveloper });
+        
+        if (developerProfile) {
+          // Create notification for the selected developer
+          const Notification = (await import('../models/Notification.js')).default;
+          
+          await Notification.create({
+            user: req.body.selectedDeveloper,
+            type: 'developer_selected',
+            title: 'Congratulations! You have been selected',
+            message: `You have been selected as the developer for the project "${project.title}". Please contact the society owner to proceed.`,
+            data: {
+              projectId: project._id,
+              projectTitle: project.title,
+              societyName: project.society?.name || 'Society'
+            },
+            read: false
+          });
+
+          console.log(`Notification sent to developer ${req.body.selectedDeveloper} for project ${project._id}`);
+        }
+      } catch (notificationError) {
+        console.error('Error updating proposal statuses or sending notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+    }
 
     res.status(200).json({
       status: 'success',

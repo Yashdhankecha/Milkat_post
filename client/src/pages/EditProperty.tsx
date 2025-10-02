@@ -332,6 +332,18 @@ const EditProperty = () => {
         description: "Your property listing has been updated.",
       });
 
+      // Validate ID before navigation
+      if (!id || id === 'undefined' || id === 'null' || id.trim() === '') {
+        console.error('Invalid property ID for navigation:', id);
+        toast({
+          title: "Navigation Error",
+          description: "Invalid property ID. Redirecting to properties page.",
+          variant: "destructive",
+        });
+        navigate('/properties');
+        return;
+      }
+      
       navigate(`/property/${id}`);
     } catch (error) {
       console.error('Error updating property:', error);

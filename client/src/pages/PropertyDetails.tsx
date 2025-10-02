@@ -30,6 +30,20 @@ const PropertyDetails = () => {
   const { id } = useParams();
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  
+  // Extract ID from URL if useParams fails
+  const propertyId = id || window.location.pathname.split('/').pop();
+  
+  // Additional fallback: try to extract from URL hash or query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const hashId = window.location.hash.split('/').pop();
+  const finalPropertyId = propertyId || urlParams.get('id') || hashId;
+  
+  console.log('PropertyDetails component loaded with ID:', id);
+  console.log('Extracted property ID:', propertyId);
+  console.log('Final property ID:', finalPropertyId);
+  console.log('Current URL:', window.location.href);
+  console.log('URL pathname:', window.location.pathname);
   const [property, setProperty] = useState<any>(null);
   const [relatedProperties, setRelatedProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,12 +59,37 @@ const PropertyDetails = () => {
   const [shareWith, setShareWith] = useState('');
 
   useEffect(() => {
-    if (id) {
+    // Check if we have a valid property ID (not undefined, not empty, not the string 'undefined')
+    const isValidId = finalPropertyId && 
+                     finalPropertyId !== 'undefined' && 
+                     finalPropertyId !== '' && 
+                     finalPropertyId.length > 0 &&
+                     finalPropertyId !== 'null' &&
+                     !finalPropertyId.includes('undefined');
+    
+    if (isValidId) {
       fetchPropertyDetails();
       checkIfSaved();
       fetchShareCount();
+    } else {
+      console.error('Property ID is undefined or invalid:', { id, propertyId, finalPropertyId });
+      console.log('Current URL:', window.location.href);
+      console.log('URL pathname:', window.location.pathname);
+      
+      toast({
+        title: "Invalid Property ID",
+        description: "The property ID in the URL is invalid or missing. Redirecting to properties page.",
+        variant: "destructive",
+      });
+      
+      // Redirect to properties page after a short delay
+      setTimeout(() => {
+        window.location.href = '/properties';
+      }, 2000);
+      
+      setLoading(false);
     }
-  }, [id, user]);
+  }, [finalPropertyId, user]);
 
   useEffect(() => {
     if (property) {
@@ -60,9 +99,21 @@ const PropertyDetails = () => {
 
   const fetchPropertyDetails = async () => {
     try {
-      if (!id) return;
+      // Use the same validation logic
+      const isValidId = finalPropertyId && 
+                       finalPropertyId !== 'undefined' && 
+                       finalPropertyId !== '' && 
+                       finalPropertyId.length > 0 &&
+                       finalPropertyId !== 'null' &&
+                       !finalPropertyId.includes('undefined');
       
-      const result = await apiClient.getProperty(id);
+      if (!isValidId) {
+        console.error('Cannot fetch property details: ID is invalid:', finalPropertyId);
+        setLoading(false);
+        return;
+      }
+      
+      const result = await apiClient.getProperty(finalPropertyId);
       
       if (result.error) {
         throw new Error(result.error);
@@ -110,10 +161,10 @@ const PropertyDetails = () => {
   };
 
   const checkIfSaved = async () => {
-    if (!user || !id) return;
+    if (!user || !finalPropertyId) return;
 
     try {
-      const response = await apiClient.checkIfLiked(id);
+      const response = await apiClient.checkIfLiked(finalPropertyId);
       setIsSaved(response.data?.hasLiked || false);
     } catch (error) {
       console.error('Error checking saved status:', error);
@@ -134,7 +185,7 @@ const PropertyDetails = () => {
     try {
       if (isSaved) {
         // Unlike property
-        await apiClient.unlikeProperty(id);
+        await apiClient.unlikeProperty(finalPropertyId);
         setIsSaved(false);
         toast({ 
           title: "Removed from Saved",
@@ -142,7 +193,7 @@ const PropertyDetails = () => {
         });
       } else {
         // Like property
-        await apiClient.likeProperty(id);
+        await apiClient.likeProperty(finalPropertyId);
         setIsSaved(true);
         toast({ 
           title: "Saved Property",
@@ -222,10 +273,10 @@ const PropertyDetails = () => {
 
   // Share functionality
   const fetchShareCount = async () => {
-    if (!id) return;
+    if (!finalPropertyId) return;
     
     try {
-      const result = await apiClient.getShareCount(id);
+      const result = await apiClient.getShareCount(finalPropertyId);
       if (result.data) {
         setShareCount(result.data.shareCount);
       }
@@ -245,7 +296,7 @@ const PropertyDetails = () => {
     }
 
     try {
-      await apiClient.shareProperty(id!, method, sharedWith);
+      await apiClient.shareProperty(finalPropertyId!, method, sharedWith);
       setShareCount(prev => prev + 1);
       
       // Handle different share methods

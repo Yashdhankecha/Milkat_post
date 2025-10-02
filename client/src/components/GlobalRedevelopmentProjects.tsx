@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Building2, MapPin, Calendar, Users, FileText, TrendingUp, Filter, X, Upload, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
+import { formatDate, formatDateTime } from '@/lib/dateUtils';
 import { useNavigate } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -92,10 +93,38 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
       const newProjects = response?.data?.projects || [];
       console.log('New projects data:', newProjects);
       
+      // Debug project IDs
+      newProjects.forEach((project: any, index: number) => {
+        console.log(`Project ${index}:`, {
+          _id: project._id,
+          title: project.title,
+          idType: typeof project._id,
+          idLength: project._id?.length,
+          isUndefined: project._id === 'undefined',
+          isNull: project._id === 'null'
+        });
+      });
+      
+      // Filter out projects with invalid IDs
+      const validProjects = newProjects.filter((project: any) => {
+        const isValid = project._id && 
+                       project._id !== 'undefined' && 
+                       project._id !== 'null' && 
+                       project._id.trim() !== '';
+        
+        if (!isValid) {
+          console.warn('Filtering out project with invalid ID:', project);
+        }
+        
+        return isValid;
+      });
+      
+      console.log(`Filtered ${newProjects.length - validProjects.length} projects with invalid IDs`);
+      
       if (pageNum === 1 || resetFilters) {
-        setProjects(newProjects);
+        setProjects(validProjects);
       } else {
-        setProjects(prev => [...prev, ...newProjects]);
+        setProjects(prev => [...prev, ...validProjects]);
       }
       
       setHasMore(newProjects.length === 12);
@@ -282,26 +311,6 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString || dateString === 'null' || dateString === 'undefined') {
-      return 'N/A';
-    }
-    
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        return 'N/A';
-      }
-      return date.toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (error) {
-      console.error('Error formatting date:', dateString, error);
-      return 'N/A';
-    }
-  };
 
   if (loading && projects.length === 0) {
     return (
@@ -568,10 +577,25 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                     onClick={() => {
                       console.log('View Details clicked for project:', project);
                       console.log('Project _id:', project._id);
-                      if (!project._id) {
-                        console.error('Project _id is undefined or null:', project);
+                      console.log('Project keys:', Object.keys(project));
+                      console.log('Project type:', typeof project._id);
+                      console.log('Project _id length:', project._id?.length);
+                      
+                      // Enhanced validation for project ID
+                      if (!project._id || 
+                          project._id === 'undefined' || 
+                          project._id === 'null' || 
+                          project._id.trim() === '') {
+                        console.error('Project _id is invalid:', project._id);
+                        toast({
+                          title: "Invalid Project",
+                          description: "This project has an invalid ID and cannot be viewed.",
+                          variant: "destructive",
+                        });
                         return;
                       }
+                      
+                      console.log('Navigating to project:', project._id);
                       navigate(`/project/${project._id}`);
                     }}
                     className="flex-1"

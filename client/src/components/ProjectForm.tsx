@@ -286,7 +286,22 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     setUploading(prev => ({ ...prev, [type]: true }));
 
     try {
-      const { data, error } = await apiClient.uploadSingleFile(file, `project_${type}`, `nestly_estate/project_${type}`);
+      let data, error;
+      
+      // Upload PDFs locally, images and videos to Cloudinary
+      if (type === 'brochures') {
+        // Upload PDFs locally
+        console.log('📄 Uploading PDF locally:', file.name);
+        const result = await apiClient.uploadSingleFile(file, 'project_brochure', 'nestly_estate/project_brochures');
+        data = result.data;
+        error = result.error;
+      } else {
+        // Upload images and videos to Cloudinary
+        console.log(`☁️ Uploading ${type} to Cloudinary:`, file.name);
+        const result = await apiClient.uploadSingleFile(file, `project_${type}`, `nestly_estate/project_${type}`);
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -342,7 +357,7 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
 
       toast({
         title: 'Upload Successful',
-        description: `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully`,
+        description: `${type.charAt(0).toUpperCase() + type.slice(1)} uploaded successfully ${type === 'brochures' ? 'locally' : 'to Cloudinary'}`,
       });
     } catch (error) {
       console.error('Upload error:', error);
@@ -555,7 +570,13 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       }
 
       if (existingProject) {
-        const { error } = await apiClient.updateProject(existingProject.id, projectData);
+        console.log('Existing project data:', existingProject);
+        const projectId = existingProject.id || existingProject._id;
+        console.log('Project ID:', projectId);
+        if (!projectId) {
+          throw new Error('Project ID is required for updating');
+        }
+        const { error } = await apiClient.updateProject(projectId, projectData);
         
         if (error) throw error;
       } else {
@@ -893,17 +914,26 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                           </p>
                           <p className="text-xs text-gray-500">PDF Document</p>
                         </div>
-                        <X 
-                          className="h-4 w-4 text-gray-400 cursor-pointer hover:text-red-500" 
-                          onClick={() => removeFile('brochures', index)} 
-                        />
+                        <div className="flex items-center gap-2">
+                          <a 
+                            href={typeof brochure === 'string' ? brochure : (brochure as MediaItem)?.url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-700 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            View
+                          </a>
+                          <X 
+                            className="h-4 w-4 text-gray-400 cursor-pointer hover:text-red-500" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              removeFile('brochures', index);
+                            }} 
+                          />
+                        </div>
                       </div>
-                      <a 
-                        href={typeof brochure === 'string' ? brochure : (brochure as MediaItem)?.url || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="absolute inset-0"
-                      />
                     </div>
                   ))}
                 </div>
@@ -951,7 +981,11 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                         <X 
                           className="h-4 w-4 text-white cursor-pointer" 
-                          onClick={() => removeFile('images', index)} 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            removeFile('images', index);
+                          }} 
                         />
                       </div>
                       {typeof image === 'object' && image && (image as MediaItem)?.isPrimary && (
@@ -1005,7 +1039,11 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                         <X 
                           className="h-4 w-4 text-white cursor-pointer" 
-                          onClick={() => removeFile('videos', index)} 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            removeFile('videos', index);
+                          }} 
                         />
                       </div>
                       <div className="absolute inset-0 flex items-center justify-center">

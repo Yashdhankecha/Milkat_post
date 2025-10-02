@@ -78,13 +78,14 @@ interface Proposal {
     overallScore: number;
     comments: string;
   };
-  votingResults?: {
-    totalVotes: number;
-    yesVotes: number;
-    noVotes: number;
-    approvalPercentage: number;
-  };
   status: string;
+}
+
+interface VotingResults {
+  totalVotes: number;
+  yesVotes: number;
+  noVotes: number;
+  approvalPercentage: number;
 }
 
 interface ProposalVotingComparisonProps {
@@ -105,6 +106,7 @@ export default function ProposalVotingComparison({
   const [selectedProposal, setSelectedProposal] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('comparison');
+  const [votingResults, setVotingResults] = useState<Record<string, VotingResults>>({});
 
   useEffect(() => {
     fetchProposals();
@@ -114,7 +116,11 @@ export default function ProposalVotingComparison({
     try {
       setLoading(true);
       const response = await apiClient.getDeveloperProposals(`?project_id=${projectId}`);
-      setProposals(response.data?.proposals || []);
+      const proposalsData = response.data?.proposals || [];
+      setProposals(proposalsData);
+      
+      // Fetch voting results for each proposal
+      await fetchVotingResults(proposalsData);
     } catch (error) {
       console.error('Error fetching proposals:', error);
       toast({
@@ -124,6 +130,48 @@ export default function ProposalVotingComparison({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVotingResults = async (proposals: Proposal[]) => {
+    try {
+      const votingResultsData: Record<string, VotingResults> = {};
+      
+      // Fetch voting results for each proposal
+      await Promise.all(proposals.map(async (proposal) => {
+        try {
+          const response = await apiClient.getProjectVotes(projectId, 'proposal_selection');
+          if (response.data?.votes) {
+            const proposalVotes = response.data.votes.filter((vote: any) => 
+              vote.proposalId === proposal._id
+            );
+            
+            const yesVotes = proposalVotes.filter((vote: any) => vote.vote === 'yes').length;
+            const noVotes = proposalVotes.filter((vote: any) => vote.vote === 'no').length;
+            const totalVotes = yesVotes + noVotes;
+            const approvalPercentage = totalVotes > 0 ? Math.round((yesVotes / totalVotes) * 100) : 0;
+            
+            votingResultsData[proposal._id] = {
+              totalVotes,
+              yesVotes,
+              noVotes,
+              approvalPercentage
+            };
+          }
+        } catch (error) {
+          console.error(`Error fetching voting results for proposal ${proposal._id}:`, error);
+          votingResultsData[proposal._id] = {
+            totalVotes: 0,
+            yesVotes: 0,
+            noVotes: 0,
+            approvalPercentage: 0
+          };
+        }
+      }));
+      
+      setVotingResults(votingResultsData);
+    } catch (error) {
+      console.error('Error fetching voting results:', error);
     }
   };
 
@@ -329,13 +377,13 @@ export default function ProposalVotingComparison({
                         </TableCell>
                         {proposals.map((proposal) => (
                           <TableCell key={proposal._id}>
-                            {proposal.votingResults ? (
+                            {votingResults[proposal._id] ? (
                               <div className="space-y-2">
                                 <div className="font-semibold text-lg text-primary">
-                                  {proposal.votingResults.approvalPercentage}%
+                                  {votingResults[proposal._id].approvalPercentage}%
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {proposal.votingResults.totalVotes} votes
+                                  {votingResults[proposal._id].totalVotes} votes
                                 </div>
                               </div>
                             ) : (
@@ -357,7 +405,7 @@ export default function ProposalVotingComparison({
         <TabsContent value="voting" className="space-y-4">
           <VotingPanel
             projectId={projectId}
-            session="developer_selection"
+            session="default_session"
             userRole={userRole}
             votingDeadline={votingDeadline}
             isVotingOpen={isVotingOpen}

@@ -47,7 +47,7 @@ shareSchema.statics.getShareCount = function(propertyId) {
 // Static method to get share count by method
 shareSchema.statics.getShareCountByMethod = function(propertyId) {
   return this.aggregate([
-    { $match: { property: mongoose.Types.ObjectId(propertyId) } },
+    { $match: { property: new mongoose.Types.ObjectId(propertyId) } },
     { $group: { _id: '$shareMethod', count: { $sum: 1 } } },
     { $sort: { count: -1 } }
   ]);
