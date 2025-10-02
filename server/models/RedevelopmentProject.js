@@ -101,6 +101,7 @@ const redevelopmentProjectSchema = new mongoose.Schema({
     approvalPercentage: Number,
     isApproved: Boolean
   },
+  
 
   // Financial Details
   estimatedBudget: Number,
@@ -216,5 +217,6 @@ redevelopmentProjectSchema.methods.updateVotingResults = function(votingData) {
   };
   return this.save();
 };
+
 
 export default mongoose.model('RedevelopmentProject', redevelopmentProjectSchema);

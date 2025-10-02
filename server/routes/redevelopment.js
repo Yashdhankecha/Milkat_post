@@ -183,6 +183,18 @@ router.post('/',
 
     await project.populate('society', 'name address city state');
 
+    // Send real-time notification to society members
+    try {
+      const socketService = (await import('../services/socketService.js')).default;
+      socketService.notifyProjectUpdate(project._id, {
+        type: 'project_created',
+        title: 'New Redevelopment Project Created',
+        description: `A new redevelopment project "${project.title}" has been created.`
+      }, project.society._id);
+    } catch (notificationError) {
+      console.warn('⚠️ Failed to send project creation notification:', notificationError.message);
+    }
+
     res.status(201).json({
       status: 'success',
       message: 'Redevelopment project created successfully',
@@ -361,42 +373,79 @@ router.post('/:id/vote',
       });
     }
 
-    // Check if user has already voted in this session
-    const existingVote = await MemberVote.findOne({
+    // Check if user has already voted for this specific proposal in this session
+    const MemberVote = (await import('../models/MemberVote.js')).default;
+    const existingVoteDoc = await MemberVote.findOne({
       redevelopmentProject: id,
-      member: req.user._id,
-      votingSession: voting_session
+      member: req.user._id
     });
 
-    if (existingVote) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'You have already voted in this session'
+    if (existingVoteDoc) {
+      // Check if user already voted for this specific proposal in this session
+      const existingVote = existingVoteDoc.votes.find(v => {
+        // If both votes have proposalId, check if they match
+        if (v.proposalId && proposal_id) {
+          return v.proposalId.toString() === proposal_id.toString() &&
+                 v.votingSession === voting_session;
+        }
+        // If both votes don't have proposalId (general project votes), check session only
+        if (!v.proposalId && !proposal_id) {
+          return v.votingSession === voting_session;
+        }
+        // If one has proposalId and other doesn't, they are different votes
+        return false;
       });
+
+      if (existingVote) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'You have already voted for this proposal in this session'
+        });
+      }
     }
 
-    // Create new vote
+    // Convert vote string to boolean
+    let voteBoolean;
+    if (vote === 'yes') voteBoolean = true;
+    else if (vote === 'no') voteBoolean = false;
+    else if (vote === 'abstain') voteBoolean = null;
+
+    // Prepare vote data for the array
     const voteData = {
-      redevelopmentProject: id,
-      member: req.user._id,
-      vote,
-      votingSession: voting_session,
+      vote: voteBoolean,
       reason,
+      proposalId: proposal_id || undefined,
+      developerId: undefined, // Will be set if needed
+      votingSession: voting_session,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
     };
 
-    if (proposal_id) {
-      voteData.proposal = proposal_id;
+    // Create or update the vote document
+    let memberVote;
+    if (existingVoteDoc) {
+      // Add vote to existing document
+      await existingVoteDoc.addVote(voteData);
+      memberVote = existingVoteDoc;
+    } else {
+      // Create new document with first vote
+      memberVote = new MemberVote({
+        redevelopmentProject: id,
+        member: req.user._id,
+        votes: [voteData],
+        lastVotedAt: new Date(),
+        totalVotes: 1
+      });
+      await memberVote.save();
     }
-
-    const memberVote = new MemberVote(voteData);
-    await memberVote.save();
 
     res.status(201).json({
       status: 'success',
       message: 'Vote submitted successfully',
-      data: { vote: memberVote }
+      data: { 
+        vote: memberVote,
+        projectId: id 
+      }
     });
   })
 );
@@ -441,12 +490,20 @@ router.get('/:id/voting-results',
 
     const votingStats = await MemberVote.getVotingStats(id, session);
     
-    // Calculate totals
-    const totalVotes = votingStats.reduce((sum, stat) => sum + stat.count, 0);
-    const yesVotes = votingStats.find(stat => stat._id === 'yes')?.count || 0;
-    const noVotes = votingStats.find(stat => stat._id === 'no')?.count || 0;
-    const abstainVotes = votingStats.find(stat => stat._id === 'abstain')?.count || 0;
-    const approvalPercentage = totalVotes > 0 ? Math.round((yesVotes / totalVotes) * 100) : 0;
+    const stats = {
+      yesVotes: 0,
+      noVotes: 0,
+      abstainVotes: 0
+    };
+
+    votingStats.forEach(stat => {
+      if (stat._id === true) stats.yesVotes = stat.count;
+      if (stat._id === false) stats.noVotes = stat.count;
+      if (stat._id === null) stats.abstainVotes = stat.count;
+    });
+
+    const totalVotes = stats.yesVotes + stats.noVotes + stats.abstainVotes;
+    const approvalPercentage = totalVotes > 0 ? Math.round((stats.yesVotes / totalVotes) * 100) : 0;
 
     // Get society member count
     const society = await Society.findById(project.society);
@@ -459,9 +516,9 @@ router.get('/:id/voting-results',
         totals: {
           totalMembers,
           totalVotes,
-          yesVotes,
-          noVotes,
-          abstainVotes,
+          yesVotes: stats.yesVotes,
+          noVotes: stats.noVotes,
+          abstainVotes: stats.abstainVotes,
           approvalPercentage,
           isApproved: approvalPercentage >= project.minimumApprovalPercentage
         }

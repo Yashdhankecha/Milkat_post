@@ -578,6 +578,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const result = await apiClient.signUpWithSMSForNewRole(phone, fullName, role);
+      console.log('[useAuth] signUpWithSMSForNewRole result:', result);
       return { data: result.data, error: result.error };
     } catch (error) {
       console.error('Error in signUpWithSMSForNewRole:', error);

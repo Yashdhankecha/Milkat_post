@@ -47,7 +47,7 @@ const inquirySchema = new mongoose.Schema({
   inquirer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Allow null for public contact forms
   },
   
   // Property/Project owner (for notifications)

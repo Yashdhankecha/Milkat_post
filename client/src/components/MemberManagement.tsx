@@ -139,16 +139,28 @@ export const MemberManagement = ({ societyId }: MemberManagementProps) => {
 
       if (error) {
         // Handle specific error cases
-        if (error.includes('already been invited')) {
+        if (error.includes('already been invited') || error.includes('ALREADY_INVITED')) {
           toast({
             title: "Already Invited",
             description: "This user has already been invited to the society",
             variant: "destructive",
           })
-        } else if (error.includes('already a member')) {
+        } else if (error.includes('already a member') || error.includes('ALREADY_MEMBER')) {
           toast({
             title: "Already a Member",
             description: "This user is already a member of the society",
+            variant: "destructive",
+          })
+        } else if (error.includes('previously invited') || error.includes('PREVIOUSLY_INVITED')) {
+          toast({
+            title: "Previously Invited",
+            description: "This user has already been invited to this society before",
+            variant: "destructive",
+          })
+        } else if (error.includes('society owner') || error.includes('IS_OWNER')) {
+          toast({
+            title: "Cannot Invite Owner",
+            description: "Cannot invite the society owner",
             variant: "destructive",
           })
         } else {

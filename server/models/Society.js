@@ -117,10 +117,10 @@ const societySchema = new mongoose.Schema({
     }
   }],
   flatPlanDocuments: [{
-    type: String
+    type: mongoose.Schema.Types.Mixed
   }],
   registrationDocuments: [{
-    type: String
+    type: mongoose.Schema.Types.Mixed
   }],
   images: [{
     url: {

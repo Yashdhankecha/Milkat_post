@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, MapPin, Calendar, DollarSign, Users, Eye, FileText, TrendingUp, Filter, X } from 'lucide-react';
+import { Building2, MapPin, Calendar, Users, Eye, FileText, TrendingUp, Filter, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
@@ -50,8 +50,8 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
     status: '',
     city: '',
     state: '',
-    minBudget: '',
-    maxBudget: '',
+    minFlats: '',
+    maxFlats: '',
     sortBy: 'createdAt',
     sortOrder: 'desc'
   });
@@ -80,8 +80,8 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.city) params.append('city', filters.city);
       if (filters.state) params.append('state', filters.state);
-      if (filters.minBudget) params.append('minBudget', filters.minBudget);
-      if (filters.maxBudget) params.append('maxBudget', filters.maxBudget);
+      if (filters.minFlats) params.append('minFlats', filters.minFlats);
+      if (filters.maxFlats) params.append('maxFlats', filters.maxFlats);
       if (filters.sortBy) params.append('sortBy', filters.sortBy);
       if (filters.sortOrder) params.append('sortOrder', filters.sortOrder);
 
@@ -305,7 +305,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="createdAt">Date Created</SelectItem>
-                  <SelectItem value="budget">Budget</SelectItem>
+                  <SelectItem value="totalFlats">Total Flats</SelectItem>
                   <SelectItem value="title">Title</SelectItem>
                 </SelectContent>
               </Select>
@@ -315,25 +315,25 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                Min Budget (₹)
+                Min Flats
               </label>
               <Input
                 type="number"
-                placeholder="Minimum budget"
-                value={filters.minBudget}
-                onChange={(e) => handleFilterChange('minBudget', e.target.value)}
+                placeholder="Minimum flats"
+                value={filters.minFlats}
+                onChange={(e) => handleFilterChange('minFlats', e.target.value)}
               />
             </div>
 
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                Max Budget (₹)
+                Max Flats
               </label>
               <Input
                 type="number"
-                placeholder="Maximum budget"
-                value={filters.maxBudget}
-                onChange={(e) => handleFilterChange('maxBudget', e.target.value)}
+                placeholder="Maximum flats"
+                value={filters.maxFlats}
+                onChange={(e) => handleFilterChange('maxFlats', e.target.value)}
               />
             </div>
           </div>
@@ -388,8 +388,8 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                 {/* Key Details */}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-green-500" />
-                    <span className="font-medium">{formatCurrency(project.estimatedBudget)}</span>
+                    <Building2 className="h-4 w-4 text-blue-500" />
+                    <span className="font-medium">{project.society.totalFlats} Flats</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-blue-500" />
@@ -445,10 +445,12 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                         console.log('Submit Proposal clicked for project:', project._id);
                         handleSubmitProposal(project);
                       }}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                      disabled={project.status === 'voting' || project.status === 'developer_selected' || project.status === 'construction' || project.status === 'completed' || project.status === 'cancelled'}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-300 disabled:text-gray-500"
+                      title={project.status === 'voting' ? 'Proposal submission is closed as voting has started' : project.status === 'developer_selected' ? 'Developer has already been selected for this project' : project.status === 'construction' ? 'Project is under construction' : project.status === 'completed' ? 'Project is completed' : project.status === 'cancelled' ? 'Project has been cancelled' : undefined}
                     >
                       <FileText className="h-4 w-4 mr-1" />
-                      Submit Proposal
+                      {project.status === 'voting' ? 'Voting Active' : project.status === 'developer_selected' ? 'Developer Selected' : project.status === 'construction' ? 'Under Construction' : project.status === 'completed' ? 'Completed' : project.status === 'cancelled' ? 'Cancelled' : 'Submit Proposal'}
                     </Button>
                   )}
                 </div>
@@ -497,8 +499,8 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
                     {selectedProject.society?.city}, {selectedProject.society?.state}
                   </span>
                   <span className="flex items-center gap-1">
-                    <DollarSign className="h-4 w-4" />
-                    ₹{selectedProject.estimatedBudget?.toLocaleString()}
+                    <Building2 className="h-4 w-4" />
+                    {selectedProject.society?.totalFlats} Flats
                   </span>
                 </div>
               </div>

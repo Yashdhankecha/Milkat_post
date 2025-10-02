@@ -151,14 +151,11 @@ export default function RedevelopmentDocumentVault({
       const uploadData = await uploadResponse.json();
 
       // Add document to project
-      await apiClient.request(`/redevelopment-projects/${projectId}/documents`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: documentName,
-          type: documentType,
-          url: uploadData.url,
-          isPublic,
-        }),
+      await apiClient.addProjectDocument(projectId, {
+        name: documentName,
+        type: documentType,
+        url: uploadData.url,
+        isPublic,
       });
 
       toast({
@@ -191,9 +188,7 @@ export default function RedevelopmentDocumentVault({
     }
 
     try {
-      await apiClient.request(`/redevelopment-projects/${projectId}/documents/${documentId}`, {
-        method: 'DELETE',
-      });
+      await apiClient.deleteProjectDocument(projectId, documentId);
 
       toast({
         title: 'Success',

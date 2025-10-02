@@ -182,10 +182,18 @@ router.post('/',
       });
     }
 
-    if (project.status !== 'tender_open' && project.status !== 'proposals_received') {
+    // Check if project is accepting proposals
+    if (!['tender_open', 'proposals_received'].includes(project.status)) {
+      let message = 'This project is not accepting proposals currently';
+      
+      // Provide specific message for voting status
+      if (project.status === 'voting') {
+        message = 'Proposal submission is closed as voting has started. No new proposals can be submitted during the voting period.';
+      }
+      
       return res.status(400).json({
         status: 'error',
-        message: 'This project is not accepting proposals currently'
+        message: message
       });
     }
 
@@ -230,6 +238,18 @@ router.post('/',
     }
 
     await proposal.populate('redevelopmentProject', 'title society');
+
+    // Send real-time notification to society members
+    try {
+      const socketService = (await import('../services/socketService.js')).default;
+      socketService.notifyNewProposal(
+        project._id,
+        proposal,
+        project.society
+      );
+    } catch (notificationError) {
+      console.warn('⚠️ Failed to send new proposal notification:', notificationError.message);
+    }
 
     res.status(201).json({
       status: 'success',
@@ -374,19 +394,186 @@ router.post('/:id/select',
     proposal.status = 'selected';
     await proposal.save();
 
+    // Reject all other proposals for this project
+    const otherProposals = await DeveloperProposal.find({
+      redevelopmentProject: projectId,
+      _id: { $ne: proposal._id }, // Exclude the selected proposal
+      status: { $in: ['submitted', 'under_review', 'approved'] }
+    });
+
+    const rejectedProposals = [];
+    for (const otherProposal of otherProposals) {
+      otherProposal.status = 'rejected';
+      otherProposal.rejectionReason = `Another proposal was selected for this project.`;
+      otherProposal.rejectedAt = new Date();
+      otherProposal.rejectedBy = req.user._id;
+      await otherProposal.save();
+      rejectedProposals.push(otherProposal._id);
+    }
+
     // Update project
     project.status = 'developer_selected';
     project.selectedDeveloper = proposal.developer;
     project.selectedProposal = proposal._id;
     await project.save();
 
+    console.log(`✅ Selected proposal ${proposal._id} and rejected ${rejectedProposals.length} other proposals`);
+
+    // Send notifications
+    try {
+      // Import notification services
+      const { 
+        sendDeveloperSelectionNotification, 
+        sendDeveloperRejectionNotification 
+      } = await import('../services/notificationService.js');
+      const socketService = (await import('../services/socketService.js')).default;
+      
+      // Send email notifications
+      await sendDeveloperSelectionNotification({
+        developerId: proposal.developer,
+        projectId: project._id,
+        projectTitle: project.title,
+        proposalTitle: proposal.title,
+        developerName: proposal.developerInfo?.companyName || 'Developer',
+        ownerName: req.user.fullName || 'Society Owner'
+      });
+      
+      console.log(`📧 Selection notification sent to developer ${proposal.developer} for project ${project._id}`);
+      
+      // Send rejection notifications to other developers
+      for (const rejectedProposal of otherProposals) {
+        try {
+          await sendDeveloperRejectionNotification({
+            developerId: rejectedProposal.developer,
+            projectId: project._id,
+            projectTitle: project.title,
+            proposalTitle: rejectedProposal.title,
+            developerName: rejectedProposal.developerInfo?.companyName || 'Developer',
+            ownerName: req.user.fullName || 'Society Owner'
+          });
+          
+          console.log(`📧 Rejection notification sent to developer ${rejectedProposal.developer}`);
+        } catch (rejectionError) {
+          console.error(`⚠️ Failed to send rejection notification to developer ${rejectedProposal.developer}:`, rejectionError);
+        }
+      }
+      
+      // Send real-time WebSocket notifications
+      socketService.notifyDeveloperSelected(
+        project._id, 
+        proposal, 
+        otherProposals, 
+        project.society
+      );
+      
+    } catch (notificationError) {
+      console.error('⚠️ Failed to send notifications:', notificationError);
+      // Don't fail the entire request if notification fails
+    }
+
     res.status(200).json({
       status: 'success',
-      message: 'Developer proposal selected successfully',
-      data: { proposal, project }
+      message: 'Developer proposal selected successfully and notification sent',
+      data: { 
+        proposal, 
+        project,
+        rejectedProposals: rejectedProposals.length,
+        rejectedProposalIds: rejectedProposals
+      }
     });
   })
 );
+
+// Approve a developer proposal (Society Owner only)
+router.post('/:id/approve',
+  authenticate,
+  authorize('society_owner'),
+  [
+    param('id').isMongoId().withMessage('Invalid proposal ID'),
+    body('comments').optional().trim().isLength({ max: 1000 }).withMessage('Comments must be less than 1000 characters')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { comments } = req.body;
+
+    const proposal = await DeveloperProposal.findById(req.params.id)
+      .populate('redevelopmentProject', 'owner title');
+    
+    if (!proposal) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Developer proposal not found'
+      });
+    }
+
+    // Check if user owns the project
+    if (proposal.redevelopmentProject.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You can only approve proposals for your own projects'
+      });
+    }
+
+    // Update proposal status
+    proposal.status = 'approved';
+    proposal.ownerComments = comments || '';
+    proposal.approvedAt = new Date();
+    proposal.approvedBy = req.user._id;
+    await proposal.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Developer proposal approved successfully',
+      data: { proposal }
+    });
+  })
+);
+
+// Reject a developer proposal (Society Owner only)
+router.post('/:id/reject',
+  authenticate,
+  authorize('society_owner'),
+  [
+    param('id').isMongoId().withMessage('Invalid proposal ID'),
+    body('reason').trim().notEmpty().withMessage('Rejection reason is required').isLength({ max: 1000 }).withMessage('Reason must be less than 1000 characters')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { reason } = req.body;
+
+    const proposal = await DeveloperProposal.findById(req.params.id)
+      .populate('redevelopmentProject', 'owner title');
+    
+    if (!proposal) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Developer proposal not found'
+      });
+    }
+
+    // Check if user owns the project
+    if (proposal.redevelopmentProject.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'You can only reject proposals for your own projects'
+      });
+    }
+
+    // Update proposal status
+    proposal.status = 'rejected';
+    proposal.rejectionReason = reason;
+    proposal.rejectedAt = new Date();
+    proposal.rejectedBy = req.user._id;
+    await proposal.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Developer proposal rejected successfully',
+      data: { proposal }
+    });
+  })
+);
+
 
 // Get proposal comparison data
 router.get('/project/:projectId/comparison',

@@ -21,7 +21,7 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
-// Create inquiry
+// Create inquiry (authenticated)
 router.post('/',
   authenticate,
   [
@@ -115,6 +115,60 @@ router.post('/',
       message: 'Inquiry submitted successfully',
       data: {
         inquiry: inquiry
+      }
+    });
+  })
+);
+
+// Create contact form submission (public, no authentication required)
+router.post('/contact',
+  [
+    body('name')
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Name must be between 2 and 100 characters'),
+    body('email')
+      .isEmail()
+      .withMessage('Invalid email address'),
+    body('phone')
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 15 })
+      .withMessage('Phone must be between 10 and 15 characters'),
+    body('subject')
+      .trim()
+      .isLength({ min: 5, max: 200 })
+      .withMessage('Subject must be between 5 and 200 characters'),
+    body('message')
+      .trim()
+      .isLength({ min: 10, max: 2000 })
+      .withMessage('Message must be between 10 and 2000 characters')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { name, email, phone, subject, message } = req.body;
+
+    // Create a contact inquiry
+    const inquiry = new Inquiry({
+      inquiryType: 'general_inquiry',
+      subject,
+      message: `Contact Form Submission\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone || 'Not provided'}\n\nMessage:\n${message}`,
+      contactPreference: 'email',
+      // For public contact forms, we don't have a specific user
+      // We'll store contact info in the message and use a system user or null
+      inquirer: null, // No authenticated user for public contact form
+      status: 'pending',
+      priority: 'medium',
+      tags: ['contact-form', 'public']
+    });
+
+    await inquiry.save();
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Contact form submitted successfully. We will get back to you within 24 hours.',
+      data: {
+        inquiryId: inquiry._id
       }
     });
   })

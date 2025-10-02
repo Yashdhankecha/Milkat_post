@@ -60,6 +60,11 @@ router.put('/profile',
       .trim()
       .isLength({ max: 500 })
       .withMessage('Bio must not exceed 500 characters'),
+    body('address')
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('Address must not exceed 500 characters'),
     body('businessType')
       .optional()
       .trim()
@@ -93,12 +98,16 @@ router.put('/profile',
     body('socialMedia.youtube')
       .optional()
       .isURL()
-      .withMessage('Invalid YouTube URL')
+      .withMessage('Invalid YouTube URL'),
+    body('email')
+      .optional()
+      .isEmail()
+      .withMessage('Invalid email address')
   ],
   validateRequest,
   catchAsync(async (req, res) => {
     const allowedUpdates = [
-      'fullName', 'bio', 'businessType', 'companyName', 'website', 'socialMedia'
+      'fullName', 'bio', 'address', 'businessType', 'companyName', 'website', 'socialMedia'
     ];
     
     const updates = {};
@@ -108,11 +117,27 @@ router.put('/profile',
       }
     });
 
+    // Handle email update separately (it's in User model, not Profile model)
+    if (req.body.email) {
+      const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { email: req.body.email },
+        { new: true, runValidators: true }
+      );
+      
+      if (!user) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'User not found'
+        });
+      }
+    }
+
     const profile = await Profile.findOneAndUpdate(
       { user: req.user._id },
       updates,
       { new: true, runValidators: true }
-    );
+    ).populate('user', 'email phone isVerified lastLogin currentRole activeRole');
 
     if (!profile) {
       return res.status(404).json({
@@ -121,10 +146,15 @@ router.put('/profile',
       });
     }
 
+    // Add current and active role from user model to profile data
+    const profileData = profile.toObject();
+    profileData.currentRole = profile.user.currentRole;
+    profileData.activeRole = profile.user.activeRole;
+
     res.status(200).json({
       status: 'success',
       message: 'Profile updated successfully',
-      data: { profile }
+      data: { profile: profileData }
     });
   })
 );

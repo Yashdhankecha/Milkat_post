@@ -211,26 +211,44 @@ const SocietyOwnerDashboard = () => {
               // Fallback: create documents from society data
               const fallbackDocs = [];
               if (societyData.registration_documents && societyData.registration_documents.length > 0) {
-                societyData.registration_documents.forEach((url: string, index: number) => {
+                societyData.registration_documents.forEach((docItem: any, index: number) => {
+                  // Handle both string URLs and document objects
+                  const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+                  const docName = typeof docItem === 'string' ? 
+                    (docItem.split('/').pop() || `Society Document ${index + 1}`) : 
+                    (docItem.name || docItem.url.split('/').pop() || `Society Document ${index + 1}`);
+                  const docMediaId = typeof docItem === 'object' ? docItem.mediaId : null;
+                  const docSize = typeof docItem === 'object' ? docItem.size : null;
+                  
                   fallbackDocs.push({
                     id: `doc_${index}`,
-                    name: url.split('/').pop() || `Society Document ${index + 1}`,
+                    name: docName,
                     type: 'society_document',
-                    url: url,
+                    url: docUrl,
+                    mediaId: docMediaId,
                     uploadedAt: societyData.createdAt || new Date(),
-                    size: null
+                    size: docSize
                   });
                 });
               }
               if (societyData.flat_plan_documents && societyData.flat_plan_documents.length > 0) {
-                societyData.flat_plan_documents.forEach((url: string, index: number) => {
+                societyData.flat_plan_documents.forEach((docItem: any, index: number) => {
+                  // Handle both string URLs and document objects
+                  const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+                  const docName = typeof docItem === 'string' ? 
+                    (docItem.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`) : 
+                    (docItem.name || docItem.url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`);
+                  const docMediaId = typeof docItem === 'object' ? docItem.mediaId : null;
+                  const docSize = typeof docItem === 'object' ? docItem.size : null;
+                  
                   fallbackDocs.push({
                     id: `doc_${fallbackDocs.length + index}`,
-                    name: url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`,
+                    name: docName,
                     type: 'society_document',
-                    url: url,
+                    url: docUrl,
+                    mediaId: docMediaId,
                     uploadedAt: societyData.createdAt || new Date(),
-                    size: null
+                    size: docSize
                   });
                 });
               }
@@ -239,30 +257,57 @@ const SocietyOwnerDashboard = () => {
               const documentsArray = Array.isArray(documentsData) ? documentsData : 
                                    (documentsData?.data && Array.isArray(documentsData.data)) ? documentsData.data : 
                                    (documentsData?.documents && Array.isArray(documentsData.documents)) ? documentsData.documents : [];
+              
+              console.log('=== DOCUMENTS FETCH DEBUG ===');
+              console.log('Documents data from API:', documentsData);
+              console.log('Documents array:', documentsArray);
+              console.log('Society registration_documents:', societyData.registration_documents);
+              console.log('Society flat_plan_documents:', societyData.flat_plan_documents);
+              
               // If API returns empty but society has documents, use fallback
               if (documentsArray.length === 0 && (societyData.registration_documents?.length > 0 || societyData.flat_plan_documents?.length > 0)) {
                 const fallbackDocs = [];
-                if (societyData.registration_documents && societyData.registration_documents.length > 0) {
-                  societyData.registration_documents.forEach((url: string, index: number) => {
-                    fallbackDocs.push({
-                      id: `doc_${index}`,
-                      name: url.split('/').pop() || `Society Document ${index + 1}`,
-                      type: 'society_document',
-                      url: url,
-                      uploadedAt: societyData.createdAt || new Date(),
-                      size: null
-                    });
+              if (societyData.registration_documents && societyData.registration_documents.length > 0) {
+                console.log('Creating fallback docs from registration_documents');
+                societyData.registration_documents.forEach((docItem: any, index: number) => {
+                  // Handle both string URLs and document objects
+                  const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+                  const docName = typeof docItem === 'string' ? 
+                    (docItem.split('/').pop() || `Society Document ${index + 1}`) : 
+                    (docItem.name || docItem.url.split('/').pop() || `Society Document ${index + 1}`);
+                  const docMediaId = typeof docItem === 'object' ? docItem.mediaId : null;
+                  const docSize = typeof docItem === 'object' ? docItem.size : null;
+                  
+                  console.log(`Registration doc ${index + 1} URL:`, docUrl);
+                  fallbackDocs.push({
+                    id: `doc_${index}`,
+                    name: docName,
+                    type: 'society_document',
+                    url: docUrl,
+                    mediaId: docMediaId,
+                    uploadedAt: societyData.createdAt || new Date(),
+                    size: docSize
                   });
-                }
+                });
+              }
                 if (societyData.flat_plan_documents && societyData.flat_plan_documents.length > 0) {
-                  societyData.flat_plan_documents.forEach((url: string, index: number) => {
+                  societyData.flat_plan_documents.forEach((docItem: any, index: number) => {
+                    // Handle both string URLs and document objects
+                    const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+                    const docName = typeof docItem === 'string' ? 
+                      (docItem.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`) : 
+                      (docItem.name || docItem.url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`);
+                    const docMediaId = typeof docItem === 'object' ? docItem.mediaId : null;
+                    const docSize = typeof docItem === 'object' ? docItem.size : null;
+                    
                     fallbackDocs.push({
                       id: `doc_${fallbackDocs.length + index}`,
-                      name: url.split('/').pop() || `Society Document ${fallbackDocs.length + index + 1}`,
+                      name: docName,
                       type: 'society_document',
-                      url: url,
+                      url: docUrl,
+                      mediaId: docMediaId,
                       uploadedAt: societyData.createdAt || new Date(),
-                      size: null
+                      size: docSize
                     });
                   });
                 }
@@ -319,19 +364,40 @@ const SocietyOwnerDashboard = () => {
     fetchSocietyData();
   }, [user]);
 
-  // Handle document upload completion
+  // Monitor document uploads and process when all are complete
+  useEffect(() => {
+    if (documentUploads.length > 0) {
+      processCompletedUploads();
+    }
+  }, [documentUploads]);
+
+  // Handle document upload completion - called for each individual file
   const handleDocumentUploadComplete = async () => {
-    setIsUploadingDocuments(false);
-    setShowUploadForm(false);
-    
-    // Update society with uploaded document URLs
+    // Don't process here - wait for all uploads to complete
+    // The useEffect will handle processing when all uploads are done
+  };
+
+  // Process all completed uploads when upload process is done
+  const processCompletedUploads = async () => {
     if (society && documentUploads.length > 0) {
       const completedUploads = documentUploads.filter(doc => doc.status === 'completed' && doc.url);
+      const pendingUploads = documentUploads.filter(doc => doc.status === 'uploading' || doc.status === 'pending');
       
-      if (completedUploads.length > 0) {
-        console.log('Processing completed uploads:', completedUploads);
+      console.log('=== UPLOAD STATUS CHECK ===');
+      console.log('Total documents:', documentUploads.length);
+      console.log('Completed uploads:', completedUploads.length);
+      console.log('Pending uploads:', pendingUploads.length);
+      
+      // Only process if all uploads are complete
+      if (completedUploads.length > 0 && pendingUploads.length === 0) {
+        console.log('All uploads completed, processing...');
         
-        const uploadedUrls = completedUploads.map(doc => doc.url!);
+        const uploadedDocuments = completedUploads.map(doc => ({
+          url: doc.url!,
+          mediaId: doc.mediaId,
+          name: doc.name,
+          size: doc.size
+        }));
         
         try {
           const societyId = getSocietyId(society);
@@ -342,15 +408,52 @@ const SocietyOwnerDashboard = () => {
             
             // Combine all current documents with new uploads
             const allCurrentDocs = [...currentRegDocs, ...currentFloorDocs];
-            const updatedDocs = [...allCurrentDocs, ...uploadedUrls];
+            const updatedDocs = [...allCurrentDocs, ...uploadedDocuments];
             
-            console.log('Updating society with all documents:', updatedDocs);
+            console.log('=== DOCUMENT UPLOAD DEBUG ===');
+            console.log('Society ID:', societyId);
+            console.log('Current registration docs:', currentRegDocs);
+            console.log('Current floor plan docs:', currentFloorDocs);
+            console.log('Uploaded documents:', uploadedDocuments);
+            console.log('Updated docs array:', updatedDocs);
+            console.log('Society object before update:', society);
+            
+            // Debug each uploaded document
+            uploadedDocuments.forEach((doc, index) => {
+              console.log(`Uploaded document ${index + 1}:`, doc);
+              console.log(`Document type:`, typeof doc);
+              console.log(`Document URL:`, doc.url);
+              console.log(`Document mediaId:`, doc.mediaId);
+            });
             
             // Update society with all documents in registration_documents array
             // We'll use registration_documents as the main document storage
-            await apiClient.updateSociety(societyId, {
+            const updateData = {
               registration_documents: updatedDocs,
               flat_plan_documents: [] // Clear floor plan docs since we're unifying
+            };
+            
+            console.log('Sending update data:', updateData);
+            
+            const updateResult = await apiClient.updateSociety(societyId, updateData);
+            console.log('Update result:', updateResult);
+            
+            if (updateResult.error) {
+              console.error('Update failed:', updateResult.error);
+              throw new Error(updateResult.error);
+            }
+            
+            console.log('Society updated successfully');
+            
+            // Clear upload state and close form
+            setIsUploadingDocuments(false);
+            setShowUploadForm(false);
+            setDocumentUploads([]);
+            
+            // Refresh the documents list
+            await fetchSocietyData();
+            toast("Success", {
+              description: "Documents uploaded successfully!",
             });
           }
         } catch (error) {
@@ -361,15 +464,6 @@ const SocietyOwnerDashboard = () => {
         }
       }
     }
-    
-    // Clear upload state
-    setDocumentUploads([]);
-    
-    // Refresh the documents list
-    await fetchSocietyData();
-    toast("Success", {
-      description: "Documents uploaded successfully!",
-    });
   };
 
   const handleDocumentUploadStart = () => {
@@ -855,7 +949,11 @@ const SocietyOwnerDashboard = () => {
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
-                                  onClick={() => window.open(doc.url, '_blank')}
+                                  onClick={() => {
+                                    console.log('Document URL:', doc.url);
+                                    console.log('Document name:', doc.name);
+                                    window.open(doc.url, '_blank');
+                                  }}
                                   className="flex-1 text-purple-600 hover:text-purple-700 border-purple-200 hover:border-purple-300"
                                 >
                                   <Eye className="h-4 w-4 mr-2" />
@@ -883,13 +981,34 @@ const SocietyOwnerDashboard = () => {
                                       try {
                                         const societyId = getSocietyId(society);
                                         if (societyId) {
+                                          console.log('Deleting document:', doc.url);
+                                          
+                                          // First, try to delete from Cloudinary/Media collection if we have a mediaId
+                                          if (doc.mediaId) {
+                                            try {
+                                              console.log('Deleting media from Cloudinary:', doc.mediaId);
+                                              await apiClient.deleteMedia(doc.mediaId);
+                                              console.log('Media deleted from Cloudinary successfully');
+                                            } catch (mediaError) {
+                                              console.warn('Failed to delete from Cloudinary, continuing with local deletion:', mediaError);
+                                            }
+                                          } else if (doc.url && doc.url.includes('localhost:5000/uploads/')) {
+                                            // For local development files, we can't delete them from the server
+                                            // but we can remove them from the society's documents array
+                                            console.log('Local file detected, will be removed from society documents only');
+                                          }
+                                          
                                           // Remove document from society
                                           const currentRegDocs = society.registration_documents || [];
                                           const currentFloorDocs = society.flat_plan_documents || [];
                                           
                                           // Combine all documents and remove the specific one
                                           const allDocs = [...currentRegDocs, ...currentFloorDocs];
-                                          const updatedDocs = allDocs.filter((url: string) => url !== doc.url);
+                                          const updatedDocs = allDocs.filter((docItem: any) => {
+                                            // Handle both string URLs and document objects
+                                            const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+                                            return docUrl !== doc.url;
+                                          });
                                           
                                           await apiClient.updateSociety(societyId, {
                                             registration_documents: updatedDocs,

@@ -10,6 +10,8 @@ interface ApiResponse<T = any> {
   errors?: any;
   message?: string;
   status?: string;
+  httpStatus?: number;
+  httpStatusText?: string;
 }
 
 class ApiClient {
@@ -118,10 +120,13 @@ class ApiClient {
         const data = await response.json();
 
       if (!response.ok) {
+        console.log('[API] Error response data:', data);
         return {
           error: data.message || data.error || 'Request failed',
           errors: data.errors || null,
-          status: 'error'
+          status: 'error',
+          httpStatus: response.status,
+          httpStatusText: response.statusText
         };
       }
 
@@ -197,9 +202,20 @@ class ApiClient {
   }
 
   async signUpWithSMSForNewRole(phone: string, fullName: string, role: string) {
+    const payload = { phone, fullName, role };
+    console.log('[API] signUpWithSMSForNewRole payload:', payload);
     return this.request('/auth/signup-new-role', {
       method: 'POST',
-      body: JSON.stringify({ phone, fullName, role }),
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async debugSignup(phone: string, fullName: string, role: string) {
+    const payload = { phone, fullName, role };
+    console.log('[API] debugSignup payload:', payload);
+    return this.request('/auth/debug-signup', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
@@ -211,6 +227,19 @@ class ApiClient {
     return this.request('/users/profile', {
       method: 'PUT',
       body: JSON.stringify(updates),
+    });
+  }
+
+  async submitContactForm(formData: {
+    name: string;
+    email: string;
+    phone?: string;
+    subject: string;
+    message: string;
+  }) {
+    return this.request('/inquiries/contact', {
+      method: 'POST',
+      body: JSON.stringify(formData),
     });
   }
 
@@ -927,6 +956,13 @@ class ApiClient {
     });
   }
 
+  async updateRedevelopmentProjectStatus(id: string, status: string) {
+    return this.request(`/redevelopment-projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
   async deleteRedevelopmentProject(id: string) {
     return this.request(`/redevelopment-projects/${id}`, {
       method: 'DELETE',
@@ -1002,6 +1038,21 @@ class ApiClient {
     });
   }
 
+
+  async approveProposal(id: string, comments?: string) {
+    return this.request(`/developer-proposals/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ comments }),
+    });
+  }
+
+  async rejectProposal(id: string, reason: string) {
+    return this.request(`/developer-proposals/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   async getProposalComparison(projectId: string) {
     return this.request(`/developer-proposals/project/${projectId}/comparison`);
   }
@@ -1014,8 +1065,18 @@ class ApiClient {
     });
   }
 
-  async getProjectVotes(projectId: string, session?: string) {
-    const queryParams = session ? `?session=${session}` : '';
+  async submitMemberVotesBatch(votesData: any[]) {
+    return this.request('/member-votes/batch', {
+      method: 'POST',
+      body: JSON.stringify({ votes: votesData }),
+    });
+  }
+
+  async getProjectVotes(projectId: string, session?: string, includeDetails?: boolean) {
+    const params = new URLSearchParams();
+    if (session) params.append('session', session);
+    if (includeDetails) params.append('includeDetails', 'true');
+    const queryParams = params.toString() ? `?${params.toString()}` : '';
     return this.request(`/member-votes/project/${projectId}${queryParams}`);
   }
 
@@ -1023,8 +1084,9 @@ class ApiClient {
     return this.request(`/member-votes/my-vote/${projectId}/${session}`);
   }
 
-  async getMyVotingHistory() {
-    return this.request('/member-votes/my-votes');
+  async getMyVotingHistory(projectId?: string) {
+    const queryParams = projectId ? `?projectId=${projectId}` : '';
+    return this.request(`/member-votes/my-votes${queryParams}`);
   }
 
   async getVotingStatistics(projectId: string, session?: string) {
@@ -1064,6 +1126,20 @@ class ApiClient {
   async getSocietyDocuments(societyId: string, timestamp?: number) {
     const queryString = timestamp ? `?_t=${timestamp}` : '';
     return this.request(`/societies/${societyId}/documents${queryString}`);
+  }
+
+  // Redevelopment project document methods
+  async addProjectDocument(projectId: string, documentData: any) {
+    return this.request(`/redevelopment-projects/${projectId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(documentData),
+    });
+  }
+
+  async deleteProjectDocument(projectId: string, documentId: string) {
+    return this.request(`/redevelopment-projects/${projectId}/documents/${documentId}`, {
+      method: 'DELETE',
+    });
   }
 
   async respondToQuery(queryId: string, responseText: string) {

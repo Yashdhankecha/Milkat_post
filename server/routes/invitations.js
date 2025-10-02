@@ -185,7 +185,7 @@ router.post('/send',
       });
     }
 
-    // Check if user is already invited
+    // Check if user is already invited (pending or sent)
     const existingInvitation = await Invitation.findOne({
       society: society_id,
       invitedPhone,
@@ -205,24 +205,64 @@ router.post('/send',
       });
     }
 
-    // Check if user is already a member
-    const existingMember = await Profile.findOne({
-      companyName: society_id,
-      phone: invitedPhone,
-      status: 'active'
+    // Check if user has any previous invitations (including declined/expired) to prevent spam
+    const anyPreviousInvitation = await Invitation.findOne({
+      society: society_id,
+      invitedPhone,
+      status: { $in: ['accepted', 'declined', 'expired', 'cancelled'] }
     });
 
-    if (existingMember) {
+    if (anyPreviousInvitation) {
       return res.status(400).json({
         status: 'error',
-        message: 'User is already a member of this society',
-        errorCode: 'ALREADY_MEMBER',
+        message: 'User has already been invited to this society previously',
+        errorCode: 'PREVIOUSLY_INVITED',
         data: { 
+          invitationId: anyPreviousInvitation._id,
           invitedPhone: invitedPhone,
           societyId: society_id,
-          memberProfileId: existingMember._id
+          previousStatus: anyPreviousInvitation.status
         }
       });
+    }
+
+    // Check if user is already a member of the society
+    // First, find the user by phone number
+    const invitedUser = await User.findOne({ phone: invitedPhone });
+    
+    if (invitedUser) {
+      // Check if user is already a member
+      const existingMember = await SocietyMember.findOne({
+        society: society_id,
+        user: invitedUser._id,
+        status: 'active'
+      });
+
+      if (existingMember) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'User is already a member of this society',
+          errorCode: 'ALREADY_MEMBER',
+          data: { 
+            invitedPhone: invitedPhone,
+            societyId: society_id,
+            memberId: existingMember._id
+          }
+        });
+      }
+
+      // Check if user is the society owner
+      if (society.owner.toString() === invitedUser._id.toString()) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Cannot invite the society owner',
+          errorCode: 'IS_OWNER',
+          data: { 
+            invitedPhone: invitedPhone,
+            societyId: society_id
+          }
+        });
+      }
     }
 
     // Check if user is registered
@@ -528,11 +568,24 @@ router.post('/:id/accept',
       await notification.save();
     }
 
+    // Store invitation data before deletion for response
+    const invitationData = {
+      id: invitation._id,
+      status: invitation.status,
+      acceptedAt: invitation.acceptedAt,
+      society: invitation.society,
+      invitationType: invitation.invitationType
+    };
+
+    // Remove the invitation from database after successful acceptance
+    await Invitation.findByIdAndDelete(invitation._id);
+    console.log(`Invitation ${invitation._id} removed from database after acceptance`);
+
     res.status(200).json({
       status: 'success',
       message: 'Invitation accepted successfully. You are now a member of the society.',
       data: { 
-        invitation, 
+        invitation: invitationData, 
         societyMember: {
           id: societyMember._id,
           role: societyMember.role,
@@ -603,10 +656,23 @@ router.post('/:id/decline',
       await notification.save();
     }
 
+    // Store invitation data before deletion for response
+    const invitationData = {
+      id: invitation._id,
+      status: invitation.status,
+      declinedAt: invitation.declinedAt,
+      society: invitation.society,
+      invitationType: invitation.invitationType
+    };
+
+    // Remove the invitation from database after successful decline
+    await Invitation.findByIdAndDelete(invitation._id);
+    console.log(`Invitation ${invitation._id} removed from database after decline`);
+
     res.status(200).json({
       status: 'success',
       message: 'Invitation declined successfully',
-      data: { invitation }
+      data: { invitation: invitationData }
     });
   })
 );
@@ -821,6 +887,13 @@ router.post(
         }
 
         console.log(`Member added to society: ${societyMember._id}`);
+        console.log('Member details:', {
+          id: societyMember._id,
+          society: societyMember.society,
+          user: societyMember.user,
+          role: societyMember.role,
+          status: societyMember.status
+        });
 
         // Create notification for society owner
         const notification = new Notification({
@@ -840,11 +913,24 @@ router.post(
 
         console.log(`Notification sent to society owner: ${notification._id}`);
 
+        // Store invitation data before deletion for response
+        const invitationData = {
+          id: invitation._id,
+          status: invitation.status,
+          acceptedAt: invitation.acceptedAt,
+          society: invitation.society,
+          invitationType: invitation.invitationType
+        };
+
+        // Remove the invitation from database after successful acceptance
+        await Invitation.findByIdAndDelete(invitation._id);
+        console.log(`Invitation ${invitation._id} removed from database after acceptance`);
+
         res.status(200).json({
           status: 'success',
           message: `You have successfully joined ${invitation.society.name}`,
           data: {
-            invitation,
+            invitation: invitationData,
             societyMember
           }
         });
@@ -884,10 +970,23 @@ router.post(
 
       console.log(`Notification sent to society owner: ${notification._id}`);
 
+      // Store invitation data before deletion for response
+      const invitationData = {
+        id: invitation._id,
+        status: invitation.status,
+        declinedAt: invitation.declinedAt,
+        society: invitation.society,
+        invitationType: invitation.invitationType
+      };
+
+      // Remove the invitation from database after successful decline
+      await Invitation.findByIdAndDelete(invitation._id);
+      console.log(`Invitation ${invitation._id} removed from database after decline`);
+
       res.status(200).json({
         status: 'success',
         message: 'Invitation declined successfully',
-        data: { invitation }
+        data: { invitation: invitationData }
       });
     }
   })

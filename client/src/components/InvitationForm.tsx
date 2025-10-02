@@ -93,11 +93,38 @@ const InvitationForm: React.FC<InvitationFormProps> = ({
       });
 
       if (response.error) {
-        toast({
-          title: "Error",
-          description: response.error,
-          variant: "destructive",
-        });
+        // Handle specific error cases
+        if (response.error.includes('already been invited') || response.error.includes('ALREADY_INVITED')) {
+          toast({
+            title: "Already Invited",
+            description: "This user has already been invited to the society",
+            variant: "destructive",
+          });
+        } else if (response.error.includes('already a member') || response.error.includes('ALREADY_MEMBER')) {
+          toast({
+            title: "Already a Member",
+            description: "This user is already a member of the society",
+            variant: "destructive",
+          });
+        } else if (response.error.includes('previously invited') || response.error.includes('PREVIOUSLY_INVITED')) {
+          toast({
+            title: "Previously Invited",
+            description: "This user has already been invited to this society before",
+            variant: "destructive",
+          });
+        } else if (response.error.includes('society owner') || response.error.includes('IS_OWNER')) {
+          toast({
+            title: "Cannot Invite Owner",
+            description: "Cannot invite the society owner",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: response.error,
+            variant: "destructive",
+          });
+        }
         return;
       }
 

@@ -266,16 +266,32 @@ const Auth = () => {
           return;
         }
 
+        // Debug first
+        console.log('[Auth] Attempting signup with:', { phone, fullName, selectedRole });
+        
         // Send OTP for registration (new role or new user)
         const { error } = await signUpWithSMSForNewRole(phone, fullName, selectedRole as any);
+        console.log('[Auth] Signup response error:', error);
+        
         if (error) {
-          const msg = error.message || 'Failed to send OTP';
+          const msg = error.message || error || 'Failed to send OTP';
+          console.log('[Auth] Error message:', msg);
           
           // Check if user already has this role
-          if (msg.includes('already have this role')) {
+          if (msg.includes('already have this role') || msg.includes('ROLE_EXISTS')) {
             toast({
               title: "Role already exists",
               description: "You already have this role. Please login instead.",
+              variant: "destructive",
+            });
+            return;
+          }
+          
+          // Check for validation errors
+          if (msg.includes('Validation failed') || msg.includes('Invalid')) {
+            toast({
+              title: "Invalid information",
+              description: msg,
               variant: "destructive",
             });
             return;

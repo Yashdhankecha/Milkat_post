@@ -20,19 +20,10 @@ import {
   User, 
   Mail, 
   Phone, 
-  Globe, 
-  Briefcase, 
-  FileText, 
-  Building2, 
-  Shield, 
-  Users, 
-  Home,
+  MapPin,
   Save,
-  Upload,
-  Camera,
   CheckCircle2,
-  AlertCircle,
-  Edit3
+  AlertCircle
 } from "lucide-react";
 
 const Profile = () => {
@@ -42,146 +33,154 @@ const Profile = () => {
   const { toast } = useToast();
 
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [bio, setBio] = useState("");
-  const [website, setWebsite] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [businessType, setBusinessType] = useState("");
-  const [role, setRole] = useState<"admin" | "buyer_seller" | "broker" | "developer" | "society_owner" | "society_member">("buyer_seller");
+  const [address, setAddress] = useState("");
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [userRoles, setUserRoles] = useState<any[]>([]);
-  const [loadingRoles, setLoadingRoles] = useState(false);
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  
+  // Comment out role-related state variables
+  // const [website, setWebsite] = useState("");
+  // const [companyName, setCompanyName] = useState("");
+  // const [businessType, setBusinessType] = useState("");
+  // const [role, setRole] = useState<"admin" | "buyer_seller" | "broker" | "developer" | "society_owner" | "society_member">("buyer_seller");
+  // const [userRoles, setUserRoles] = useState<any[]>([]);
+  // const [loadingRoles, setLoadingRoles] = useState(false);
+  // const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
 
-  const roleOptions = [
-    { value: "buyer_seller", label: "Property Buyer & Seller", icon: Home, color: "text-blue-600" },
-    { value: "broker", label: "Real Estate Broker", icon: Briefcase, color: "text-purple-600" },
-    { value: "developer", label: "Property Developer", icon: Building2, color: "text-orange-600" },
-    { value: "society_owner", label: "Society Owner/Secretary", icon: Shield, color: "text-red-600" },
-    { value: "society_member", label: "Society Member", icon: Users, color: "text-indigo-600" },
-  ];
+  // Comment out role-related options
+  // const roleOptions = [
+  //   { value: "buyer_seller", label: "Property Buyer & Seller", icon: Home, color: "text-blue-600" },
+  //   { value: "broker", label: "Real Estate Broker", icon: Briefcase, color: "text-purple-600" },
+  //   { value: "developer", label: "Property Developer", icon: Building2, color: "text-orange-600" },
+  //   { value: "society_owner", label: "Society Owner/Secretary", icon: Shield, color: "text-red-600" },
+  //   { value: "society_member", label: "Society Member", icon: Users, color: "text-indigo-600" },
+  // ];
 
-  const businessTypeOptions = [
-    "Real Estate Agency",
-    "Property Development",
-    "Construction Company",
-    "Property Management",
-    "Investment Firm",
-    "Legal Services",
-    "Architecture & Design",
-    "Other"
-  ];
+  // const businessTypeOptions = [
+  //   "Real Estate Agency",
+  //   "Property Development",
+  //   "Construction Company",
+  //   "Property Management",
+  //   "Investment Firm",
+  //   "Legal Services",
+  //   "Architecture & Design",
+  //   "Other"
+  // ];
 
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.fullName || "");
-      setPhone((profile as any).phone || "");
-      setBio(profile.bio || "");
-      setWebsite(profile.website || "");
-      setCompanyName(profile.companyName || "");
-      setBusinessType(profile.businessType || "");
+    if (profile || user) {
+      setFullName(profile?.fullName || "");
+      setEmail(user?.email || "");
+      setPhone(user?.phone || (profile as any)?.phone || "");
+      setAddress(profile?.address || "");
+      // Comment out professional fields
+      // setWebsite(profile.website || "");
+      // setCompanyName(profile.companyName || "");
+      // setBusinessType(profile.businessType || "");
       // Use activeRole from user data if available, otherwise fallback to currentRole or profile.role
-      const activeRole = user?.activeRole || user?.currentRole || (profile as any).activeRole || (profile as any).currentRole || profile.role;
-      setRole(activeRole as any ?? "buyer_seller");
+      // const activeRole = user?.activeRole || user?.currentRole || (profile as any).activeRole || (profile as any).currentRole || profile.role;
+      // setRole(activeRole as any ?? "buyer_seller");
     }
   }, [profile, user]);
 
-  // Fetch user roles
-  useEffect(() => {
-    if (user) {
-      fetchUserRoles();
-    }
-  }, [user]);
+  // Comment out role fetching functionality
+  // useEffect(() => {
+  //   if (user) {
+  //     fetchUserRoles();
+  //   }
+  // }, [user]);
 
-  const fetchUserRoles = async () => {
-    try {
-      setLoadingRoles(true);
-      const result = await apiClient.getMyRoles();
-      if (result.data) {
-        setUserRoles(result.data.roles || []);
-      }
-    } catch (error) {
-      console.error('Error fetching user roles:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch your roles",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingRoles(false);
-    }
-  };
+  // const fetchUserRoles = async () => {
+  //   try {
+  //     setLoadingRoles(true);
+  //     const result = await apiClient.getMyRoles();
+  //     if (result.data) {
+  //       setUserRoles(result.data.roles || []);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching user roles:', error);
+  //     toast({
+  //       title: "Error",
+  //       description: "Failed to fetch your roles",
+  //       variant: "destructive",
+  //     });
+  //   } finally {
+  //     setLoadingRoles(false);
+  //   }
+  // };
 
-  const handleRoleSwitch = async (newRole: string) => {
-    try {
-      const result = await apiClient.switchRole(newRole);
-      if (result.error) {
-        throw new Error(result.error);
-      }
+  // Comment out role switching functionality
+  // const handleRoleSwitch = async (newRole: string) => {
+  //   try {
+  //     const result = await apiClient.switchRole(newRole);
+  //     if (result.error) {
+  //       throw new Error(result.error);
+  //     }
       
-      // Update local state with new active role
-      if (result.data.activeRole) {
-        console.log('Role switched to:', result.data.activeRole);
+  //     // Update local state with new active role
+  //     if (result.data.activeRole) {
+  //       console.log('Role switched to:', result.data.activeRole);
         
-        // Refresh user data to update the active role in the context
-        await refreshUser();
-      }
+  //       // Refresh user data to update the active role in the context
+  //       await refreshUser();
+  //     }
       
-      toast({
-        title: "Role Switched",
-        description: `Successfully switched to ${getRoleInfo(newRole).label}`,
-      });
+  //     toast({
+  //       title: "Role Switched",
+  //       description: `Successfully switched to ${getRoleInfo(newRole).label}`,
+  //     });
       
-      // Get the dashboard path for the new role
-      const dashboardPath = getRoleBasedPath(newRole);
+  //     // Get the dashboard path for the new role
+  //     const dashboardPath = getRoleBasedPath(newRole);
       
-      // Use navigate instead of window.location.href for better UX
-      navigate(dashboardPath);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to switch role",
-        variant: "destructive",
-      });
-    }
-  };
+  //     // Use navigate instead of window.location.href for better UX
+  //     navigate(dashboardPath);
+  //   } catch (error: any) {
+  //     toast({
+  //       title: "Error",
+  //       description: error.message || "Failed to switch role",
+  //       variant: "destructive",
+  //     });
+  //   }
+  // };
 
-  const getRoleBasedPath = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return '/admin/dashboard';
-      case 'buyer_seller':
-        return '/buyer-seller/dashboard';
-      case 'broker':
-        return '/broker/dashboard';
-      case 'developer':
-        return '/developer/dashboard';
-      case 'society_owner':
-        return '/society-owner/dashboard';
-      case 'society_member':
-        return '/society-member/dashboard';
-      default:
-        return '/';
-    }
-  };
+  // const getRoleBasedPath = (role: string): string => {
+  //   switch (role) {
+  //     case 'admin':
+  //       return '/admin/dashboard';
+  //     case 'buyer_seller':
+  //       return '/buyer-seller/dashboard';
+  //     case 'broker':
+  //       return '/broker/dashboard';
+  //     case 'developer':
+  //       return '/developer/dashboard';
+  //     case 'society_owner':
+  //       return '/society-owner/dashboard';
+  //     case 'society_member':
+  //       return '/society-member/dashboard';
+  //     default:
+  //       return '/';
+  //   }
+  // };
 
-  // Check for changes
+  // Check for changes - only personal information
   useEffect(() => {
     if (profile) {
       const hasFormChanges = 
         fullName !== (profile.fullName || "") ||
-        phone !== ((profile as any).phone || "") ||
-        bio !== (profile.bio || "") ||
-        website !== (profile.website || "") ||
-        companyName !== (profile.companyName || "") ||
-        businessType !== (profile.businessType || "") ||
-        role !== profile.role;
+        email !== (user?.email || "") ||
+        address !== (profile.address || "");
+        // Comment out professional field changes
+        // website !== (profile.website || "") ||
+        // companyName !== (profile.companyName || "") ||
+        // businessType !== (profile.businessType || "") ||
+        // role !== profile.role;
       
       setHasChanges(hasFormChanges);
     }
-  }, [fullName, phone, bio, website, companyName, businessType, role, profile]);
+  }, [fullName, email, address, profile, user]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -190,12 +189,19 @@ const Profile = () => {
       newErrors.fullName = "Full name is required";
     }
     
-    if (website && !/^https?:\/\/.+/.test(website)) {
-      newErrors.website = "Please enter a valid URL (e.g., https://example.com)";
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
     }
     
-    if (bio && bio.length > 500) {
-      newErrors.bio = "Bio must be less than 500 characters";
+    // Comment out website validation
+    // if (website && !/^https?:\/\/.+/.test(website)) {
+    //   newErrors.website = "Please enter a valid URL (e.g., https://example.com)";
+    // }
+    
+    if (address && address.length > 500) {
+      newErrors.address = "Address must be less than 500 characters";
     }
     
     setErrors(newErrors);
@@ -220,12 +226,14 @@ const Profile = () => {
     try {
       const { error } = await updateProfile({
         fullName: fullName.trim(),
+        email: email.trim(),
         phone: phone.trim(),
-        bio: bio.trim(),
-        website: website.trim(),
-        companyName: companyName.trim(),
-        businessType: businessType,
-        role: role as any,
+        address: address.trim(),
+        // Comment out professional fields
+        // website: website.trim(),
+        // companyName: companyName.trim(),
+        // businessType: businessType,
+        // role: role as any,
       } as any);
       
       if (error) {
@@ -253,9 +261,10 @@ const Profile = () => {
     }
   };
 
-  const getRoleInfo = (roleValue: string) => {
-    return roleOptions.find(r => r.value === roleValue) || roleOptions[0];
-  };
+  // Comment out getRoleInfo function
+  // const getRoleInfo = (roleValue: string) => {
+  //   return roleOptions.find(r => r.value === roleValue) || roleOptions[0];
+  // };
 
   if (!user) {
     return (
@@ -286,13 +295,13 @@ const Profile = () => {
           {/* Header Section */}
           <div className="text-center space-y-4">
             <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-estate-blue to-estate-blue-light bg-clip-text text-transparent">
-              Profile Settings
+              Personal Profile
             </h1>
-            <p className="text-muted-foreground text-lg">Manage your personal information and professional details</p>
+            <p className="text-muted-foreground text-lg">Manage your personal information</p>
           </div>
 
-          {/* Role Management Section - Moved to Top */}
-          <Card className="shadow-soft border-0 bg-gradient-to-r from-estate-blue/5 to-estate-blue-lighter/5">
+          {/* Comment out Role Management Section */}
+          {/* <Card className="shadow-soft border-0 bg-gradient-to-r from-estate-blue/5 to-estate-blue-lighter/5">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-estate-blue" />
@@ -300,313 +309,129 @@ const Profile = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {loadingRoles ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="animate-pulse">
-                      <div className="h-16 bg-muted/50 rounded-lg"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : userRoles.length > 0 ? (
-                <div className="space-y-3">
-                  {userRoles.map((userRole, index) => {
-                    const roleInfo = getRoleInfo(userRole.role);
-                    const IconComponent = roleInfo.icon;
-                    const isCurrentRole = userRole.role === role;
-                    
-                    return (
-                      <div
-                        key={userRole.role}
-                        className={`relative p-4 rounded-lg border transition-all duration-200 ${
-                          isCurrentRole 
-                            ? 'border-estate-blue bg-estate-blue/5 shadow-md' 
-                            : 'border-border hover:border-estate-blue/30 hover:shadow-sm'
-                        }`}
-                      >
-                        {isCurrentRole && (
-                          <div className="absolute -top-2 -right-2">
-                            <Badge className="bg-estate-blue text-white text-xs">
-                              Current
-                            </Badge>
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`p-2 rounded-lg ${isCurrentRole ? 'bg-estate-blue/10' : 'bg-muted/50'}`}>
-                              <IconComponent className={`h-5 w-5 ${roleInfo.color}`} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-foreground">
-                                {roleInfo.label}
-                              </h3>
-                              <div className="flex items-center gap-4 mt-1">
-                                <div className="flex items-center gap-1">
-                                  <div className={`w-2 h-2 rounded-full ${
-                                    userRole.status === 'active' ? 'bg-green-500' : 
-                                    userRole.status === 'pending_verification' ? 'bg-yellow-500' : 
-                                    'bg-red-500'
-                                  }`}></div>
-                                  <span className="text-xs text-muted-foreground capitalize">
-                                    {userRole.status.replace('_', ' ')}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <div className={`w-2 h-2 rounded-full ${
-                                    userRole.verificationStatus === 'verified' ? 'bg-green-500' : 
-                                    userRole.verificationStatus === 'pending' ? 'bg-yellow-500' : 
-                                    'bg-gray-400'
-                                  }`}></div>
-                                  <span className="text-xs text-muted-foreground capitalize">
-                                    {userRole.verificationStatus}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            {!isCurrentRole && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRoleSwitch(userRole.role)}
-                                className="hover:bg-estate-blue hover:text-white hover:border-estate-blue transition-colors"
-                              >
-                                Switch Role
-                              </Button>
-                            )}
-                            {isCurrentRole && (
-                              <Badge variant="secondary" className="text-xs">
-                                Active
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="font-medium text-foreground mb-2">No Roles Found</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    You don't have any registered roles yet.
-                  </p>
-                  <Button variant="outline" size="sm">
-                    Contact Support
-                  </Button>
-                </div>
-              )}
+              Role management content commented out
             </CardContent>
-          </Card>
+          </Card> */}
 
-          {/* Form Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Personal Information */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="shadow-soft">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-estate-blue" />
-                    Personal Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName" className="text-sm font-medium">
-                        Full Name *
-                      </Label>
-                      <Input 
-                        id="fullName" 
-                        value={fullName} 
-                        onChange={(e) => setFullName(e.target.value)} 
-                        placeholder="Enter your full name"
-                        className={errors.fullName ? "border-destructive" : ""}
-                      />
-                      {errors.fullName && (
-                        <p className="text-sm text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.fullName}
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          value={user.email || ""} 
-                          disabled 
-                          className="pl-10 bg-muted/50"
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">Email cannot be changed</p>
-                    </div>
-                  </div>
-
+          {/* Personal Information Only */}
+          <div className="max-w-2xl mx-auto">
+            <Card className="shadow-soft">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-estate-blue" />
+                  Personal Information
+                  {profile && (
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full ml-auto">
+                      ✓ Saved
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Phone Number</Label>
-                    <PhoneNumberInput value={phone} onChange={setPhone} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="bio" className="text-sm font-medium">
-                      Bio
+                    <Label htmlFor="fullName" className="text-sm font-medium">
+                      Full Name *
                     </Label>
-                    <Textarea 
-                      id="bio" 
-                      rows={4} 
-                      value={bio} 
-                      onChange={(e) => setBio(e.target.value)} 
-                      placeholder="Tell us about yourself, your experience, and what you're looking for..."
-                      className={errors.bio ? "border-destructive" : ""}
+                    <Input 
+                      id="fullName" 
+                      value={fullName} 
+                      onChange={(e) => setFullName(e.target.value)} 
+                      placeholder={profile?.fullName ? "" : "Enter your full name"}
+                      className={errors.fullName ? "border-destructive" : ""}
                     />
-                    <div className="flex justify-between items-center">
-                      {errors.bio && (
-                        <p className="text-sm text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {errors.bio}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground ml-auto">
-                        {bio.length}/500 characters
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Professional Information */}
-              <Card className="shadow-soft">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <Briefcase className="h-5 w-5 text-estate-blue" />
-                    Professional Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="role" className="text-sm font-medium">
-                      Your Role *
-                    </Label>
-                    <Select value={role} onValueChange={(v) => setRole(v as any)}>
-                      <SelectTrigger id="role" className="h-11">
-                        <SelectValue placeholder="Select your role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roleOptions.map((option) => {
-                          const IconComponent = option.icon;
-                          return (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className="flex items-center gap-3">
-                                <IconComponent className={`h-4 w-4 ${option.color}`} />
-                                <span>{option.label}</span>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="companyName" className="text-sm font-medium">
-                        Company Name
-                      </Label>
-                      <Input 
-                        id="companyName" 
-                        value={companyName} 
-                        onChange={(e) => setCompanyName(e.target.value)} 
-                        placeholder="Your company or organization"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="businessType" className="text-sm font-medium">
-                        Business Type
-                      </Label>
-                      <Select value={businessType} onValueChange={setBusinessType}>
-                        <SelectTrigger id="businessType" className="h-11">
-                          <SelectValue placeholder="Select business type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {businessTypeOptions.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="website" className="text-sm font-medium">
-                      Website
-                    </Label>
-                    <div className="relative">
-                      <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        id="website" 
-                        value={website} 
-                        onChange={(e) => setWebsite(e.target.value)} 
-                        placeholder="https://your-website.com"
-                        className={`pl-10 ${errors.website ? "border-destructive" : ""}`}
-                      />
-                    </div>
-                    {errors.website && (
+                    {errors.fullName && (
                       <p className="text-sm text-destructive flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
-                        {errors.website}
+                        {errors.fullName}
                       </p>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Role Statistics */}
-              {userRoles.length > 0 && (
-                <Card className="shadow-soft">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5 text-estate-blue" />
-                      Role Statistics
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Total Roles</span>
-                        <span className="text-sm font-medium">{userRoles.length}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Active Roles</span>
-                        <span className="text-sm font-medium">
-                          {userRoles.filter(r => r.status === 'active').length}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Verified Roles</span>
-                        <span className="text-sm font-medium">
-                          {userRoles.filter(r => r.verificationStatus === 'verified').length}
-                        </span>
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      Email *
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="email"
+                        type="email"
+                        value={email} 
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={user?.email ? "" : "Enter your email"}
+                        className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+                    {errors.email && (
+                      <p className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.email}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Registered Mobile Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      value={phone || "Not registered"} 
+                      disabled 
+                      className="pl-10 bg-muted/50"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Mobile number cannot be changed</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Current Role</Label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      <div className="w-3 h-3 bg-estate-blue rounded-full"></div>
+                    </div>
+                    <Input 
+                      value={user?.role ? user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : (profile?.role ? profile.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Not assigned')} 
+                      disabled 
+                      className="pl-10 bg-muted/50 font-medium"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Your current system role</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address" className="text-sm font-medium">
+                    Address
+                  </Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Textarea 
+                      id="address" 
+                      rows={4} 
+                      value={address} 
+                      onChange={(e) => setAddress(e.target.value)} 
+                      placeholder={profile?.address ? "" : "Enter your complete address..."}
+                      className={`pl-10 ${errors.address ? "border-destructive" : ""}`}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    {errors.address && (
+                      <p className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {errors.address}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground ml-auto">
+                      {address.length}/500 characters
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Save Button */}
-          <div className="flex justify-end">
+          <div className="flex justify-center">
             <Button 
               onClick={onSave} 
               disabled={saving || !hasChanges} 

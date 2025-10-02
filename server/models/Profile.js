@@ -10,7 +10,7 @@ const profileSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  bio: {
+  address: {
     type: String,
     maxlength: 500
   },

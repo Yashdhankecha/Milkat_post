@@ -10,8 +10,11 @@ import hpp from 'hpp';
 import xss from 'xss-clean';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createServer } from 'http';
 // Import config loader (handles environment variables)
 import config from './config-loader.js';
+// Import WebSocket service
+import socketService from './services/socketService.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -192,8 +195,15 @@ const HOST = config.HOST;
 const startServer = async () => {
   await connectDB();
   
-  app.listen(PORT, HOST, () => {
+  // Create HTTP server
+  const server = createServer(app);
+  
+  // Initialize WebSocket service
+  socketService.initialize(server);
+  
+  server.listen(PORT, HOST, () => {
     logger.info(`Server running on ${HOST}:${PORT} in ${config.NODE_ENV} mode`);
+    logger.info(`WebSocket server initialized for real-time notifications`);
   });
 };
 

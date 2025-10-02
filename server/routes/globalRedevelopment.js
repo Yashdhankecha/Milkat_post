@@ -155,10 +155,18 @@ router.post('/projects/:projectId/proposals', authenticate, async (req, res) => 
       });
     }
     
+    // Check if project is accepting proposals
     if (!['planning', 'tender_open', 'proposals_received'].includes(project.status)) {
+      let message = 'This project is not accepting proposals at the moment';
+      
+      // Provide specific message for voting status
+      if (project.status === 'voting') {
+        message = 'Proposal submission is closed as voting has started. No new proposals can be submitted during the voting period.';
+      }
+      
       return res.status(400).json({
         success: false,
-        message: 'This project is not accepting proposals at the moment'
+        message: message
       });
     }
     

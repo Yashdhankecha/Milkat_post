@@ -396,8 +396,14 @@ router.put('/:id',
   catchAsync(async (req, res) => {
     console.log('Society update request received:');
     console.log('Society ID:', req.params.id);
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
     console.log('User:', req.user ? req.user._id : 'No user');
+    
+    // Debug document updates
+    if (req.body.registration_documents || req.body.flat_plan_documents) {
+      console.log('=== DOCUMENT UPDATE DEBUG ===');
+      console.log('Registration documents in request:', req.body.registration_documents);
+      console.log('Flat plan documents in request:', req.body.flat_plan_documents);
+    }
     
     // FIX: Remove any _id field from request body to prevent ObjectId casting errors
     delete req.body._id;
@@ -427,21 +433,52 @@ router.put('/:id',
       'totalArea', 'totalFlats', 'numberOfBlocks', 'yearBuilt', 'registrationDate',
       'fsi', 'roadFacing', 'conditionStatus', 'amenities', 'contactPersonName',
       'contactPhone', 'contactEmail', 'status', 'registrationDocuments', 'flatPlanDocuments',
-      'flatVariants'
+      'registration_documents', 'flat_plan_documents', 'flatVariants'
     ];
 
     const updates = {};
     Object.keys(req.body).forEach(key => {
       if (allowedUpdates.includes(key)) {
-        updates[key] = req.body[key];
+        // Map snake_case to camelCase for database fields
+        if (key === 'registration_documents') {
+          updates.registrationDocuments = req.body[key];
+        } else if (key === 'flat_plan_documents') {
+          updates.flatPlanDocuments = req.body[key];
+        } else {
+          updates[key] = req.body[key];
+        }
       }
     });
 
-    const updatedSociety = await Society.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
-    );
+    let updatedSociety;
+    try {
+      updatedSociety = await Society.findByIdAndUpdate(
+        req.params.id,
+        updates,
+        { new: true, runValidators: true }
+      );
+      
+      if (!updatedSociety) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Society not found after update'
+        });
+      }
+    } catch (updateError) {
+      console.error('Society update error:', updateError);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to update society',
+        error: updateError.message
+      });
+    }
+    
+    // Debug document updates
+    if (updates.registrationDocuments || updates.flatPlanDocuments) {
+      console.log('=== AFTER UPDATE DEBUG ===');
+      console.log('Updated society registrationDocuments:', updatedSociety.registrationDocuments);
+      console.log('Updated society flatPlanDocuments:', updatedSociety.flatPlanDocuments);
+    }
 
     // Transform field names from backend camelCase to frontend snake_case
     const transformedSociety = {
@@ -635,23 +672,64 @@ router.get('/:id/members',
       });
     }
 
-    // Get all active members of the society
-    const profiles = await Profile.find({
-      companyName: societyId,
+    // Get all active members of the society using SocietyMember
+    const societyMembers = await SocietyMember.find({
+      society: societyId,
       status: 'active'
     }).populate('user', 'phone email isVerified lastLogin');
 
+    // Get the society owner
+    const owner = await User.findById(society.owner).select('phone email isVerified lastLogin');
+    
+    // Get profiles for all users to get their names
+    const userIds = societyMembers.map(member => member.user._id);
+    if (owner) {
+      userIds.push(owner._id);
+    }
+    
+    const profiles = await Profile.find({
+      user: { $in: userIds }
+    }).select('user fullName profilePicture');
+    
+    // Create a map of user ID to profile for quick lookup
+    const profileMap = new Map();
+    profiles.forEach(profile => {
+      profileMap.set(profile.user.toString(), profile);
+    });
+
     // Format the response
-    const members = profiles.map(profile => ({
-      id: profile._id,
-      userId: profile.user._id,
-      phone: profile.user.phone,
-      email: profile.user.email,
-      role: profile.role,
-      status: profile.status,
-      joinedAt: profile.joinedAt,
-      isOwner: society.owner.toString() === profile.user._id.toString()
-    }));
+    const members = societyMembers.map(member => {
+      const profile = profileMap.get(member.user._id.toString());
+      return {
+        id: member._id,
+        userId: member.user._id,
+        phone: member.user.phone,
+        email: member.user.email,
+        fullName: profile?.fullName || null,
+        profilePicture: profile?.profilePicture || null,
+        role: member.role,
+        status: member.status,
+        joinedAt: member.joinedAt,
+        isOwner: false
+      };
+    });
+
+    // Add the society owner to the members list if they exist
+    if (owner) {
+      const ownerProfile = profileMap.get(owner._id.toString());
+      members.unshift({
+        id: `owner_${society.owner}`,
+        userId: society.owner,
+        phone: owner.phone,
+        email: owner.email,
+        fullName: ownerProfile?.fullName || null,
+        profilePicture: ownerProfile?.profilePicture || null,
+        role: 'society_owner',
+        status: 'active',
+        joinedAt: society.createdAt,
+        isOwner: true
+      });
+    }
 
     res.status(200).json({
       status: 'success',
@@ -700,28 +778,46 @@ router.get('/:id/documents',
 
     // Add registration documents
     if (society.registrationDocuments && society.registrationDocuments.length > 0) {
-      society.registrationDocuments.forEach((url, index) => {
+      society.registrationDocuments.forEach((docItem, index) => {
+        // Handle both string URLs (legacy) and document objects (new format)
+        const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+        const docName = typeof docItem === 'string' ? 
+          (docItem.split('/').pop() || `Society Document ${index + 1}`) : 
+          (docItem.name || docItem.url.split('/').pop() || `Society Document ${index + 1}`);
+        const docMediaId = typeof docItem === 'object' ? docItem.mediaId : null;
+        const docSize = typeof docItem === 'object' ? docItem.size : null;
+        
         documents.push({
           id: `doc_${index}`,
-          name: url.split('/').pop() || `Society Document ${index + 1}`,
+          name: docName,
           type: 'society_document',
-          url: url,
+          url: docUrl,
+          mediaId: docMediaId,
           uploadedAt: society.createdAt,
-          size: null // Size not available from URL
+          size: docSize
         });
       });
     }
 
     // Add flat plan documents (for backward compatibility)
     if (society.flatPlanDocuments && society.flatPlanDocuments.length > 0) {
-      society.flatPlanDocuments.forEach((url, index) => {
+      society.flatPlanDocuments.forEach((docItem, index) => {
+        // Handle both string URLs (legacy) and document objects (new format)
+        const docUrl = typeof docItem === 'string' ? docItem : docItem.url;
+        const docName = typeof docItem === 'string' ? 
+          (docItem.split('/').pop() || `Society Document ${documents.length + index + 1}`) : 
+          (docItem.name || docItem.url.split('/').pop() || `Society Document ${documents.length + index + 1}`);
+        const docMediaId = typeof docItem === 'object' ? docItem.mediaId : null;
+        const docSize = typeof docItem === 'object' ? docItem.size : null;
+        
         documents.push({
           id: `doc_${documents.length + index}`,
-          name: url.split('/').pop() || `Society Document ${documents.length + index + 1}`,
+          name: docName,
           type: 'society_document',
-          url: url,
+          url: docUrl,
+          mediaId: docMediaId,
           uploadedAt: society.createdAt,
-          size: null // Size not available from URL
+          size: docSize
         });
       });
     }

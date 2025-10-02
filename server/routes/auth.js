@@ -21,6 +21,8 @@ const router = express.Router();
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('[Validation Error] Request body:', req.body);
+    console.log('[Validation Error] Validation errors:', errors.array());
     return res.status(400).json({
       status: 'error',
       message: 'Validation failed',
@@ -29,6 +31,31 @@ const validateRequest = (req, res, next) => {
   }
   next();
 };
+
+// Debug endpoint for signup-new-role testing
+router.post('/debug-signup',
+  catchAsync(async (req, res) => {
+    console.log('[debug-signup] Raw request body:', req.body);
+    console.log('[debug-signup] Headers:', req.headers);
+    
+    const { phone, fullName, role } = req.body;
+    console.log('[debug-signup] Parsed values:', { phone, fullName, role });
+    console.log('[debug-signup] Phone validation:', validatePhoneNumber(phone));
+    console.log('[debug-signup] FullName length:', fullName?.length);
+    console.log('[debug-signup] Role value:', role);
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Debug info logged',
+      data: {
+        received: { phone, fullName, role },
+        phoneValid: validatePhoneNumber(phone),
+        fullNameLength: fullName?.length,
+        roleValid: ['admin', 'buyer_seller', 'broker', 'developer', 'society_owner', 'society_member'].includes(role)
+      }
+    });
+  })
+);
 
 // Debug endpoint to check if user exists
 router.post('/check-user',
@@ -414,6 +441,9 @@ router.post('/signup-new-role',
   validateRequest,
   catchAsync(async (req, res) => {
     const { phone, fullName, role } = req.body;
+    
+    console.log('[signup-new-role] Request body:', req.body);
+    console.log('[signup-new-role] Parsed values:', { phone, fullName, role });
 
     // Check if user already exists
     const existingUser = await User.findOne({ phone });

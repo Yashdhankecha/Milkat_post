@@ -34,7 +34,11 @@ interface Invitation {
   expiresAt?: string;
 }
 
-export function MemberInvitationsPanel() {
+interface MemberInvitationsPanelProps {
+  onInvitationAccepted?: () => void;
+}
+
+export function MemberInvitationsPanel({ onInvitationAccepted }: MemberInvitationsPanelProps) {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
@@ -109,6 +113,11 @@ export function MemberInvitationsPanel() {
 
       // Refresh invitations list
       await fetchInvitations();
+      
+      // If invitation was accepted, notify parent to refresh members list
+      if (response === 'accept' && onInvitationAccepted) {
+        onInvitationAccepted();
+      }
     } catch (err) {
       console.error(`Error ${response}ing invitation:`, err);
       toast({

@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 100 * 1024 * 1024, // 100MB limit for videos
   },
   fileFilter: (req, file, cb) => {
     // Accept images, videos, and documents
@@ -81,12 +81,20 @@ const uploadToCloudinary = async (filePath, options = {}) => {
       const fileName = path.basename(filePath);
       const publicId = `local_${Date.now()}_${Math.round(Math.random() * 1E9)}`;
       
+      // Move file from temp-uploads to uploads directory
+      const uploadsDir = path.join(path.dirname(filePath), '../uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const newFilePath = path.join(uploadsDir, fileName);
+      fs.renameSync(filePath, newFilePath);
+      
       // Create a mock Cloudinary response
       const mockResult = {
         public_id: publicId,
         secure_url: `http://localhost:5000/uploads/${fileName}`,
         url: `http://localhost:5000/uploads/${fileName}`,
-        resource_type: 'image', // Default to image
+        resource_type: 'raw', // Use 'raw' for documents
         format: path.extname(fileName).substring(1),
         bytes: stats.size,
         width: null,
@@ -94,16 +102,7 @@ const uploadToCloudinary = async (filePath, options = {}) => {
         created_at: new Date().toISOString()
       };
       
-      // Move file to uploads directory for serving
-      const uploadsDir = 'uploads';
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-      
-      const finalPath = path.join(uploadsDir, fileName);
-      fs.renameSync(filePath, finalPath);
-      
-      console.log('File saved locally:', finalPath);
+      console.log('File saved locally:', newFilePath);
       
       return mockResult;
     }
@@ -205,7 +204,7 @@ router.post('/single',
         return res.status(413).json({
           success: false,
           message: 'File too large',
-          error: 'File size exceeds the maximum allowed limit of 10MB'
+          error: 'File size exceeds the maximum allowed limit of 100MB'
         });
       }
       

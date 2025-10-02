@@ -275,41 +275,60 @@ const PostProperty = () => {
       } else {
         // Real MERN stack upload using Express + Multer
         const fileArray = Array.from(files);
+        const uploadedUrls: string[] = [];
         
-        // Check file sizes first
+        // Upload each video file individually
         for (const file of fileArray) {
+          // Check file size (max 100MB per video)
           if (file.size > 100 * 1024 * 1024) {
             toast({
               title: "File too large",
               description: `${file.name} is larger than 100MB. Please choose a smaller file.`,
               variant: "destructive",
             });
-            setUploadingMedia(false);
-            return;
+            continue; // Skip this file but continue with others
+          }
+          
+          try {
+            const result = await apiClient.uploadSingleFile(file, 'property_video');
+            
+            if (result.error) {
+              console.error(`Error uploading ${file.name}:`, result.error);
+              toast({
+                title: "Upload Warning",
+                description: `Failed to upload ${file.name}. Please try again.`,
+                variant: "destructive",
+              });
+              continue;
+            }
+
+            // Ensure URL is absolute for proper display
+            const url = result.data.media.url.startsWith('http') 
+              ? result.data.media.url 
+              : `http://localhost:5000${result.data.media.url}`;
+            
+            uploadedUrls.push(url);
+          } catch (error) {
+            console.error(`Error uploading ${file.name}:`, error);
+            toast({
+              title: "Upload Warning",
+              description: `Failed to upload ${file.name}. Please try again.`,
+              variant: "destructive",
+            });
           }
         }
         
-        const result = await apiClient.uploadImages(fileArray); // Using general images endpoint for videos
-        
-        if (result.error) {
-          throw new Error(result.error);
+        if (uploadedUrls.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            videos: [...prev.videos, ...uploadedUrls]
+          }));
+
+          toast({
+            title: "Success!",
+            description: `${uploadedUrls.length} video(s) uploaded successfully.`,
+          });
         }
-
-        const uploadedUrls = result.data.files.map((file: any) => {
-          // Ensure URL is absolute for proper display
-          const url = file.url.startsWith('http') ? file.url : `http://localhost:5000${file.url}`;
-          return url;
-        });
-        
-        setFormData(prev => ({
-          ...prev,
-          videos: [...prev.videos, ...uploadedUrls]
-        }));
-
-        toast({
-          title: "Success!",
-          description: `${uploadedUrls.length} video(s) uploaded successfully.`,
-        });
         setUploadingMedia(false);
       }
     } catch (error) {

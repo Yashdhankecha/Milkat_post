@@ -328,8 +328,8 @@ export const SocietyForm = ({ onSuccess, society, isEditing = false }: SocietyFo
       }
       
       // FIX: Ensure no _id or id fields are present in the data
-      delete societyData._id;
-      delete societyData.id;
+      delete (societyData as any)._id;
+      delete (societyData as any).id;
 
       console.log('Submitting society data:', societyData);
       

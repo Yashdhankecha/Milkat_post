@@ -3,15 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Progress } from './ui/progress';
 import { 
   Building2, 
-  DollarSign, 
   Calendar, 
   Star, 
   TrendingUp,
   Users,
-  Award,
   CheckCircle,
   X,
   Eye,
@@ -24,6 +21,7 @@ import {
   Clock,
   FileText
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
 
@@ -34,16 +32,18 @@ interface DeveloperProposal {
   developer: {
     _id: string;
     phone: string;
+    name?: string;
   };
   corpusAmount: number;
   rentAmount: number;
   fsi: number;
+  timeline?: string; // Simple timeline string (e.g., "21 months")
   proposedAmenities: Array<{
     name: string;
     description: string;
     category: string;
   }>;
-  proposedTimeline: {
+  proposedTimeline?: {
     startDate?: string;
     completionDate?: string;
     phases: Array<{
@@ -95,8 +95,10 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
   proposals,
   onProposalSelect
 }) => {
-  const [selectedProposal, setSelectedProposal] = useState<DeveloperProposal | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedProposal, setSelectedProposal] = useState<DeveloperProposal | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [votingState, setVotingState] = useState<Record<string, { vote: 'yes' | 'no' | null; reason: string }>>({});
 
   const handleSelectProposal = async (proposal: DeveloperProposal) => {
     setLoading(true);
@@ -113,8 +115,8 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
       }
 
       toast({
-        title: "Success",
-        description: "Developer proposal selected successfully",
+        title: "Proposal Selected",
+        description: `${proposal.developerInfo.companyName} has been selected for this project.`,
       });
       
       onProposalSelect(proposal);
@@ -130,6 +132,34 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
     }
   };
 
+
+  const handleViewProposal = (proposal: DeveloperProposal) => {
+    setSelectedProposal(proposal);
+    setIsViewModalOpen(true);
+  };
+
+  const handleVote = (proposalId: string, vote: 'yes' | 'no', reason: string) => {
+    setVotingState(prev => ({
+      ...prev,
+      [proposalId]: { vote, reason }
+    }));
+    
+    // Here you can add API call to save the vote
+    console.log(`Vote recorded for proposal ${proposalId}:`, { vote, reason });
+    
+    toast({
+      title: "Vote Recorded",
+      description: `Your ${vote} vote has been recorded for this proposal.`,
+    });
+  };
+
+  const handleReasonChange = (proposalId: string, reason: string) => {
+    setVotingState(prev => ({
+      ...prev,
+      [proposalId]: { ...prev[proposalId], reason }
+    }));
+  };
+
   const getStatusColor = (status: string) => {
     const statusColors: Record<string, string> = {
       submitted: 'bg-blue-100 text-blue-800',
@@ -142,27 +172,47 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
     return statusColors[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
   const formatCurrency = (amount: number) => {
-    return `₹${(amount / 10000000).toFixed(2)} Cr`;
+    if (!amount || amount === 0) {
+      return '₹0';
+    }
+    if (amount >= 10000000) {
+      return `₹${(amount / 10000000).toFixed(2)} Cr`;
+    } else if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(1)} L`;
+    } else {
+      return `₹${amount.toLocaleString()}`;
+    }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (error) {
+      return 'Invalid Date';
+    }
   };
 
   const calculateDuration = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const months = Math.ceil(diffDays / 30);
-    return months;
+    if (!startDate || !endDate) return null;
+    
+    try {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      // Check if dates are valid
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return null;
+      }
+      
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const months = Math.ceil(diffDays / 30);
+      return months;
+    } catch (error) {
+      return null;
+    }
   };
 
   if (proposals.length === 0) {
@@ -182,7 +232,7 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -191,20 +241,6 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                 <p className="text-2xl font-bold">{proposals.length}</p>
               </div>
               <FileText className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Shortlisted</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {proposals.filter(p => p.status === 'shortlisted').length}
-                </p>
-              </div>
-              <Award className="h-8 w-8 text-purple-600" />
             </div>
           </CardContent>
         </Card>
@@ -230,23 +266,29 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                 <p className="text-sm font-medium text-muted-foreground">Avg. Corpus</p>
                 <p className="text-2xl font-bold">
                   {formatCurrency(
-                    proposals.reduce((sum, p) => sum + p.corpusAmount, 0) / proposals.length
+                    proposals.reduce((sum, p) => sum + (p.corpusAmount || 0), 0) / proposals.length
                   )}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  Range: {formatCurrency(Math.min(...proposals.map(p => p.corpusAmount || 0)))} - {formatCurrency(Math.max(...proposals.map(p => p.corpusAmount || 0)))}
+                </p>
               </div>
-              <DollarSign className="h-8 w-8 text-muted-foreground" />
+              <div className="text-2xl font-bold text-muted-foreground">₹</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Comparison Table */}
+      {/* Detailed Proposal Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
             Proposal Comparison
           </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Compare developer proposals side by side. Use the actions to shortlist or select proposals.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -258,7 +300,6 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                   <TableHead>Rent</TableHead>
                   <TableHead>FSI</TableHead>
                   <TableHead>Duration</TableHead>
-                  <TableHead>Score</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -268,9 +309,16 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                   <TableRow key={proposal._id}>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="font-medium">{proposal.developerInfo.companyName}</div>
+                        <div className="font-medium">
+                          {proposal.developerInfo?.companyName || proposal.developer?.name || 'Developer'}
+                        </div>
                         <div className="text-sm text-muted-foreground">
-                          {proposal.developerInfo.contactPerson}
+                          {proposal.developerInfo?.contactPerson || proposal.developer?.phone || 'Contact info not available'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {proposal.developerInfo?.experience ? `${proposal.developerInfo.experience} years exp` : ''}
+                          {proposal.developerInfo?.completedProjects ? ` • ${proposal.developerInfo.completedProjects} projects` : ''}
+                          {!proposal.developerInfo?.experience && !proposal.developerInfo?.completedProjects ? 'Experience not specified' : ''}
                         </div>
                       </div>
                     </TableCell>
@@ -288,36 +336,58 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                       <div className="font-medium">{proposal.fsi}</div>
                     </TableCell>
                     <TableCell>
-                      {proposal.proposedTimeline.startDate && proposal.proposedTimeline.completionDate ? (
-                        <div className="space-y-1">
-                          <div className="font-medium">
-                            {calculateDuration(
-                              proposal.proposedTimeline.startDate,
-                              proposal.proposedTimeline.completionDate
-                            )} months
+                      {(() => {
+                        // First check if we have complex proposedTimeline with dates
+                        if (proposal.proposedTimeline?.startDate && proposal.proposedTimeline?.completionDate) {
+                          const duration = calculateDuration(
+                            proposal.proposedTimeline.startDate,
+                            proposal.proposedTimeline.completionDate
+                          );
+                          
+                          if (duration !== null) {
+                            return (
+                              <div className="space-y-1">
+                                <div className="font-medium">
+                                  {duration} months
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {formatDate(proposal.proposedTimeline.startDate)} - {formatDate(proposal.proposedTimeline.completionDate)}
+                                </div>
+                              </div>
+                            );
+                          }
+                        }
+                        
+                        // Fall back to simple timeline string (e.g., "21 months")
+                        if (proposal.timeline) {
+                          const timelineText = proposal.timeline.toLowerCase().includes('month') 
+                            ? proposal.timeline 
+                            : `${proposal.timeline} months`;
+                          
+                          return (
+                            <div className="space-y-1">
+                              <div className="font-medium">
+                                {timelineText}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Simple timeline
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        // No timeline data available
+                        return (
+                          <div className="space-y-1">
+                            <div className="font-medium text-muted-foreground">
+                              Not specified
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Missing timeline data
+                            </div>
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {formatDate(proposal.proposedTimeline.startDate)} - {formatDate(proposal.proposedTimeline.completionDate)}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">Not specified</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {proposal.evaluation?.overallScore ? (
-                        <div className="space-y-1">
-                          <div className={`font-medium ${getScoreColor(proposal.evaluation.overallScore)}`}>
-                            {proposal.evaluation.overallScore}/100
-                          </div>
-                          <Progress 
-                            value={proposal.evaluation.overallScore} 
-                            className="w-16 h-2"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">Not evaluated</span>
-                      )}
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge className={getStatusColor(proposal.status)}>
@@ -329,19 +399,17 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedProposal(proposal)}
+                          onClick={() => handleViewProposal(proposal)}
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
                         </Button>
-                        {proposal.status === 'shortlisted' && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleSelectProposal(proposal)}
-                            disabled={loading}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
+                        {proposal.status === 'selected' && (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Selected
+                          </Badge>
                         )}
                       </div>
                     </TableCell>
@@ -353,176 +421,365 @@ const ProposalComparison: React.FC<ProposalComparisonProps> = ({
         </CardContent>
       </Card>
 
-      {/* Detailed Proposal View */}
-      {selectedProposal && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                {selectedProposal.title}
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedProposal(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Developer Information */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Developer Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{selectedProposal.developerInfo.companyName}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedProposal.developerInfo.contactPerson}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedProposal.developerInfo.contactPhone}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedProposal.developerInfo.contactEmail}</span>
-                  </div>
-                  {selectedProposal.developerInfo.website && (
-                    <div className="flex items-center gap-2">
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                      <a 
-                        href={selectedProposal.developerInfo.website} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        {selectedProposal.developerInfo.website}
-                      </a>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedProposal.developerInfo.experience} years experience</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedProposal.developerInfo.completedProjects} completed projects</span>
-                  </div>
-                  {selectedProposal.developerInfo.certifications.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1">Certifications:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedProposal.developerInfo.certifications.map((cert, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {cert}
+      {/* Voting Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            Vote on Proposals
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Select your preferred proposal and provide your reason for the vote.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {proposals.map((proposal) => (
+              <Card key={proposal._id} className="border-l-4 border-l-blue-500">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Proposal Info */}
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">
+                        {proposal.developerInfo?.companyName || proposal.developer?.name || 'Developer'}
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-2">{proposal.title}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Corpus:</span>
+                          <p className="font-medium">{formatCurrency(proposal.corpusAmount)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Duration:</span>
+                          <p className="font-medium">
+                            {proposal.timeline?.toLowerCase().includes('month') 
+                              ? proposal.timeline 
+                              : `${proposal.timeline} months`}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">FSI:</span>
+                          <p className="font-medium">{proposal.fsi}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge className={getStatusColor(proposal.status)}>
+                            {proposal.status.replace('_', ' ').toUpperCase()}
                           </Badge>
-                        ))}
+                        </div>
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
 
-            {/* Proposal Details */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Proposal Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Corpus Amount:</span>
-                    <span>{formatCurrency(selectedProposal.corpusAmount)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Rent Amount:</span>
-                    <span>₹{selectedProposal.rentAmount.toLocaleString()}/month</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">FSI:</span>
-                    <span>{selectedProposal.fsi}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">Proposed Amenities:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedProposal.proposedAmenities.map((amenity, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {amenity.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {selectedProposal.evaluation && (
-                    <>
-                      <p className="text-sm font-medium text-muted-foreground">Evaluation Scores:</p>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span>Technical:</span>
-                          <span className={getScoreColor(selectedProposal.evaluation.technicalScore)}>
-                            {selectedProposal.evaluation.technicalScore}/100
-                          </span>
+                    {/* Voting Interface */}
+                    <div className="flex-shrink-0 min-w-[300px]">
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Button
+                            variant={votingState[proposal._id]?.vote === 'yes' ? 'default' : 'outline'}
+                            onClick={() => handleVote(proposal._id, 'yes', votingState[proposal._id]?.reason || '')}
+                            className={`flex-1 ${
+                              votingState[proposal._id]?.vote === 'yes' 
+                                ? 'bg-green-600 hover:bg-green-700 text-white' 
+                                : 'border-green-200 text-green-600 hover:bg-green-50'
+                            }`}
+                          >
+                            ✓ Yes
+                          </Button>
+                          <Button
+                            variant={votingState[proposal._id]?.vote === 'no' ? 'default' : 'outline'}
+                            onClick={() => handleVote(proposal._id, 'no', votingState[proposal._id]?.reason || '')}
+                            className={`flex-1 ${
+                              votingState[proposal._id]?.vote === 'no' 
+                                ? 'bg-red-600 hover:bg-red-700 text-white' 
+                                : 'border-red-200 text-red-600 hover:bg-red-50'
+                            }`}
+                          >
+                            ✗ No
+                          </Button>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Financial:</span>
-                          <span className={getScoreColor(selectedProposal.evaluation.financialScore)}>
-                            {selectedProposal.evaluation.financialScore}/100
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Timeline:</span>
-                          <span className={getScoreColor(selectedProposal.evaluation.timelineScore)}>
-                            {selectedProposal.evaluation.timelineScore}/100
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm font-medium">
-                          <span>Overall:</span>
-                          <span className={getScoreColor(selectedProposal.evaluation.overallScore)}>
-                            {selectedProposal.evaluation.overallScore}/100
-                          </span>
+                        
+                        <textarea
+                          placeholder="Enter your reason for this vote (optional)"
+                          value={votingState[proposal._id]?.reason || ''}
+                          onChange={(e) => handleReasonChange(proposal._id, e.target.value)}
+                          className="w-full p-3 border rounded-md resize-none h-20 text-sm"
+                          maxLength={500}
+                        />
+                        
+                        {votingState[proposal._id]?.vote && (
+                          <div className="text-sm text-muted-foreground">
+                            Your vote: <span className="font-medium">{votingState[proposal._id].vote.toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Proposal Details Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Proposal Details - {selectedProposal?.developerInfo?.companyName || selectedProposal?.developer?.name || 'Developer'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedProposal && (
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Project Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold">{selectedProposal.title}</h4>
+                      <p className="text-muted-foreground mt-1">{selectedProposal.description}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-sm text-muted-foreground">Corpus Amount</span>
+                        <p className="font-semibold">{formatCurrency(selectedProposal.corpusAmount)}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">Rent Amount</span>
+                        <p className="font-semibold">₹{selectedProposal.rentAmount?.toLocaleString()}/month</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">FSI</span>
+                        <p className="font-semibold">{selectedProposal.fsi}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">Status</span>
+                        <Badge className={getStatusColor(selectedProposal.status)}>
+                          {selectedProposal.status.replace('_', ' ').toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Developer Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold">
+                        {selectedProposal.developerInfo?.companyName || selectedProposal.developer?.name || 'Developer'}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedProposal.developerInfo?.contactPerson || selectedProposal.developer?.phone || 'Contact info not available'}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-sm text-muted-foreground">Experience</span>
+                        <p className="font-semibold">{selectedProposal.developerInfo.experience} years</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">Completed Projects</span>
+                        <p className="font-semibold">{selectedProposal.developerInfo.completedProjects}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">Contact</span>
+                        <div className="space-y-1">
+                          <p className="text-sm flex items-center gap-1">
+                            <Phone className="h-3 w-3" />
+                            {selectedProposal.developerInfo.contactPhone}
+                          </p>
+                          <p className="text-sm flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {selectedProposal.developerInfo.contactEmail}
+                          </p>
                         </div>
                       </div>
-                    </>
-                  )}
-                </div>
+                      {selectedProposal.developerInfo.website && (
+                        <div>
+                          <span className="text-sm text-muted-foreground">Website</span>
+                          <a 
+                            href={selectedProposal.developerInfo.website} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Visit Website
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                    {selectedProposal.developerInfo.certifications && selectedProposal.developerInfo.certifications.length > 0 && (
+                      <div>
+                        <span className="text-sm text-muted-foreground">Certifications</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {selectedProposal.developerInfo.certifications.map((cert, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {cert}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
-            </div>
 
-            {/* Description */}
-            <div>
-              <h3 className="text-lg font-semibold mb-3">Description</h3>
-              <p className="text-muted-foreground">{selectedProposal.description}</p>
-            </div>
+              {/* Timeline */}
+              {(selectedProposal.proposedTimeline || selectedProposal.timeline) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Project Timeline
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedProposal.proposedTimeline?.startDate && selectedProposal.proposedTimeline?.completionDate ? (
+                      // Complex timeline with dates and phases
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="text-sm text-muted-foreground">Start Date</span>
+                            <p className="font-semibold">{formatDate(selectedProposal.proposedTimeline.startDate)}</p>
+                          </div>
+                          <div>
+                            <span className="text-sm text-muted-foreground">Completion Date</span>
+                            <p className="font-semibold">{formatDate(selectedProposal.proposedTimeline.completionDate)}</p>
+                          </div>
+                          <div className="md:col-span-2">
+                            <span className="text-sm text-muted-foreground">Total Duration</span>
+                            <p className="font-semibold">
+                              {(() => {
+                                const duration = calculateDuration(
+                                  selectedProposal.proposedTimeline.startDate,
+                                  selectedProposal.proposedTimeline.completionDate
+                                );
+                                return duration ? `${duration} months` : 'Not specified';
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                        {selectedProposal.proposedTimeline.phases && selectedProposal.proposedTimeline.phases.length > 0 && (
+                          <div className="mt-4">
+                            <h5 className="font-semibold mb-3">Project Phases</h5>
+                            <div className="space-y-3">
+                              {selectedProposal.proposedTimeline.phases.map((phase, index) => (
+                                <div key={index} className="border rounded-lg p-3">
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <h6 className="font-medium">{phase.name}</h6>
+                                      <p className="text-sm text-muted-foreground">{phase.description}</p>
+                                    </div>
+                                    <Badge variant="outline">{phase.duration} months</Badge>
+                                  </div>
+                                  {phase.milestones && phase.milestones.length > 0 && (
+                                    <div className="mt-2">
+                                      <span className="text-xs text-muted-foreground">Milestones:</span>
+                                      <ul className="text-xs text-muted-foreground mt-1 list-disc list-inside">
+                                        {phase.milestones.map((milestone, milestoneIndex) => (
+                                          <li key={milestoneIndex}>{milestone}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      // Simple timeline string
+                      <div className="text-center py-4">
+                        <div className="text-2xl font-bold text-blue-600 mb-2">
+                          {selectedProposal.timeline.toLowerCase().includes('month') 
+                            ? selectedProposal.timeline 
+                            : `${selectedProposal.timeline} months`}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Simple timeline provided by developer
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
-            {/* Actions */}
-            <div className="flex gap-3 pt-4 border-t">
-              <Button
-                variant="default"
-                onClick={() => handleSelectProposal(selectedProposal)}
-                disabled={loading || selectedProposal.status !== 'shortlisted'}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Select This Proposal
-              </Button>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Download Documents
-              </Button>
+              {/* Amenities */}
+              {selectedProposal.proposedAmenities && selectedProposal.proposedAmenities.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Proposed Amenities
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {selectedProposal.proposedAmenities.map((amenity, index) => (
+                        <div key={index} className="border rounded-lg p-3">
+                          <h6 className="font-medium">{amenity.name}</h6>
+                          <p className="text-sm text-muted-foreground">{amenity.description}</p>
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            {amenity.category}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Evaluation */}
+              {selectedProposal.evaluation && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Star className="h-5 w-5" />
+                      Evaluation Results
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-blue-600">{selectedProposal.evaluation.technicalScore}</p>
+                        <p className="text-sm text-muted-foreground">Technical Score</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-green-600">{selectedProposal.evaluation.financialScore}</p>
+                        <p className="text-sm text-muted-foreground">Financial Score</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-purple-600">{selectedProposal.evaluation.timelineScore}</p>
+                        <p className="text-sm text-muted-foreground">Timeline Score</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-orange-600">{selectedProposal.evaluation.overallScore}</p>
+                        <p className="text-sm text-muted-foreground">Overall Score</p>
+                      </div>
+                    </div>
+                    {selectedProposal.evaluation.comments && (
+                      <div className="mt-4">
+                        <span className="text-sm text-muted-foreground">Comments</span>
+                        <p className="mt-1 text-sm">{selectedProposal.evaluation.comments}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

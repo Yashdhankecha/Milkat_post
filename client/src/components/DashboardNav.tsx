@@ -17,15 +17,13 @@ import {
   User, 
   Settings, 
   LogOut,
-  ChevronDown,
-  SwitchCamera
+  ChevronDown
 } from "lucide-react"
 const DashboardNav = () => {
   const navigate = useNavigate()
   const { signOut, user } = useAuth()
   const { profile } = useProfile()
   const { toast } = useToast()
-  const mockEnabled = typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MOCK_OTP === 'true'
 
   const handleSignOut = async () => {
     try {
@@ -52,141 +50,6 @@ const DashboardNav = () => {
         description: "Something went wrong",
         variant: "error"
       })
-    }
-  }
-
-  const handleSwitchRole = async () => {
-    console.log('[DashboardNav] Switching role, clearing selected role')
-    // Clear current role
-    localStorage.removeItem('selectedRole')
-    
-    // Get user's phone number
-    const phone = (user as any)?.phone || (user as any)?.user_metadata?.phone || '';
-    if (!phone) {
-      console.log('[DashboardNav] No phone found, redirecting to role selection without data');
-      toast({
-        title: "Info",
-        description: "Redirecting to role selection...",
-        variant: "default",
-      });
-      navigate("/role-selection");
-      return;
-    }
-    
-    try {
-      // Fetch user roles
-      if (mockEnabled) {
-        const existingProfilesRaw = localStorage.getItem(`mock_profiles_${phone}`);
-        if (existingProfilesRaw) {
-          const existingProfiles = JSON.parse(existingProfilesRaw);
-          const roles = existingProfiles.map((p: any) => ({
-            role: p.role,
-            full_name: p.fullName || p.full_name || 'User'
-          }));
-          
-          console.log(`[DashboardNav] Found ${roles.length} roles for user, redirecting to role selection`);
-          if (roles.length > 0) {
-            toast({
-              title: "Info",
-              description: "Loading your roles...",
-              variant: "default",
-              duration: 3000,
-            });
-            navigate("/role-selection", { state: { phone, roles } });
-          } else {
-            toast({
-              title: "Info",
-              description: "No roles found. Redirecting to login...",
-              variant: "default",
-              duration: 3000,
-            });
-            setTimeout(() => {
-              navigate('/auth');
-            }, 2000);
-          }
-          return;
-        } else {
-          console.log('[DashboardNav] No profiles found in localStorage, redirecting to auth');
-          toast({
-            title: "Info",
-            description: "No profiles found. Redirecting to login...",
-            variant: "default",
-            duration: 3000,
-          });
-          setTimeout(() => {
-            navigate('/auth');
-          }, 2000);
-          return;
-        }
-      } else {
-        const { data: profiles, error } = await apiClient
-          
-          ;
-        
-        if (!error && profiles) {
-          const roles = profiles.map(p => ({
-            role: p.role,
-            full_name: p.full_name || 'User'
-          }));
-          
-          console.log(`[DashboardNav] Found ${roles.length} roles for user, redirecting to role selection`);
-          if (roles.length > 0) {
-            toast({
-              title: "Info",
-              description: "Loading your roles...",
-              variant: "default",
-              duration: 3000,
-            });
-            navigate("/role-selection", { state: { phone, roles } });
-          } else {
-            toast({
-              title: "Info",
-              description: "No roles found. Redirecting to login...",
-              variant: "default",
-              duration: 3000,
-            });
-            setTimeout(() => {
-              navigate('/auth');
-            }, 2000);
-          }
-          return;
-        } else if (error) {
-          console.error('[DashboardNav] Error fetching profiles:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load roles. Redirecting to login.",
-            variant: "error",
-            duration: 3000,
-          });
-          setTimeout(() => {
-            navigate('/auth');
-          }, 2000);
-          return;
-        }
-      }
-      
-      // Fallback if no roles found
-      console.log('[DashboardNav] No roles found, redirecting to role selection without data');
-      toast({
-        title: "Info",
-        description: "Redirecting to role selection...",
-        variant: "default",
-        duration: 2000,
-      });
-      navigate("/role-selection");
-    } catch (error) {
-      console.error('[DashboardNav] Error fetching user roles:', error);
-      // Show error to user and fallback
-      toast({
-        title: "Error",
-        description: "Failed to load roles. Redirecting to role selection.",
-        variant: "error",
-        duration: 3000,
-      });
-      // Still navigate to role selection so user isn't stuck
-      setTimeout(() => {
-        navigate("/role-selection");
-      }, 2000);
     }
   }
 
@@ -243,14 +106,6 @@ const DashboardNav = () => {
                         <Settings className="w-4 h-4 mr-2" />
                         Profile Settings
                       </Link>
-                    </DropdownMenuItem>
-                    
-                    <DropdownMenuItem 
-                      className="flex items-center cursor-pointer"
-                      onClick={handleSwitchRole}
-                    >
-                      <SwitchCamera className="w-4 h-4 mr-2" />
-                      Switch Role
                     </DropdownMenuItem>
                     
                     <DropdownMenuItem 
