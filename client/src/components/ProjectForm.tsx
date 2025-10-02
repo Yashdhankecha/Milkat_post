@@ -61,6 +61,15 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     { label: 'Kids Play Area', value: 'kids_play_area' }
   ];
   
+  interface MediaItem {
+    url: string;
+    caption?: string;
+    isPrimary?: boolean;
+    thumbnail?: string;
+    name?: string;
+    uploadedAt?: string;
+  }
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -83,9 +92,9 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     possessionDate: '',
     launchDate: '',
     amenities: [] as string[],
-    images: [] as string[],
-    videos: [] as string[],
-    brochures: [] as string[],
+    images: [] as (string | MediaItem)[],
+    videos: [] as (string | MediaItem)[],
+    brochures: [] as (string | MediaItem)[],
     reraNumber: ''
   });
   
@@ -121,9 +130,15 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
         possessionDate: existingProject.possessionDate || '',
         launchDate: existingProject.launchDate || '',
         amenities: existingProject.amenities || [],
-        images: existingProject.images || [],
-        videos: existingProject.videos || [],
-        brochures: existingProject.brochures || [],
+        images: existingProject.images?.map((img: any) => 
+          typeof img === 'string' ? { url: img, caption: '', isPrimary: false } : (img as MediaItem)
+        ) || [],
+        videos: existingProject.videos?.map((vid: any) => 
+          typeof vid === 'string' ? { url: vid, caption: '', thumbnail: '' } : (vid as MediaItem)
+        ) || [],
+        brochures: existingProject.brochures?.map((brochure: any) => 
+          typeof brochure === 'string' ? { url: brochure, name: 'Brochure' } : (brochure as MediaItem)
+        ) || [],
         reraNumber: existingProject.reraNumber || ''
       });
       
@@ -275,10 +290,55 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
 
       if (error) throw error;
 
-      setFormData(prev => ({
-        ...prev,
-        [type]: [...prev[type], data.url]
-      }));
+      console.log('Upload response data structure:', data);
+
+      setFormData(prev => {
+        // Extract URL from the response - handle different response structures
+        let mediaUrl = '';
+        
+        // The API client returns data.data || data, so we get the media object directly
+        if (data.media?.url) {
+          mediaUrl = data.media.url;
+        } else if (data.url) {
+          mediaUrl = data.url;
+        } else if (typeof data === 'string') {
+          mediaUrl = data;
+        } else {
+          console.error('Could not extract URL from upload response:', data);
+          console.error('Available keys in data:', Object.keys(data));
+          throw new Error('Invalid upload response: no URL found');
+        }
+        
+        // Validate that we have a proper URL
+        if (!mediaUrl || mediaUrl.trim() === '') {
+          console.error('Empty URL extracted from upload response:', data);
+          throw new Error('Invalid upload response: empty URL');
+        }
+        
+        // Validate URL format
+        try {
+          new URL(mediaUrl);
+        } catch (urlError) {
+          console.error('Invalid URL format:', mediaUrl);
+          throw new Error('Invalid upload response: malformed URL');
+        }
+
+        // Create proper media object structure based on type
+        const mediaObject = {
+          url: mediaUrl,
+          ...(type === 'images' && { caption: '', isPrimary: prev[type].length === 0 }),
+          ...(type === 'videos' && { caption: '', thumbnail: '' }),
+          ...(type === 'brochures' && { name: file.name }),
+          uploadedAt: new Date().toISOString()
+        };
+
+        console.log('Created media object:', mediaObject);
+
+        return {
+          ...prev,
+          [type]: [...prev[type], mediaObject]
+        };
+      });
 
       toast({
         title: 'Upload Successful',
@@ -288,7 +348,7 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       console.error('Upload error:', error);
       toast({
         title: 'Upload Failed',
-        description: 'Failed to upload file. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to upload file. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -300,6 +360,16 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
     setFormData(prev => ({
       ...prev,
       [type]: prev[type].filter((_, i) => i !== index)
+    }));
+  };
+
+  // Function to clean up invalid media objects
+  const cleanupInvalidMedia = () => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((img: any) => img && img.url && img.url.trim() !== ''),
+      videos: prev.videos.filter((vid: any) => vid && vid.url && vid.url.trim() !== ''),
+      brochures: prev.brochures.filter((brochure: any) => brochure && brochure.url && brochure.url.trim() !== '')
     }));
   };
 
@@ -391,6 +461,41 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
       return;
     }
 
+    // Validate media objects have valid URLs
+    const invalidImages = formData.images?.filter((img: any) => !img || !img.url || img.url.trim() === '');
+    const invalidVideos = formData.videos?.filter((vid: any) => !vid || !vid.url || vid.url.trim() === '');
+    const invalidBrochures = formData.brochures?.filter((brochure: any) => !brochure || !brochure.url || brochure.url.trim() === '');
+
+    if (invalidImages && invalidImages.length > 0) {
+      toast({
+        title: "Validation Error",
+        description: "Some images have invalid URLs. Please remove them or re-upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (invalidVideos && invalidVideos.length > 0) {
+      toast({
+        title: "Validation Error",
+        description: "Some videos have invalid URLs. Please remove them or re-upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (invalidBrochures && invalidBrochures.length > 0) {
+      toast({
+        title: "Validation Error",
+        description: "Some brochures have invalid URLs. Please remove them or re-upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Clean up any invalid media objects before submitting
+    cleanupInvalidMedia();
+    
     setSaving(true);
     
     try {
@@ -416,11 +521,38 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
         possessionDate: formData.possessionDate || undefined,
         launchDate: formData.launchDate || undefined,
         amenities: formData.amenities || [],
-        images: formData.images || [],
-        videos: formData.videos || [],
-        brochures: formData.brochures || [],
+        images: formData.images?.map((img: any) => 
+          typeof img === 'string' ? { url: img, caption: '', isPrimary: false } : img
+        ).filter((img: any) => img && img.url && img.url.trim() !== '') || [],
+        videos: formData.videos?.map((vid: any) => 
+          typeof vid === 'string' ? { url: vid, caption: '', thumbnail: '' } : vid
+        ).filter((vid: any) => vid && vid.url && vid.url.trim() !== '') || [],
+        brochures: formData.brochures?.map((brochure: any) => 
+          typeof brochure === 'string' ? { url: brochure, name: 'Brochure' } : brochure
+        ).filter((brochure: any) => brochure && brochure.url && brochure.url.trim() !== '') || [],
         reraNumber: formData.reraNumber?.trim() || undefined
       };
+
+      console.log('Project data being sent to backend:', {
+        ...projectData,
+        images: projectData.images,
+        videos: projectData.videos,
+        brochures: projectData.brochures
+      });
+      
+      // Additional validation before sending
+      const invalidImages = projectData.images.filter((img: any) => !img || !img.url || img.url.trim() === '');
+      const invalidVideos = projectData.videos.filter((vid: any) => !vid || !vid.url || vid.url.trim() === '');
+      const invalidBrochures = projectData.brochures.filter((brochure: any) => !brochure || !brochure.url || brochure.url.trim() === '');
+      
+      if (invalidImages.length > 0 || invalidVideos.length > 0 || invalidBrochures.length > 0) {
+        console.error('Invalid media objects found:', {
+          invalidImages,
+          invalidVideos,
+          invalidBrochures
+        });
+        throw new Error('Invalid media objects detected. Please clean up and try again.');
+      }
 
       if (existingProject) {
         const { error } = await apiClient.updateProject(existingProject.id, projectData);
@@ -705,7 +837,18 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
 
           {/* Media Upload Section */}
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold">Project Media</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Project Media</h3>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm"
+                onClick={cleanupInvalidMedia}
+                className="text-xs"
+              >
+                Clean Invalid Media
+              </Button>
+            </div>
             
             {/* Brochures Upload */}
             <div className="space-y-2">
@@ -737,13 +880,31 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                 </label>
               </div>
               {formData.brochures.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {formData.brochures.map((brochure, index) => (
-                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      Brochure {index + 1}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile('brochures', index)} />
-                    </Badge>
+                    <div key={index} className="relative group border rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                          <FileText className="h-6 w-6 text-red-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">
+                            {typeof brochure === 'object' && brochure ? (brochure as MediaItem).name || `Brochure ${index + 1}` : `Brochure ${index + 1}`}
+                          </p>
+                          <p className="text-xs text-gray-500">PDF Document</p>
+                        </div>
+                        <X 
+                          className="h-4 w-4 text-gray-400 cursor-pointer hover:text-red-500" 
+                          onClick={() => removeFile('brochures', index)} 
+                        />
+                      </div>
+                      <a 
+                        href={typeof brochure === 'string' ? brochure : (brochure as MediaItem)?.url || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="absolute inset-0"
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -779,13 +940,24 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                 </label>
               </div>
               {formData.images.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {formData.images.map((image, index) => (
-                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                      <Image className="h-3 w-3" />
-                      Image {index + 1}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile('images', index)} />
-                    </Badge>
+                    <div key={index} className="relative group">
+                      <img 
+                        src={typeof image === 'string' ? image : (image as MediaItem)?.url || ''} 
+                        alt={`Project image ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border"
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                        <X 
+                          className="h-4 w-4 text-white cursor-pointer" 
+                          onClick={() => removeFile('images', index)} 
+                        />
+                      </div>
+                      {typeof image === 'object' && image && (image as MediaItem)?.isPrimary && (
+                        <Badge className="absolute top-1 left-1 text-xs">Primary</Badge>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -821,13 +993,27 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
                 </label>
               </div>
               {formData.videos.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {formData.videos.map((video, index) => (
-                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                      <Video className="h-3 w-3" />
-                      Video {index + 1}
-                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile('videos', index)} />
-                    </Badge>
+                    <div key={index} className="relative group">
+                      <video 
+                        src={typeof video === 'string' ? video : (video as MediaItem)?.url || ''}
+                        className="w-full h-32 object-cover rounded-lg border"
+                        controls={false}
+                        muted
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                        <X 
+                          className="h-4 w-4 text-white cursor-pointer" 
+                          onClick={() => removeFile('videos', index)} 
+                        />
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                          <Video className="h-6 w-6 text-white" />
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}

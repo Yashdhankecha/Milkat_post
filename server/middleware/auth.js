@@ -84,10 +84,24 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
-    // Get user profiles - prioritize society_owner profile
+    // Get user profiles - prioritize based on request context
     const profiles = await Profile.find({ user: user._id, status: 'active' });
-    const societyOwnerProfile = profiles.find(p => p.role === 'society_owner');
-    const profile = societyOwnerProfile || profiles[0] || null;
+    
+    // Check if this is a developer-specific request
+    const isDeveloperRequest = req.originalUrl.includes('/projects') || 
+                              req.originalUrl.includes('/developers') ||
+                              req.headers['x-requested-role'] === 'developer';
+    
+    let profile;
+    if (isDeveloperRequest) {
+      // For developer requests, prioritize developer profile
+      const developerProfile = profiles.find(p => p.role === 'developer');
+      profile = developerProfile || profiles[0] || null;
+    } else {
+      // For other requests, prioritize society_owner profile
+      const societyOwnerProfile = profiles.find(p => p.role === 'society_owner');
+      profile = societyOwnerProfile || profiles[0] || null;
+    }
     
     req.user = user;
     req.profile = profile;

@@ -256,42 +256,6 @@ const About = () => {
       </section>
 
 
-      {/* CTA */}
-      <section className="pb-20">
-        <div className="container mx-auto px-6">
-          <div className="rounded-lg bg-gradient-primary p-10 text-center text-white shadow-medium">
-            <h3 className="text-2xl md:text-3xl font-bold mb-2">Looking to buy, sell, or invest?</h3>
-            <p className="text-white/90 mb-6">Talk to our experts and get personalized guidance today.</p>
-            <a href="/contact" className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-white text-estate-blue font-medium shadow-soft hover:shadow-medium transition-shadow">Contact Us</a>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">What Our Clients Say</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[{
-              quote: 'The team guided us flawlessly from search to closure. Highly recommended!',
-              name: 'Aarav Mehta', location: 'Mumbai, India'
-            },{
-              quote: 'Transparent, responsive, and professional. Found the perfect investment.',
-              name: 'Sophia Williams', location: 'Toronto, Canada'
-            },{
-              quote: 'Smooth NRI transaction with complete legal support. Great experience.',
-              name: 'Omar Al-Farsi', location: 'Dubai, UAE'
-            }].map((t, i) => (
-              <Card key={i} className="border-0 shadow-soft hover:shadow-medium transition-shadow">
-                <CardContent className="p-6">
-                  <p className="text-foreground leading-relaxed">“{t.quote}”</p>
-                  <div className="mt-4 text-sm text-muted-foreground">{t.name} • {t.location}</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
 
       
 

@@ -32,7 +32,9 @@ const BuilderProjects = () => {
           `₹${project.priceRange.min}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''} - ₹${project.priceRange.max}${project.priceRange.unit === 'lakh' ? 'L' : project.priceRange.unit === 'crore' ? 'Cr' : ''}` :
           'Price on request',
         completion_date: project.completionDate,
-        images: project.images || [],
+        images: project.images?.map((img: any) => 
+          typeof img === 'string' ? img : img.url
+        ) || [],
         status: project.status === 'under_construction' ? 'ongoing' : 
                 project.status === 'ready_to_move' ? 'completed' :
                 project.status === 'planning' ? 'planned' : project.status,

@@ -280,13 +280,20 @@ class ApiClient {
   }
 
   async getMyProjects() {
-    return this.request('/projects/my/projects');
+    return this.request('/projects/my/projects', {
+      headers: {
+        'X-Requested-Role': 'developer'
+      }
+    });
   }
 
   async createProject(projectData: any) {
     return this.request('/projects', {
       method: 'POST',
       body: JSON.stringify(projectData),
+      headers: {
+        'X-Requested-Role': 'developer'
+      }
     });
   }
 
@@ -294,6 +301,9 @@ class ApiClient {
     return this.request(`/projects/${projectId}`, {
       method: 'PUT',
       body: JSON.stringify(projectData),
+      headers: {
+        'X-Requested-Role': 'developer'
+      }
     });
   }
 
@@ -581,6 +591,15 @@ class ApiClient {
         };
       }
 
+      // For upload responses, we need to handle the nested structure
+      if (data.success && data.data) {
+        return {
+          data: data.data, // This gives us { media: { url: ... } }
+          message: data.message,
+          status: data.status || 'success'
+        };
+      }
+      
       return {
         data: data.data || data,
         message: data.message,

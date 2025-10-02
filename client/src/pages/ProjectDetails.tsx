@@ -21,7 +21,8 @@ import {
   Phone,
   Mail,
   MessageCircle,
-  Home
+  Home,
+  FileText
 } from "lucide-react";
 
 const ProjectDetails = () => {
@@ -219,12 +220,15 @@ const ProjectDetails = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Project Images */}
+      {/* Project Media Gallery */}
       <section className="relative">
         <div className="h-96 md:h-[500px] bg-gradient-card">
           {project.images && project.images[0] ? (
             <img
-              src={project.images[0]?.url || project.images[0]}
+              src={
+                project.images[0]?.url || 
+                (typeof project.images[0] === 'string' ? project.images[0] : null)
+              }
               alt={project.name}
               className="w-full h-full object-cover"
             />
@@ -305,6 +309,87 @@ const ProjectDetails = () => {
                     <Badge key={index} variant="outline">
                       {amenity}
                     </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Project Images Gallery */}
+            {project.images && project.images.length > 1 && (
+              <div>
+                <h2 className="text-2xl font-semibold mb-4">Project Images</h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {project.images.map((image: any, index: number) => (
+                    <div key={index} className="relative group cursor-pointer">
+                      <img
+                        src={image?.url || (typeof image === 'string' ? image : null)}
+                        alt={`${project.name} - Image ${index + 1}`}
+                        className="w-full h-32 object-cover rounded-lg border hover:shadow-lg transition-shadow"
+                      />
+                      {image?.isPrimary && (
+                        <Badge className="absolute top-2 left-2 text-xs">Primary</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Project Videos */}
+            {project.videos && project.videos.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-semibold mb-4">Project Videos</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {project.videos.map((video: any, index: number) => (
+                    <div key={index} className="relative">
+                      <video
+                        src={video?.url || (typeof video === 'string' ? video : null)}
+                        controls
+                        className="w-full h-64 object-cover rounded-lg border"
+                        poster={video?.thumbnail}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                      {video?.caption && (
+                        <p className="text-sm text-muted-foreground mt-2">{video.caption}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Project Brochures */}
+            {project.brochures && project.brochures.length > 0 && (
+              <div>
+                <h2 className="text-2xl font-semibold mb-4">Project Brochures</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {project.brochures.map((brochure: any, index: number) => (
+                    <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                            <FileText className="h-6 w-6 text-red-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">
+                              {brochure?.name || `Project Brochure ${index + 1}`}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">PDF Document</p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const url = brochure?.url || (typeof brochure === 'string' ? brochure : null);
+                              if (url) window.open(url, '_blank');
+                            }}
+                          >
+                            View PDF
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               </div>

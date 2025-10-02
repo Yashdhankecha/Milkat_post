@@ -48,7 +48,11 @@ const ProjectCard = ({
       <Card className="group hover:shadow-strong transition-all duration-300 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer">
         <div className="relative">
           <img 
-            src={images?.[0]?.url || images?.[0] || "/placeholder.svg"} 
+            src={
+              images?.[0]?.url || 
+              (typeof images?.[0] === 'string' ? images[0] : null) || 
+              "/placeholder.svg"
+            } 
             alt={name}
             className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {

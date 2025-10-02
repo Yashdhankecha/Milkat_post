@@ -119,6 +119,17 @@ router.post('/',
   ],
   validateRequest,
   catchAsync(async (req, res) => {
+    // Filter out invalid media objects
+    if (req.body.images) {
+      req.body.images = req.body.images.filter(img => img && img.url && img.url.trim() !== '');
+    }
+    if (req.body.videos) {
+      req.body.videos = req.body.videos.filter(vid => vid && vid.url && vid.url.trim() !== '');
+    }
+    if (req.body.brochures) {
+      req.body.brochures = req.body.brochures.filter(brochure => brochure && brochure.url && brochure.url.trim() !== '');
+    }
+
     const projectData = {
       ...req.body,
       developer: req.user._id
@@ -184,6 +195,17 @@ router.put('/:id',
       'totalUnits', 'availableUnits', 'completionDate', 'possessionDate',
       'launchDate', 'amenities', 'images', 'videos', 'brochures', 'status', 'reraNumber', 'approvals'
     ];
+
+    // Filter out invalid media objects before processing updates
+    if (req.body.images) {
+      req.body.images = req.body.images.filter(img => img && img.url && img.url.trim() !== '');
+    }
+    if (req.body.videos) {
+      req.body.videos = req.body.videos.filter(vid => vid && vid.url && vid.url.trim() !== '');
+    }
+    if (req.body.brochures) {
+      req.body.brochures = req.body.brochures.filter(brochure => brochure && brochure.url && brochure.url.trim() !== '');
+    }
 
     const updates = {};
     Object.keys(req.body).forEach(key => {

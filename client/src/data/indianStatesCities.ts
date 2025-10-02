@@ -104,3 +104,4 @@ export const getCitiesByState = (state: string): string[] => {
 export const getAllStates = (): string[] => {
   return Object.keys(indianStatesAndCities);
 };
+
