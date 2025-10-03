@@ -252,3 +252,4 @@ The Developer Dashboard project listing module has been completely fixed and enh
 
 The system now provides a seamless experience for developers to list projects with images and for users to browse and view project details, matching the quality and functionality of the property module.
 
+

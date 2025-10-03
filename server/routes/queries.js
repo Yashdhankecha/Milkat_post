@@ -22,15 +22,8 @@ router.get('/society/:societyId', authenticate, authorize('society_owner'), asyn
       });
     }
     
-    // Check if user is the owner of this society by checking their profile
-    const Profile = (await import('../models/Profile.js')).default;
-    const ownerProfile = await Profile.findOne({
-      user: req.user._id,
-      role: 'society_owner',
-      companyName: societyId
-    });
-    
-    if (!ownerProfile) {
+    // Check if user is the owner of this society
+    if (society.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You are not the owner of this society.'
@@ -56,8 +49,9 @@ router.get('/society/:societyId', authenticate, authorize('society_owner'), asyn
     
     res.json({
       success: true,
+      message: total === 0 ? 'No queries found for this society' : 'Queries retrieved successfully',
       data: {
-        queries,
+        queries: queries || [],
         pagination: {
           current: parseInt(page),
           pages: Math.ceil(total / limit),
@@ -254,14 +248,7 @@ router.post('/:queryId/respond', authenticate, authorize('society_owner'), async
     }
     
     // Verify user has access to respond to this query
-    const Profile = (await import('../models/Profile.js')).default;
-    const ownerProfile = await Profile.findOne({
-      user: req.user._id,
-      role: 'society_owner',
-      companyName: query.society._id.toString()
-    });
-    
-    if (!ownerProfile) {
+    if (query.society.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You are not authorized to respond to this query.'
@@ -336,14 +323,7 @@ router.patch('/:queryId/status', authenticate, authorize('society_owner'), async
     }
     
     // Verify user has access to update this query
-    const Profile = (await import('../models/Profile.js')).default;
-    const ownerProfile = await Profile.findOne({
-      user: req.user._id,
-      role: 'society_owner',
-      companyName: query.society._id.toString()
-    });
-    
-    if (!ownerProfile) {
+    if (query.society.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You are not authorized to update this query.'
@@ -407,15 +387,8 @@ router.get('/society/:societyId/statistics', authenticate, authorize('society_ow
       });
     }
     
-    // Check if user is the owner of this society by checking their profile
-    const Profile = (await import('../models/Profile.js')).default;
-    const ownerProfile = await Profile.findOne({
-      user: req.user._id,
-      role: 'society_owner',
-      companyName: societyId
-    });
-    
-    if (!ownerProfile) {
+    // Check if user is the owner of this society
+    if (society.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You are not the owner of this society.'

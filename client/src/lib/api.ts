@@ -1163,6 +1163,16 @@ class ApiClient {
     });
   }
 
+  async selectDeveloper(projectId: string, developerId: string, proposalId: string) {
+    return this.request(`/redevelopment-projects/${projectId}/select-developer`, {
+      method: 'POST',
+      body: JSON.stringify({
+        developerId,
+        proposalId
+      })
+    });
+  }
+
   async getFinalVotingResults(projectId: string) {
     return this.request(`/redevelopment-projects/${projectId}/final-results`);
   }

@@ -25,6 +25,7 @@ interface VotingResultsProps {
   userRole: 'society_owner' | 'society_member';
   onCloseVoting?: () => void;
   showCloseButton?: boolean;
+  onDeveloperSelected?: () => void;
 }
 
 interface FinalResults {
@@ -86,11 +87,14 @@ export default function VotingResults({
   projectId, 
   userRole, 
   onCloseVoting,
-  showCloseButton = false 
+  showCloseButton = false,
+  onDeveloperSelected
 }: VotingResultsProps) {
   const [results, setResults] = useState<VotingResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [closingVoting, setClosingVoting] = useState(false);
+  const [selectingDeveloper, setSelectingDeveloper] = useState(false);
+  const [selectedProposalId, setSelectedProposalId] = useState<string>('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -132,7 +136,7 @@ export default function VotingResults({
 
       toast({
         title: "Success",
-        description: "Voting has been closed and results finalized",
+        description: "Voting has been closed. Please select a developer manually.",
       });
 
       // Refresh results
@@ -149,6 +153,46 @@ export default function VotingResults({
       });
     } finally {
       setClosingVoting(false);
+    }
+  };
+
+  const handleSelectDeveloper = async () => {
+    if (!selectedProposalId || !results) return;
+
+    const selectedProposal = results.proposalResults.find(p => p.proposal._id === selectedProposalId);
+    if (!selectedProposal) return;
+
+    try {
+      setSelectingDeveloper(true);
+      const response = await apiClient.selectDeveloper(
+        projectId, 
+        selectedProposal.proposal.developer._id, 
+        selectedProposalId
+      );
+      
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      toast({
+        title: "Success",
+        description: "Developer selected successfully",
+      });
+
+      // Refresh results
+      await fetchResults();
+      
+      // Notify parent component
+      onDeveloperSelected?.();
+    } catch (error: any) {
+      console.error('Error selecting developer:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to select developer",
+        variant: "destructive",
+      });
+    } finally {
+      setSelectingDeveloper(false);
     }
   };
 
@@ -290,6 +334,75 @@ export default function VotingResults({
         </Card>
       )}
 
+      {/* Manual Developer Selection (for voting_closed status) */}
+      {project.status === 'voting_closed' && userRole === 'society_owner' && !winningProposal && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              <Users className="h-5 w-5" />
+              Manual Developer Selection Required
+            </CardTitle>
+            <CardDescription className="text-blue-700">
+              Voting has been closed. Please select a developer to assign this project.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold mb-3">Select Developer:</h4>
+                <div className="space-y-3">
+                  {proposalResults.map((result) => (
+                    <div 
+                      key={result.proposal._id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedProposalId === result.proposal._id 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                      onClick={() => setSelectedProposalId(result.proposal._id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h5 className="font-medium">{result.proposal.title}</h5>
+                          {result.proposal.developerInfo && (
+                            <p className="text-sm text-gray-600">{result.proposal.developerInfo.companyName}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-blue-600">
+                            {result.approvalPercentage}% Approval
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {result.votes.yesVotes} yes, {result.votes.noVotes} no
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handleSelectDeveloper}
+                  disabled={!selectedProposalId || selectingDeveloper}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {selectingDeveloper ? 'Selecting...' : 'Select Developer'}
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => setSelectedProposalId('')}
+                  disabled={selectingDeveloper}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* All Proposals Results */}
       <Card>
         <CardHeader>
@@ -389,7 +502,7 @@ export default function VotingResults({
       </Card>
 
       {/* No Winner Alert */}
-      {!winningProposal && project.votingStatus === 'closed' && (
+      {!winningProposal && project.votingStatus === 'closed' && project.status !== 'voting_closed' && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -398,6 +511,18 @@ export default function VotingResults({
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Voting Closed - Manual Selection Pending */}
+      {project.status === 'voting_closed' && userRole === 'society_member' && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Voting has been closed. The society secretary will manually select a developer based on the voting results.
+            Please wait for the final decision.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
+

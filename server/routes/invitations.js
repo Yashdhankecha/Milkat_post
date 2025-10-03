@@ -35,39 +35,22 @@ const authorizeSocietyOwner = async (req, res, next) => {
     console.log('Authorization check - User ID:', req.user._id);
     console.log('Authorization check - Society ID:', society_id);
     
-    // Check if user has society_owner profile for this specific society
-    const ownerProfile = await Profile.findOne({
-      user: req.user._id,
-      companyName: society_id,
-      role: 'society_owner',
-      status: 'active'
-    });
-    
-    console.log('Found owner profile:', ownerProfile);
-    
-    if (!ownerProfile) {
-      // Let's also check what profiles this user actually has
-      const allUserProfiles = await Profile.find({
-        user: req.user._id
-      });
-      console.log('All profiles for this user:', allUserProfiles);
-      
-      return res.status(403).json({
+    // Check if user is the owner of this society
+    const society = await Society.findById(society_id);
+    if (!society) {
+      return res.status(404).json({
         status: 'error',
-        message: 'Access denied. You are not the owner of this society.',
-        debug: {
-          userId: req.user._id,
-          societyId: society_id,
-          userProfiles: allUserProfiles.map(p => ({
-            role: p.role,
-            companyName: p.companyName,
-            status: p.status
-          }))
-        }
+        message: 'Society not found'
       });
     }
     
-    req.societyOwnerProfile = ownerProfile;
+    if (society.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You are not the owner of this society.'
+      });
+    }
+    
     next();
   } catch (error) {
     console.error('Society ownership check error:', error);
@@ -84,22 +67,21 @@ const authorizeSocietyOwnerQuery = async (req, res, next) => {
     const { society_id } = req.query;
     
     if (society_id) {
-      // Check if user has society_owner profile for this specific society
-      const ownerProfile = await Profile.findOne({
-        user: req.user._id,
-        companyName: society_id,
-        role: 'society_owner',
-        status: 'active'
-      });
+      // Check if user is the owner of this society
+      const society = await Society.findById(society_id);
+      if (!society) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Society not found'
+        });
+      }
       
-      if (!ownerProfile) {
+      if (society.owner.toString() !== req.user._id.toString()) {
         return res.status(403).json({
           status: 'error',
           message: 'Access denied. You are not the owner of this society.'
         });
       }
-      
-      req.societyOwnerProfile = ownerProfile;
     }
     
     next();
@@ -149,36 +131,7 @@ router.post('/send',
     }
     
     // Verify the user is the owner of this society
-    let ownerProfile = await Profile.findOne({
-      user: req.user._id,
-      companyName: society_id,
-      role: 'society_owner',
-      status: 'active'
-    });
-    
-    console.log('Owner profile check:', ownerProfile);
-    
-    // If not found by companyName, check if user is the owner in the Society model
-    if (!ownerProfile) {
-      console.log('Checking Society.owner field...');
-      if (society.owner.toString() === req.user._id.toString()) {
-        console.log('User is the owner according to Society.owner field');
-        // Update the profile to have the correct companyName
-        ownerProfile = await Profile.findOne({
-          user: req.user._id,
-          role: 'society_owner',
-          status: 'active'
-        });
-        
-        if (ownerProfile) {
-          ownerProfile.companyName = society_id;
-          await ownerProfile.save();
-          console.log('Updated owner profile companyName');
-        }
-      }
-    }
-    
-    if (!ownerProfile) {
+    if (society.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         status: 'error',
         message: 'You can only send invitations for societies you own.'
