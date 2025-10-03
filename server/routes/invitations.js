@@ -8,6 +8,7 @@ import User from '../models/User.js';
 import Profile from '../models/Profile.js';
 import Notification from '../models/Notification.js';
 import SocietyMember from '../models/SocietyMember.js';
+import smsService from '../services/smsService.js';
 
 const router = express.Router();
 
@@ -338,9 +339,13 @@ router.post('/send',
         }
       });
     } else {
-      // For unregistered users, simulate sending invitation message
-      console.log(`📱 Mock SMS to ${invitedPhone}: You're invited to join ${society.name} on Nestly Estate. Download app and register with this number to accept.`);
-      console.log(`📧 Mock Email to ${invitedEmail || 'N/A'}: Invitation to join ${society.name}`);
+      // For unregistered users, send invitation message via SMS service
+      try {
+        const smsResult = await smsService.sendInvitationSMS(invitedPhone, society.name, inviterName);
+        logger.info(`Invitation SMS sent successfully to ${invitedPhone}. SMS Service: ${smsResult.mock ? 'Mock' : 'Twilio'}`);
+      } catch (error) {
+        logger.error(`Failed to send invitation SMS to ${invitedPhone}:`, error);
+      }
       
       // Update invitation status
       invitation.status = 'sent';

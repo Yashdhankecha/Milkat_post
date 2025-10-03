@@ -14,6 +14,7 @@ import {
 } from '../middleware/auth.js';
 import { catchAsync, AppError } from '../middleware/errorHandler.js';
 import { logger } from '../utils/logger.js';
+import smsService from '../services/smsService.js';
 
 const router = express.Router();
 
@@ -133,8 +134,8 @@ router.post('/send-otp',
       }
     }
 
-    // Generate OTP - Use 123456 for development
-    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
+    // Generate OTP
+    const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Save OTP to user
@@ -142,13 +143,28 @@ router.post('/send-otp',
     user.verificationCodeExpires = otpExpiry;
     await user.save();
 
-    // In production, send OTP via SMS service (Twilio, etc.)
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Integrate with SMS service
-      logger.info(`OTP for ${phone}: ${otp}`);
-    } else {
-      // In development, use fixed OTP 123456
-      logger.info(`Development OTP for ${phone}: 123456`);
+    // Send OTP via SMS service
+    try {
+      const smsResult = await smsService.sendOTP(phone, otp);
+      
+      if (!smsResult.success) {
+        logger.error(`Failed to send SMS to ${phone}`);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to send OTP. Please try again.',
+          error: 'SMS_SEND_FAILED'
+        });
+      }
+
+      logger.info(`OTP sent successfully to ${phone}. SMS Service: ${smsResult.mock ? 'Mock' : 'Twilio'}`);
+      
+    } catch (error) {
+      logger.error(`SMS service error for ${phone}:`, error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to send OTP. Please try again.',
+        error: 'SMS_SERVICE_ERROR'
+      });
     }
 
     res.status(200).json({
@@ -202,30 +218,27 @@ router.post('/verify-otp',
     }
 
     // Check if OTP is valid and not expired
-    // In development, accept 123456 as valid OTP
-    console.log('OTP Verification: Checking OTP for user:', user.phone);
-    console.log('OTP Verification: Expected OTP:', user.verificationCode);
-    console.log('OTP Verification: Received OTP:', otp);
-    console.log('OTP Verification: Environment:', process.env.NODE_ENV);
+    logger.info(`OTP Verification: Checking OTP for user: ${user.phone}`);
+    logger.info(`OTP Verification: Expected OTP: ${user.verificationCode}`);
+    logger.info(`OTP Verification: Received OTP: ${otp}`);
     
-    const isValidOTP = process.env.NODE_ENV === 'production' 
-      ? (user.verificationCode && user.verificationCode === otp)
-      : (user.verificationCode && user.verificationCode === otp) || otp === '123456';
-    
-    if (!isValidOTP) {
-      console.log('OTP Verification: Invalid OTP provided');
+    // Check if OTP has expired
+    if (user.verificationCodeExpires && user.verificationCodeExpires < new Date()) {
+      logger.warn(`OTP expired for user: ${user.phone}`);
       return res.status(400).json({
         status: 'error',
-        message: 'Invalid OTP. Please check the code and try again.',
-        details: process.env.NODE_ENV === 'development' ? 'In development, you can use 123456 as a test OTP.' : 'Please enter the 6-digit code sent to your phone.'
+        message: 'OTP has expired. Please request a new one.',
+        error: 'OTP_EXPIRED'
       });
     }
 
-    // In development, skip expiry check for 123456
-    if (process.env.NODE_ENV === 'production' && user.verificationCodeExpires < new Date()) {
+    // Check if OTP matches
+    if (!user.verificationCode || user.verificationCode !== otp) {
+      logger.warn(`Invalid OTP provided for user: ${user.phone}`);
       return res.status(400).json({
         status: 'error',
-        message: 'OTP has expired.'
+        message: 'Invalid OTP. Please check the code and try again.',
+        error: 'INVALID_OTP'
       });
     }
 
@@ -364,8 +377,8 @@ router.post('/register',
       }
     }
 
-    // Generate OTP - Use 123456 for development
-    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
+    // Generate OTP
+    const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     let user;
@@ -397,13 +410,28 @@ router.post('/register',
     });
     await profile.save();
 
-    // In production, send OTP via SMS service
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Integrate with SMS service
-      logger.info(`OTP for ${phone}: ${otp}`);
-    } else {
-      // In development, use fixed OTP 123456
-      logger.info(`Development OTP for ${phone}: 123456`);
+    // Send OTP via SMS service
+    try {
+      const smsResult = await smsService.sendOTP(phone, otp);
+      
+      if (!smsResult.success) {
+        logger.error(`Failed to send SMS to ${phone}`);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to send OTP. Please try again.',
+          error: 'SMS_SEND_FAILED'
+        });
+      }
+
+      logger.info(`Registration OTP sent successfully to ${phone}. SMS Service: ${smsResult.mock ? 'Mock' : 'Twilio'}`);
+      
+    } catch (error) {
+      logger.error(`SMS service error for ${phone}:`, error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to send OTP. Please try again.',
+        error: 'SMS_SERVICE_ERROR'
+      });
     }
 
     res.status(201).json({
@@ -464,8 +492,8 @@ router.post('/signup-new-role',
       }
     }
 
-    // Generate OTP - Use 123456 for development
-    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
+    // Generate OTP
+    const otp = generateOTP();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     let user;
@@ -495,13 +523,28 @@ router.post('/signup-new-role',
     });
     await profile.save();
 
-    // In production, send OTP via SMS service
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: Integrate with SMS service
-      logger.info(`OTP for ${phone}: ${otp}`);
-    } else {
-      // In development, use fixed OTP 123456
-      logger.info(`Development OTP for ${phone}: 123456`);
+    // Send OTP via SMS service
+    try {
+      const smsResult = await smsService.sendOTP(phone, otp);
+      
+      if (!smsResult.success) {
+        logger.error(`Failed to send SMS to ${phone}`);
+        return res.status(500).json({
+          status: 'error',
+          message: 'Failed to send OTP. Please try again.',
+          error: 'SMS_SEND_FAILED'
+        });
+      }
+
+      logger.info(`New role OTP sent successfully to ${phone}. SMS Service: ${smsResult.mock ? 'Mock' : 'Twilio'}`);
+      
+    } catch (error) {
+      logger.error(`SMS service error for ${phone}:`, error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Failed to send OTP. Please try again.',
+        error: 'SMS_SERVICE_ERROR'
+      });
     }
 
     res.status(201).json({
