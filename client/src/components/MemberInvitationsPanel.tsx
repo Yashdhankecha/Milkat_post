@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { Mail, CheckCircle, XCircle, Building2, MapPin, Users, Calendar, Loader2, RefreshCw } from 'lucide-react';
 
 interface Invitation {

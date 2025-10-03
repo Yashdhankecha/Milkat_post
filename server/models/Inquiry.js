@@ -65,6 +65,13 @@ const inquirySchema = new mongoose.Schema({
       return this.inquiryType === 'project_inquiry';
     }
   },
+  developer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: function() {
+      return this.inquiryType === 'project_inquiry';
+    }
+  },
   
   // Status and response
   status: {
@@ -144,7 +151,19 @@ inquirySchema.statics.getProjectOwnerInquiries = function(ownerId, page = 1, lim
   const skip = (page - 1) * limit;
   return this.find({ projectOwner: ownerId })
     .populate('inquirer', 'phone email')
-    .populate('project', 'title location price images')
+    .populate('project', 'name location priceRange images')
+    .populate('response.respondedBy', 'phone email')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+};
+
+// Static method to get inquiries for a developer
+inquirySchema.statics.getDeveloperInquiries = function(developerId, page = 1, limit = 10) {
+  const skip = (page - 1) * limit;
+  return this.find({ developer: developerId })
+    .populate('inquirer', 'phone email')
+    .populate('project', 'name location priceRange images')
     .populate('response.respondedBy', 'phone email')
     .sort({ createdAt: -1 })
     .skip(skip)

@@ -92,6 +92,18 @@ const redevelopmentProjectSchema = new mongoose.Schema({
 
   // Voting
   votingDeadline: Date,
+  votingStatus: {
+    type: String,
+    enum: ['open', 'closed'],
+    default: 'open'
+  },
+  votingClosedAt: Date,
+  minimumApprovalPercentage: {
+    type: Number,
+    default: 51,
+    min: 1,
+    max: 100
+  },
   
 
   // Financial Details

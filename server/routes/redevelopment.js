@@ -599,6 +599,286 @@ router.get('/:id/voting-results',
   })
 );
 
+// Close voting and finalize results
+router.post('/:id/close-voting',
+  authenticate,
+  authorize('society_owner'),
+  [
+    param('id').isMongoId().withMessage('Invalid project ID')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const project = await RedevelopmentProject.findById(id).populate('society');
+
+    if (!project) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Redevelopment project not found'
+      });
+    }
+
+    // Check if user is the project owner
+    if (project.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the project owner can close voting'
+      });
+    }
+
+    // Check if voting is currently open
+    if (project.votingStatus === 'closed') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Voting is already closed'
+      });
+    }
+
+    // Get final voting results
+    const votingStats = await MemberVote.getVotingStats(id, 'proposal_selection');
+    
+    const stats = {
+      yesVotes: 0,
+      noVotes: 0,
+      abstainVotes: 0
+    };
+
+    votingStats.forEach(stat => {
+      if (stat._id === true) stats.yesVotes = stat.count;
+      if (stat._id === false) stats.noVotes = stat.count;
+      if (stat._id === null) stats.abstainVotes = stat.count;
+    });
+
+    const totalVotes = stats.yesVotes + stats.noVotes + stats.abstainVotes;
+    const approvalPercentage = totalVotes > 0 ? Math.round((stats.yesVotes / totalVotes) * 100) : 0;
+
+    // Get proposals with vote counts
+    const proposals = await DeveloperProposal.find({ redevelopmentProject: id })
+      .populate('developer', 'phone email')
+      .populate('developerInfo');
+
+    const proposalResults = await Promise.all(proposals.map(async (proposal) => {
+      const proposalVotes = await MemberVote.getVotingStats(id, 'proposal_selection', proposal._id);
+      
+      const proposalStats = {
+        yesVotes: 0,
+        noVotes: 0,
+        abstainVotes: 0
+      };
+
+      proposalVotes.forEach(stat => {
+        if (stat._id === true) proposalStats.yesVotes = stat.count;
+        if (stat._id === false) proposalStats.noVotes = stat.count;
+        if (stat._id === null) proposalStats.abstainVotes = stat.count;
+      });
+
+      const proposalTotalVotes = proposalStats.yesVotes + proposalStats.noVotes + proposalStats.abstainVotes;
+      const proposalApprovalPercentage = proposalTotalVotes > 0 ? Math.round((proposalStats.yesVotes / proposalTotalVotes) * 100) : 0;
+
+      return {
+        proposal: proposal,
+        votes: proposalStats,
+        totalVotes: proposalTotalVotes,
+        approvalPercentage: proposalApprovalPercentage
+      };
+    }));
+
+    // Find the winning proposal (highest approval percentage)
+    const winningProposal = proposalResults.reduce((winner, current) => {
+      if (!winner || current.approvalPercentage > winner.approvalPercentage) {
+        return current;
+      }
+      return winner;
+    }, null);
+
+    // Update project status
+    project.votingStatus = 'closed';
+    project.votingClosedAt = new Date();
+    
+    if (winningProposal && winningProposal.approvalPercentage >= project.minimumApprovalPercentage) {
+      project.selectedDeveloper = winningProposal.proposal.developer;
+      project.selectedProposal = winningProposal.proposal._id;
+      project.status = 'developer_selected';
+    } else {
+      project.status = 'voting';
+    }
+
+    await project.save();
+
+    // Notify the selected developer if there's a winner
+    if (winningProposal && winningProposal.approvalPercentage >= project.minimumApprovalPercentage) {
+      try {
+        const Notification = (await import('../models/Notification.js')).default;
+        await Notification.create({
+          recipient: winningProposal.proposal.developer,
+          type: 'developer_selected',
+          title: 'You Have Been Selected!',
+          message: `Congratulations! You have been selected by society members in the voting process for "${project.title}". The society will contact you soon to proceed with the redevelopment project.`,
+          relatedEntity: {
+            entityType: 'redevelopment_project',
+            entityId: project._id
+          }
+        });
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to notify selected developer:', notificationError.message);
+      }
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Voting closed successfully',
+      data: {
+        project: {
+          id: project._id,
+          title: project.title,
+          votingStatus: project.votingStatus,
+          votingClosedAt: project.votingClosedAt,
+          selectedDeveloper: project.selectedDeveloper,
+          selectedProposal: project.selectedProposal,
+          status: project.status
+        },
+        finalResults: {
+          totalVotes,
+          yesVotes: stats.yesVotes,
+          noVotes: stats.noVotes,
+          abstainVotes: stats.abstainVotes,
+          approvalPercentage,
+          isApproved: approvalPercentage >= project.minimumApprovalPercentage
+        },
+        proposalResults,
+        winningProposal: winningProposal ? {
+          proposal: winningProposal.proposal,
+          approvalPercentage: winningProposal.approvalPercentage,
+          totalVotes: winningProposal.totalVotes
+        } : null
+      }
+    });
+  })
+);
+
+// Get final voting results (for both owner and members)
+router.get('/:id/final-results',
+  authenticate,
+  [
+    param('id').isMongoId().withMessage('Invalid project ID')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const project = await RedevelopmentProject.findById(id).populate('society');
+
+    if (!project) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Redevelopment project not found'
+      });
+    }
+
+    // Check if user has access to results
+    const isOwner = project.owner.toString() === req.user._id.toString();
+    
+    const SocietyMember = (await import('../models/SocietyMember.js')).default;
+    const isMember = await SocietyMember.findOne({
+      user: req.user._id,
+      society: project.society,
+      status: 'active'
+    });
+
+    if (!isOwner && !isMember) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied to voting results'
+      });
+    }
+
+    // Check if voting is closed
+    if (project.votingStatus !== 'closed') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Voting results are only available after voting is closed'
+      });
+    }
+
+    // Get final voting results
+    const votingStats = await MemberVote.getVotingStats(id, 'proposal_selection');
+    
+    const stats = {
+      yesVotes: 0,
+      noVotes: 0,
+      abstainVotes: 0
+    };
+
+    votingStats.forEach(stat => {
+      if (stat._id === true) stats.yesVotes = stat.count;
+      if (stat._id === false) stats.noVotes = stat.count;
+      if (stat._id === null) stats.abstainVotes = stat.count;
+    });
+
+    const totalVotes = stats.yesVotes + stats.noVotes + stats.abstainVotes;
+    const approvalPercentage = totalVotes > 0 ? Math.round((stats.yesVotes / totalVotes) * 100) : 0;
+
+    // Get proposals with vote counts
+    const proposals = await DeveloperProposal.find({ redevelopmentProject: id })
+      .populate('developer', 'phone email')
+      .populate('developerInfo');
+
+    const proposalResults = await Promise.all(proposals.map(async (proposal) => {
+      const proposalVotes = await MemberVote.getVotingStats(id, 'proposal_selection', proposal._id);
+      
+      const proposalStats = {
+        yesVotes: 0,
+        noVotes: 0,
+        abstainVotes: 0
+      };
+
+      proposalVotes.forEach(stat => {
+        if (stat._id === true) proposalStats.yesVotes = stat.count;
+        if (stat._id === false) proposalStats.noVotes = stat.count;
+        if (stat._id === null) proposalStats.abstainVotes = stat.count;
+      });
+
+      const proposalTotalVotes = proposalStats.yesVotes + proposalStats.noVotes + proposalStats.abstainVotes;
+      const proposalApprovalPercentage = proposalTotalVotes > 0 ? Math.round((proposalStats.yesVotes / proposalTotalVotes) * 100) : 0;
+
+      return {
+        proposal: proposal,
+        votes: proposalStats,
+        totalVotes: proposalTotalVotes,
+        approvalPercentage: proposalApprovalPercentage,
+        isWinner: proposal._id.toString() === project.selectedProposal?.toString()
+      };
+    }));
+
+    // Sort proposals by approval percentage (highest first)
+    proposalResults.sort((a, b) => b.approvalPercentage - a.approvalPercentage);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        project: {
+          id: project._id,
+          title: project.title,
+          votingStatus: project.votingStatus,
+          votingClosedAt: project.votingClosedAt,
+          selectedDeveloper: project.selectedDeveloper,
+          selectedProposal: project.selectedProposal,
+          status: project.status
+        },
+        finalResults: {
+          totalVotes,
+          yesVotes: stats.yesVotes,
+          noVotes: stats.noVotes,
+          abstainVotes: stats.abstainVotes,
+          approvalPercentage,
+          isApproved: approvalPercentage >= project.minimumApprovalPercentage
+        },
+        proposalResults,
+        winningProposal: proposalResults.find(p => p.isWinner) || null
+      }
+    });
+  })
+);
+
 // Delete a redevelopment project
 router.delete('/:id',
   authenticate,

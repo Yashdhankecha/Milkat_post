@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import DashboardNav from "@/components/DashboardNav"
 import InquiryList from "@/components/InquiryList"
 import InquiryNotification from "@/components/InquiryNotification"
+import SavedProjects from "@/components/SavedProjects"
 import { 
   Heart, 
   Search, 
@@ -416,13 +417,20 @@ const BuyerSellerDashboard = () => {
           <div className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
             <div className="absolute inset-0 bg-gradient-to-br from-gray-500/5 to-blue-500/5 dark:from-gray-900/10 dark:to-blue-900/10 opacity-70 blur-3xl pointer-events-none"></div>
             
-            <TabsList className="relative grid w-full grid-cols-4 bg-transparent p-2 h-auto">
+            <TabsList className="relative grid w-full grid-cols-5 bg-transparent p-2 h-auto">
               <TabsTrigger 
                 value="saved" 
                 className="relative px-4 py-3 text-sm font-medium transition-all duration-200 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-600 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-blue-400 rounded-lg"
               >
                 <Heart className="w-4 h-4 mr-2" />
                 Saved Properties
+              </TabsTrigger>
+              <TabsTrigger 
+                value="saved-projects" 
+                className="relative px-4 py-3 text-sm font-medium transition-all duration-200 data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-600 dark:data-[state=active]:bg-gray-700 dark:data-[state=active]:text-blue-400 rounded-lg"
+              >
+                <Building2 className="w-4 h-4 mr-2" />
+                Saved Projects
               </TabsTrigger>
               <TabsTrigger 
                 value="my-properties" 
@@ -557,6 +565,10 @@ const BuyerSellerDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="saved-projects" className="space-y-6">
+            <SavedProjects />
           </TabsContent>
 
           <TabsContent value="my-properties" className="space-y-6">

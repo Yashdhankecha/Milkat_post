@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api";
+import apiClient from "@/lib/api";
 
 interface PropertyCardProps {
   id: string;
@@ -119,60 +119,62 @@ const PropertyCard = ({ id, title, location, price, area, image, type, status }:
 
   return (
     <Link to={`/property/${id}`}>
-      <Card className="group hover:shadow-strong transition-all duration-500 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer hover-lift smooth-transition">
-      <div className="relative overflow-hidden">
-        <img 
-          src={image || '/placeholder.svg'} 
-          alt={title}
-          className="w-full h-48 object-cover group-hover:scale-110 transition-all duration-500 ease-out"
-          onError={handleImageError}
-          onLoad={handleImageLoad}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        <Badge className={`absolute top-3 left-3 ${getStatusColor(status)} smooth-transition group-hover:scale-105`}>
-          {status}
-        </Badge>
-        <Badge variant="secondary" className="absolute top-3 right-3 smooth-transition group-hover:scale-105">
-          {type}
-        </Badge>
-        
-        {/* Save Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`absolute top-3 right-12 p-2 h-8 w-8 rounded-full transition-all duration-200 ${
-            isSaved 
-              ? 'bg-red-500 text-white hover:bg-red-600' 
-              : 'bg-white/90 text-gray-600 hover:bg-white hover:text-red-500'
-          }`}
-          onClick={handleSaveToggle}
-          disabled={isLoading}
-        >
-          <Heart className={`h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-        </Button>
-      </div>
-      
-      <CardContent className="p-4">
-        <h3 className="font-semibold text-lg text-foreground mb-2 group-hover:text-estate-blue transition-colors">
-          {title}
-        </h3>
-        
-        <div className="flex items-center gap-2 text-muted-foreground mb-3">
-          <MapPin className="h-4 w-4" />
-          <span className="text-sm">{location}</span>
+      <Card className="group hover:shadow-strong transition-all duration-500 overflow-hidden border border-border hover:border-estate-blue/20 cursor-pointer hover-lift smooth-transition h-full flex flex-col">
+        <div className="relative overflow-hidden">
+          <img 
+            src={image || '/placeholder.svg'} 
+            alt={title}
+            className="w-full h-40 sm:h-48 lg:h-52 object-cover group-hover:scale-110 transition-all duration-500 ease-out"
+            onError={handleImageError}
+            onLoad={handleImageLoad}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <Badge className={`absolute top-2 left-2 sm:top-3 sm:left-3 text-xs sm:text-sm ${getStatusColor(status)} smooth-transition group-hover:scale-105`}>
+            {status}
+          </Badge>
+          
+          {/* Save Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`absolute top-2 right-2 sm:top-3 sm:right-3 p-1.5 sm:p-2 h-7 w-7 sm:h-8 sm:w-8 rounded-full transition-all duration-200 ${
+              isSaved 
+                ? 'bg-red-500 text-white hover:bg-red-600' 
+                : 'bg-white/90 text-gray-600 hover:bg-white hover:text-red-500'
+            }`}
+            onClick={handleSaveToggle}
+            disabled={isLoading}
+          >
+            <Heart className={`h-3 w-3 sm:h-4 sm:w-4 ${isSaved ? 'fill-current' : ''}`} />
+          </Button>
+          
+          {/* Type Badge - positioned below the save button */}
+          <Badge variant="secondary" className="absolute top-10 right-2 sm:top-12 sm:right-3 text-xs sm:text-sm smooth-transition group-hover:scale-105">
+            {type}
+          </Badge>
         </div>
         
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-2xl font-bold text-estate-blue">
-            {price}
+        <CardContent className="p-3 sm:p-4 flex-1 flex flex-col">
+          <h3 className="font-semibold text-base sm:text-lg text-foreground mb-2 group-hover:text-estate-blue transition-colors line-clamp-2">
+            {title}
+          </h3>
+          
+          <div className="flex items-start gap-2 text-muted-foreground mb-3">
+            <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mt-0.5 shrink-0" />
+            <span className="text-xs sm:text-sm line-clamp-2">{location}</span>
           </div>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Ruler className="h-4 w-4" />
-            <span>{area}</span>
+          
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-estate-blue">
+              {price}
+            </div>
+            <div className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground">
+              <Ruler className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span>{area}</span>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
     </Link>
   );
 };

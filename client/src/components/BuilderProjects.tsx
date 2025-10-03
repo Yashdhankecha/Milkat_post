@@ -6,7 +6,7 @@ import ProjectCard from "./ProjectCard";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
-const BuilderProjects = () => {
+const BuilderProjects = ({ refreshTrigger }: { refreshTrigger?: number }) => {
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -14,10 +14,11 @@ const BuilderProjects = () => {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchProjects = async () => {
     try {
+      setLoading(true);
       const result = await apiClient.getProjects({ limit: 6 });
       
       if (result.error) throw new Error(result.error);
@@ -39,8 +40,13 @@ const BuilderProjects = () => {
         completion_date: project.completionDate,
         images: project.images?.map((img: any) => {
           if (!img) return null;
-          return typeof img === 'string' ? img : img?.url || null;
-        }).filter(Boolean) || [],
+          // Handle both string URLs and object format
+          if (typeof img === 'string') {
+            return img;
+          }
+          // Handle object format from database
+          return img?.url || null;
+        }).filter((url: string | null) => url !== null && url !== '') || [],
         status: project.status === 'under_construction' ? 'ongoing' : 
                 project.status === 'ready_to_move' ? 'completed' :
                 project.status === 'planning' ? 'planned' : project.status,
@@ -148,6 +154,7 @@ const BuilderProjects = () => {
                 total_units={project.total_units}
                 available_units={project.available_units}
                 project_type={project.project_type}
+                showSaveButton={true}
               />
             ))
           ) : (

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { formatDate } from '@/lib/dateUtils';
 
 interface Society {

@@ -295,8 +295,14 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
         const result = await apiClient.uploadSingleFile(file, 'project_brochure', 'nestly_estate/project_brochures');
         data = result.data;
         error = result.error;
+      } else if (type === 'images') {
+        // Upload images to Cloudinary using the dedicated project images endpoint
+        console.log(`☁️ Uploading images to Cloudinary:`, file.name);
+        const result = await apiClient.uploadProjectImages([file]);
+        data = result.data;
+        error = result.error;
       } else {
-        // Upload images and videos to Cloudinary
+        // Upload videos to Cloudinary
         console.log(`☁️ Uploading ${type} to Cloudinary:`, file.name);
         const result = await apiClient.uploadSingleFile(file, `project_${type}`, `nestly_estate/project_${type}`);
         data = result.data;
@@ -311,8 +317,11 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
         // Extract URL from the response - handle different response structures
         let mediaUrl = '';
         
-        // The API client returns data.data || data, so we get the media object directly
-        if (data.media?.url) {
+        if (type === 'images' && data.images && data.images.length > 0) {
+          // Handle project images upload response (array format)
+          mediaUrl = data.images[0].url;
+        } else if (data.media?.url) {
+          // Handle single file upload response
           mediaUrl = data.media.url;
         } else if (data.url) {
           mediaUrl = data.url;
@@ -330,10 +339,8 @@ const ProjectForm = ({ onSuccess, onCancel, existingProject }: ProjectFormProps)
           throw new Error('Invalid upload response: empty URL');
         }
         
-        // Validate URL format
-        try {
-          new URL(mediaUrl);
-        } catch (urlError) {
+        // Validate URL format (allow both absolute URLs and relative paths)
+        if (!mediaUrl.startsWith('http') && !mediaUrl.startsWith('/')) {
           console.error('Invalid URL format:', mediaUrl);
           throw new Error('Invalid upload response: malformed URL');
         }

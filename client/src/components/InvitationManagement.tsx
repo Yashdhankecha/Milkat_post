@@ -17,7 +17,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import InvitationForm from './InvitationForm';
 
 interface Invitation {

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { formatDate, calculateDuration } from '@/lib/dateUtils';
 
 interface DeveloperProposal {

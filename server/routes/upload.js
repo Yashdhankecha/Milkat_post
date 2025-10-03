@@ -1,135 +1,40 @@
 import express from 'express';
-import multer from 'multer';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { catchAsync } from '../middleware/errorHandler.js';
-import cloudinary from '../config/cloudinary.js';
+import {
+  smartUpload,
+  processUploadedFiles,
+  validateFileType,
+  cleanupTempFiles,
+  deleteFromCloudinary,
+  deleteLocalFile,
+  getFileType
+} from '../middleware/upload.js';
 import Media from '../models/Media.js';
 import fs from 'fs';
 import path from 'path';
 
 const router = express.Router();
 
-// Configure multer for temporary file storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'temp-uploads';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limit for videos
-  },
-  fileFilter: (req, file, cb) => {
-    // Accept images, videos, and documents
-    if (file.mimetype.startsWith('image/') || 
-        file.mimetype.startsWith('video/') ||
-        file.mimetype === 'application/pdf' ||
-        file.mimetype === 'application/msword' ||
-        file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-        file.mimetype === 'application/vnd.ms-excel' ||
-        file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image, video, and document files are allowed'), false);
-    }
-  }
-});
-
-// Helper function to save files locally on server (both development and production)
-const uploadToServer = async (filePath, options = {}) => {
-  try {
-    console.log('Saving file to server:', { filePath, options });
-    
-    const stats = fs.statSync(filePath);
-    const fileName = path.basename(filePath);
-    const publicId = `server_${Date.now()}_${Math.round(Math.random() * 1E9)}`;
-    
-    // Move file from temp-uploads to uploads directory with folder structure
-    const baseUploadsDir = path.join(path.dirname(filePath), '../uploads');
-    const folderPath = options.folder ? options.folder.replace('nestly_estate/', '') : 'general';
-    const uploadsDir = path.join(baseUploadsDir, folderPath);
-    
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-    const newFilePath = path.join(uploadsDir, fileName);
-    fs.renameSync(filePath, newFilePath);
-    
-    // Get server base URL from environment or use default
-    const serverBaseUrl = process.env.SERVER_BASE_URL || 'http://localhost:5000';
-    
-    // Create response object similar to Cloudinary
-    const relativePath = path.relative(baseUploadsDir, newFilePath).replace(/\\/g, '/');
-    const result = {
-      public_id: publicId,
-      secure_url: `${serverBaseUrl}/uploads/${relativePath}`,
-      url: `${serverBaseUrl}/uploads/${relativePath}`,
-      resource_type: 'raw', // Use 'raw' for documents
-      format: path.extname(fileName).substring(1),
-      bytes: stats.size,
-      width: null,
-      height: null,
-      created_at: new Date().toISOString()
-    };
-    
-    console.log('File saved to server:', newFilePath);
-    console.log('Access URL:', result.url);
-    
-    return result;
-  } catch (error) {
-    console.error('Upload error:', error);
-    // Clean up temp file on error
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-    throw error;
-  }
-};
-
 // Helper function to save media to database
-const saveMediaToDB = async (cloudinaryResult, userId, additionalData = {}) => {
+const saveMediaToDB = async (fileData, userId, additionalData = {}) => {
   try {
     console.log('Saving media to database:', { userId, additionalData });
     
-    // Extract format from file extension if not provided by Cloudinary
-    let format = cloudinaryResult.format;
-    if (!format && cloudinaryResult.secure_url) {
-      const url = cloudinaryResult.secure_url;
-      const match = url.match(/\.([^.]+)(?:\?|$)/);
-      if (match) {
-        format = match[1].toLowerCase();
-      }
-    }
-    
-    // Fallback format for raw files
-    if (!format) {
-      format = 'unknown';
-    }
-    
     const media = new Media({
-      url: cloudinaryResult.secure_url,
-      public_id: cloudinaryResult.public_id,
-      resource_type: cloudinaryResult.resource_type,
-      format: format,
-      bytes: cloudinaryResult.bytes,
-      width: cloudinaryResult.width,
-      height: cloudinaryResult.height,
+      url: fileData.url,
+      public_id: fileData.public_id,
+      resource_type: fileData.resource_type,
+      format: fileData.format,
+      bytes: fileData.size,
+      width: fileData.width,
+      height: fileData.height,
       uploadedBy: userId,
       ...additionalData
     });
     
     const savedMedia = await media.save();
-    console.log('Media saved to database:', savedMedia._id, 'Format:', format);
+    console.log('Media saved to database:', savedMedia._id, 'Format:', fileData.format);
     return savedMedia;
   } catch (error) {
     console.error('Error saving media to database:', error);
@@ -137,12 +42,15 @@ const saveMediaToDB = async (cloudinaryResult, userId, additionalData = {}) => {
   }
 };
 
-// Upload single file (image or video)
+// Upload single file (handles images, videos, and PDFs)
 router.post('/single',
   authenticate,
-  upload.single('file'),
+  smartUpload('file', 1),
+  validateFileType,
+  processUploadedFiles,
+  cleanupTempFiles,
   catchAsync(async (req, res) => {
-    if (!req.file) {
+    if (!req.processedFiles || req.processedFiles.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No file uploaded'
@@ -151,34 +59,30 @@ router.post('/single',
 
     try {
       console.log('Single file upload request received');
-      console.log('File:', req.file.originalname, 'Size:', req.file.size);
+      const fileData = req.processedFiles[0];
+      console.log('File:', fileData.originalName, 'Size:', fileData.size, 'Type:', getFileType(fileData.mimetype));
       console.log('User:', req.user._id);
       
-      // Determine upload folder based on context
-      let uploadOptions = {
-        folder: req.body.folder || 'nestly_estate/general'
+      // Determine additional data based on context
+      let additionalData = {
+        documentType: req.body.documentType || 'general'
       };
       
-      // Check if this is a society document upload (based on request headers or body)
+      // Add tags based on upload context
       if (req.headers['x-upload-type'] === 'society-document') {
-        const documentType = req.body.documentType || 'general';
-        uploadOptions.folder = `nestly_estate/society_documents/${documentType}`;
-        uploadOptions.tags = ['society_document', documentType];
+        additionalData.tags = ['society_document', req.body.documentType || 'general'];
+      } else if (req.body.folder === 'proposal_documents') {
+        additionalData.tags = ['proposal_document'];
+      } else if (fileData.resource_type === 'image') {
+        additionalData.tags = ['image'];
+      } else if (fileData.resource_type === 'video') {
+        additionalData.tags = ['video'];
+      } else if (fileData.resource_type === 'raw') {
+        additionalData.tags = ['document'];
       }
-      
-      // For proposal documents, use the specified folder
-      if (req.body.folder === 'proposal_documents') {
-        uploadOptions.folder = 'nestly_estate/proposal_documents';
-        uploadOptions.tags = ['proposal_document'];
-      }
-      
-      // Upload to server
-      const uploadResult = await uploadToServer(req.file.path, uploadOptions);
       
       // Save to database
-      const media = await saveMediaToDB(uploadResult, req.user._id, {
-        documentType: req.body.documentType || 'general'
-      });
+      const media = await saveMediaToDB(fileData, req.user._id, additionalData);
 
       res.status(200).json({
         success: true,
@@ -192,6 +96,7 @@ router.post('/single',
             bytes: media.bytes,
             width: media.width,
             height: media.height,
+            storageType: fileData.storageType,
             createdAt: media.createdAt
           }
         },
@@ -205,7 +110,7 @@ router.post('/single',
         return res.status(413).json({
           success: false,
           message: 'File too large',
-          error: 'File size exceeds the maximum allowed limit of 100MB'
+          error: 'File size exceeds the maximum allowed limit'
         });
       }
       
@@ -213,7 +118,7 @@ router.post('/single',
         return res.status(400).json({
           success: false,
           message: 'Invalid file type',
-          error: 'Only image, video, and document files are allowed'
+          error: error.message
         });
       }
       
@@ -235,12 +140,15 @@ router.post('/single',
   })
 );
 
-// Upload multiple files (images and/or videos)
+// Upload multiple files
 router.post('/multiple',
   authenticate,
-  upload.array('files', 10), // Max 10 files
+  smartUpload('files', 10),
+  validateFileType,
+  processUploadedFiles,
+  cleanupTempFiles,
   catchAsync(async (req, res) => {
-    if (!req.files || req.files.length === 0) {
+    if (!req.processedFiles || req.processedFiles.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No files uploaded'
@@ -248,21 +156,17 @@ router.post('/multiple',
     }
 
     try {
-      const uploadPromises = req.files.map(file => 
-        uploadToServer(file.path)
-      );
-      
-      const uploadResults = await Promise.all(uploadPromises);
-      
-      const mediaPromises = uploadResults.map(result => 
-        saveMediaToDB(result, req.user._id)
+      const mediaPromises = req.processedFiles.map(fileData => 
+        saveMediaToDB(fileData, req.user._id, {
+          tags: [fileData.resource_type]
+        })
       );
       
       const mediaResults = await Promise.all(mediaPromises);
 
       res.status(200).json({
         success: true,
-        media: mediaResults.map(media => ({
+        media: mediaResults.map((media, index) => ({
           id: media._id,
           url: media.url,
           public_id: media.public_id,
@@ -271,6 +175,7 @@ router.post('/multiple',
           bytes: media.bytes,
           width: media.width,
           height: media.height,
+          storageType: req.processedFiles[index].storageType,
           createdAt: media.createdAt
         }))
       });
@@ -285,18 +190,21 @@ router.post('/multiple',
   })
 );
 
-// Upload property images
+// Upload property images (images and videos only)
 router.post('/property-images',
   authenticate,
   authorize('buyer_seller', 'broker', 'developer', 'society_owner'),
-  upload.array('images', 20),
+  smartUpload('images', 20),
+  validateFileType,
+  processUploadedFiles,
+  cleanupTempFiles,
   catchAsync(async (req, res) => {
     console.log('Property images upload request received');
     console.log('Request body:', req.body);
-    console.log('Request files:', req.files ? req.files.length : 'No files');
+    console.log('Request files:', req.processedFiles ? req.processedFiles.length : 'No files');
     console.log('User:', req.user ? req.user._id : 'No user');
     
-    if (!req.files || req.files.length === 0) {
+    if (!req.processedFiles || req.processedFiles.length === 0) {
       console.log('No files uploaded');
       return res.status(400).json({
         success: false,
@@ -304,21 +212,24 @@ router.post('/property-images',
       });
     }
 
+    // Filter out PDFs for property images
+    const mediaFiles = req.processedFiles.filter(file => 
+      file.resource_type === 'image' || file.resource_type === 'video'
+    );
+
+    if (mediaFiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only images and videos are allowed for property uploads'
+      });
+    }
+
     try {
-      const uploadPromises = req.files.map((file, index) => 
-        uploadToServer(file.path, {
-          folder: 'nestly_estate/properties',
-          tags: ['property', `primary_${index === 0}`]
-        })
-      );
-      
-      const uploadResults = await Promise.all(uploadPromises);
-      
-      const mediaPromises = uploadResults.map((result, index) => 
-        saveMediaToDB(result, req.user._id, {
+      const mediaPromises = mediaFiles.map((fileData, index) => 
+        saveMediaToDB(fileData, req.user._id, {
           tags: ['property'],
-          alt: `Property image ${index + 1}`,
-          caption: `Property image ${index + 1}`
+          alt: `Property ${fileData.resource_type} ${index + 1}`,
+          caption: `Property ${fileData.resource_type} ${index + 1}`
         })
       );
       
@@ -337,6 +248,7 @@ router.post('/property-images',
           height: media.height,
           isPrimary: index === 0,
           caption: media.caption,
+          storageType: mediaFiles[index].storageType,
           createdAt: media.createdAt
         }))
       });
@@ -359,17 +271,20 @@ router.post('/property-images',
   })
 );
 
-// Upload society documents
+// Upload society documents (PDFs only)
 router.post('/society-documents',
   authenticate,
-  upload.array('documents', 20),
+  smartUpload('documents', 20),
+  validateFileType,
+  processUploadedFiles,
+  cleanupTempFiles,
   catchAsync(async (req, res) => {
     console.log('Society documents upload request received');
     console.log('Request body:', req.body);
-    console.log('Request files:', req.files ? req.files.length : 'No files');
+    console.log('Request files:', req.processedFiles ? req.processedFiles.length : 'No files');
     console.log('User:', req.user ? req.user._id : 'No user');
     
-    if (!req.files || req.files.length === 0) {
+    if (!req.processedFiles || req.processedFiles.length === 0) {
       console.log('No files uploaded');
       return res.status(400).json({
         success: false,
@@ -377,18 +292,19 @@ router.post('/society-documents',
       });
     }
 
+    // Filter for PDFs only
+    const pdfFiles = req.processedFiles.filter(file => file.resource_type === 'raw');
+
+    if (pdfFiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only PDF documents are allowed for society document uploads'
+      });
+    }
+
     try {
-      const uploadPromises = req.files.map((file, index) => 
-        uploadToServer(file.path, {
-          folder: 'nestly_estate/society_documents',
-          tags: ['society_document', req.body.type || 'general']
-        })
-      );
-      
-      const uploadResults = await Promise.all(uploadPromises);
-      
-      const mediaPromises = uploadResults.map((result, index) => 
-        saveMediaToDB(result, req.user._id, {
+      const mediaPromises = pdfFiles.map((fileData, index) => 
+        saveMediaToDB(fileData, req.user._id, {
           tags: ['society_document'],
           alt: `Society document ${index + 1}`,
           caption: `Society document ${index + 1}`,
@@ -410,6 +326,7 @@ router.post('/society-documents',
           width: media.width,
           height: media.height,
           documentType: media.documentType,
+          storageType: pdfFiles[index].storageType,
           createdAt: media.createdAt
         }))
       });
@@ -432,27 +349,34 @@ router.post('/society-documents',
   })
 );
 
-// Upload profile picture
+// Upload profile picture (images only)
 router.post('/profile-picture',
   authenticate,
-  upload.single('profilePicture'),
+  smartUpload('profilePicture', 1),
+  validateFileType,
+  processUploadedFiles,
+  cleanupTempFiles,
   catchAsync(async (req, res) => {
-    if (!req.file) {
+    if (!req.processedFiles || req.processedFiles.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No profile picture uploaded'
       });
     }
 
-    try {
-      // Upload to server with specific folder
-      const uploadResult = await uploadToServer(req.file.path, {
-        folder: 'nestly_estate/profile_pictures',
-        tags: ['profile_picture']
+    const fileData = req.processedFiles[0];
+    
+    // Only allow images for profile pictures
+    if (fileData.resource_type !== 'image') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only image files are allowed for profile pictures'
       });
-      
+    }
+
+    try {
       // Save to database
-      const media = await saveMediaToDB(uploadResult, req.user._id, {
+      const media = await saveMediaToDB(fileData, req.user._id, {
         tags: ['profile_picture'],
         alt: 'Profile picture'
       });
@@ -476,6 +400,7 @@ router.post('/profile-picture',
           bytes: media.bytes,
           width: media.width,
           height: media.height,
+          storageType: fileData.storageType,
           createdAt: media.createdAt
         }
       });
@@ -515,13 +440,14 @@ router.delete('/:mediaId',
         });
       }
       
-      // Delete from Cloudinary
-      const deleteResult = await cloudinary.uploader.destroy(media.public_id, {
-        resource_type: media.resource_type
-      });
-      
-      if (deleteResult.result !== 'ok') {
-        console.warn('Cloudinary deletion warning:', deleteResult);
+      // Delete based on storage type
+      if (media.url.startsWith('http')) {
+        // Cloudinary URL
+        await deleteFromCloudinary(media.public_id, media.resource_type);
+      } else if (media.url.startsWith('/uploads/')) {
+        // Local file
+        const filepath = path.join(process.cwd(), media.url);
+        await deleteLocalFile(filepath);
       }
       
       // Delete from database
@@ -565,6 +491,7 @@ router.get('/my-media',
           tags: item.tags,
           alt: item.alt,
           caption: item.caption,
+          storageType: item.url.startsWith('http') ? 'cloudinary' : 'local',
           createdAt: item.createdAt
         }))
       });
@@ -579,7 +506,7 @@ router.get('/my-media',
   })
 );
 
-// Serve uploaded files (for development mode when not using Cloudinary)
+// Serve uploaded files (for local PDFs)
 router.get('/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join('uploads', filename);

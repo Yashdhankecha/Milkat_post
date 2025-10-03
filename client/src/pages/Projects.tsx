@@ -230,6 +230,7 @@ const Projects = () => {
                   project_type={project.projectType || 'residential'}
                   total_units={project.totalUnits}
                   available_units={project.availableUnits}
+                  showSaveButton={true}
                 />
               ))}
             </div>

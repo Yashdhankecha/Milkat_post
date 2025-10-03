@@ -30,11 +30,12 @@ import {
   BarChart3,
   X,
   Loader2,
-  User
+  User,
+  Eye
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { useSocket } from '@/hooks/useSocket';
 import RedevelopmentForm from './RedevelopmentForm';
 import RedevelopmentVotingSystem from './RedevelopmentVotingSystem';
@@ -42,6 +43,7 @@ import MemberQueries from './MemberQueries';
 // New enhanced components
 import VotingPanel from './VotingPanel';
 import SimpleVotingPanel from './SimpleVotingPanel';
+import VotingResults from './VotingResults';
 
 interface RedevelopmentProject {
   _id: string;
@@ -191,6 +193,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedProject, setSelectedProject] = useState<RedevelopmentProject | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [selectedProposal, setSelectedProposal] = useState<DeveloperProposal | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [votingState, setVotingState] = useState<Record<string, { vote: 'yes' | 'no' | null }>>({});
@@ -987,6 +990,11 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
     setLoadingProjectData(false);
   };
 
+  const handleViewMore = (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setExpandedProjectId(expandedProjectId === projectId ? null : projectId);
+  };
+
   const handleProjectCreated = (newProject: RedevelopmentProject) => {
     setProjects(prev => [newProject, ...prev]);
     setShowCreateForm(false);
@@ -1132,13 +1140,13 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
       ) : (
         <div className="grid gap-6">
           {projects.map((project) => (
-            <Card 
-              key={project._id} 
-              className={`cursor-pointer transition-all hover:shadow-lg ${
-                selectedProject?._id === project._id ? 'ring-2 ring-primary' : ''
-              }`}
-              onClick={() => handleProjectSelect(project)}
-            >
+            <div key={project._id}>
+              <Card 
+                className={`cursor-pointer transition-all hover:shadow-lg ${
+                  selectedProject?._id === project._id ? 'ring-2 ring-primary' : ''
+                }`}
+                onClick={() => handleProjectSelect(project)}
+              >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -1232,20 +1240,251 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                       </div>
                     )}
                   </div>
+                  
+                  {/* View More Button */}
+                  <div className="flex justify-end mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleViewMore(project._id, e)}
+                      className="flex items-center gap-2"
+                    >
+                      {expandedProjectId === project._id ? (
+                        <>
+                          <X className="h-4 w-4" />
+                          View Less
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="h-4 w-4" />
+                          View More
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Expanded Project Details */}
+            {expandedProjectId === project._id && (
+              <Card className="mt-4 border-l-4 border-l-primary">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Project Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* For Members: Show tabs in expanded section */}
+                  {!isOwner ? (
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                      <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="overview">Overview</TabsTrigger>
+                        <TabsTrigger value="results">Voting Results</TabsTrigger>
+                        <TabsTrigger value="queries">Queries</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="overview" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading project data...</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <ProjectOverview 
+                            project={project} 
+                            proposals={proposals} 
+                            onViewProposal={handleViewProposal}
+                            userRole={user?.currentRole}
+                            votingResultsData={votingResultsData}
+                            onVote={handleMemberVote}
+                            myVotes={memberVotes}
+                            hasVoted={hasMemberVoted}
+                            votingOpen={project?.status === 'voting'}
+                          />
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="results" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading voting results...</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <VotingResults
+                            projectId={project._id}
+                            userRole="society_member"
+                            showCloseButton={false}
+                            onCloseVoting={() => {
+                              // Refresh project data after closing voting
+                              fetchProjects();
+                            }}
+                          />
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="queries" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading queries data...</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <MemberQueries 
+                            project={{
+                              _id: project._id,
+                              title: project.title,
+                              queries: project.queries.map(q => ({
+                                ...q,
+                                status: q.status as "open" | "in_review" | "resolved" | "closed"
+                              }))
+                            }}
+                          />
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    /* For Owners: Show basic project details in expanded section */
+                    <div className="space-y-6">
+                      {/* Project Description */}
+                      <div>
+                        <h3 className="font-semibold mb-2">Description</h3>
+                        <p className="text-muted-foreground">{project.description}</p>
+                      </div>
+
+                      {/* Project Timeline */}
+                      {project.timeline && (
+                        <div>
+                          <h3 className="font-semibold mb-2">Timeline</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {project.timeline.startDate && (
+                              <div>
+                                <span className="text-sm text-muted-foreground">Start Date:</span>
+                                <p className="font-medium">
+                                  {new Date(project.timeline.startDate).toLocaleDateString('en-IN')}
+                                </p>
+                              </div>
+                            )}
+                            {project.timeline.expectedCompletionDate && (
+                              <div>
+                                <span className="text-sm text-muted-foreground">Expected Completion:</span>
+                                <p className="font-medium">
+                                  {new Date(project.timeline.expectedCompletionDate).toLocaleDateString('en-IN')}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expected Amenities */}
+                      {project.expectedAmenities && project.expectedAmenities.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold mb-2">Expected Amenities</h3>
+                          <div className="flex flex-wrap gap-2">
+                            {project.expectedAmenities.map((amenity, index) => (
+                              <Badge key={index} variant="secondary">
+                                {amenity}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Project Documents */}
+                      {project.documents && project.documents.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold mb-2">Documents ({project.documents.length})</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {project.documents.slice(0, 4).map((document, index) => (
+                              <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                                  <FileText className="h-5 w-5 text-red-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">
+                                    {document.name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground capitalize">
+                                    {document.type.replace('_', ' ')} Document
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const link = window.document.createElement('a');
+                                    link.href = document.url;
+                                    link.download = document.name;
+                                    link.target = '_blank';
+                                    window.document.body.appendChild(link);
+                                    link.click();
+                                    window.document.body.removeChild(link);
+                                  }}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          {project.documents.length > 4 && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              +{project.documents.length - 4} more documents
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Recent Updates */}
+                      {project.updates && project.updates.length > 0 && (
+                        <div>
+                          <h3 className="font-semibold mb-2">Recent Updates</h3>
+                          <div className="space-y-3">
+                            {project.updates.slice(0, 3).map((update, index) => (
+                              <div key={index} className="p-3 border rounded-lg">
+                                <div className="flex items-start justify-between mb-2">
+                                  <h4 className="font-medium">{update.title}</h4>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(update.postedAt).toLocaleDateString('en-IN')}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{update.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                          {project.updates.length > 3 && (
+                            <p className="text-sm text-muted-foreground mt-2">
+                              +{project.updates.length - 3} more updates
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            </div>
           ))}
         </div>
       )}
 
-      {/* Project Details Modal/Tabs */}
-      {selectedProject && (
+      {/* Project Details Modal/Tabs - Only for Owners */}
+      {selectedProject && isOwner && (
         <div className="mt-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className={`grid w-full ${isOwner ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              {isOwner && <TabsTrigger value="voting">Voting Management</TabsTrigger>}
+              <TabsTrigger value="voting">Voting Management</TabsTrigger>
+              <TabsTrigger value="results">Voting Results</TabsTrigger>
               <TabsTrigger value="queries">Queries</TabsTrigger>
             </TabsList>
 
@@ -1637,6 +1876,29 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                 )}
                 </TabsContent>
             )}
+
+            {/* Voting Results Tab - For both Owners and Members */}
+            <TabsContent value="results" className="space-y-6">
+              {loadingProjectData ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                    <p className="text-muted-foreground">Loading voting results...</p>
+                  </div>
+                </div>
+              ) : (
+                <VotingResults
+                  projectId={selectedProject._id}
+                  userRole={isOwner ? 'society_owner' : 'society_member'}
+                  showCloseButton={isOwner && selectedProject.status === 'voting'}
+                  onCloseVoting={() => {
+                    // Refresh project data after closing voting
+                    fetchProjects();
+                    setActiveTab('overview');
+                  }}
+                />
+              )}
+            </TabsContent>
 
             <TabsContent value="queries" className="space-y-6">
               {loadingProjectData ? (

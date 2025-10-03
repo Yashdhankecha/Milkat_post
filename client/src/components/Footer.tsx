@@ -1,41 +1,33 @@
-import { MapPin, Phone, Mail, Facebook, MessageSquare } from "lucide-react";
+import { Facebook, MessageSquare } from "lucide-react";
 
 const Footer = () => {
-  const offices = [
-    { city: "New York", phone: "+1 (555) 123-4567", email: "newyork@milkatpost.com" },
-    { city: "London", phone: "+44 20 7123 4567", email: "london@milkatpost.com" },
-    { city: "Mumbai", phone: "+91 22 4567 8900", email: "mumbai@milkatpost.com" }
-  ];
-
-  const quickLinks = [
-    "Property Search",
-    "Buyer's Guide",
-    "Seller's Guide",
-    "Investment Opportunities",
-    "Market Reports",
-    "FAQ"
-  ];
 
   return (
     <footer className="bg-estate-blue text-primary-foreground">
-      <div className="container mx-auto px-4 py-5">
-        
-       
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Main Footer Content */}
+        <div className="text-center mb-8">
+          <div className="text-2xl sm:text-3xl font-bold mb-4">
+            Milkat<span className="text-estate-blue-lighter">Post</span>
+          </div>
+          <p className="text-estate-blue-lighter max-w-md mx-auto">
+            Your trusted partner in real estate. Connecting buyers, sellers, and developers with the best properties and opportunities.
+          </p>
+        </div>
 
-   
         {/* Bottom Section */}
-        <div className="border-t border-estate-blue-light pt-8 flex flex-col md:flex-row justify-between items-center">
-          <div className="mb-4 md:mb-0">
-            <div className="text-2xl font-bold mb-2">
-              Milkat<span className="text-estate-blue-lighter">Post</span>
-            </div>
-            <p className="text-sm text-estate-blue-lighter">
-              © 2024 MilkatPost. All rights reserved.
-            </p>
+        <div className="border-t border-estate-blue-light pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="text-sm text-estate-blue-lighter">
+            © 2024 MilkatPost. All rights reserved.
           </div>
           
           <div className="flex items-center gap-4">
-           
+            <a href="#" className="text-estate-blue-lighter hover:text-white transition-colors">
+              <Facebook className="h-5 w-5" />
+            </a>
+            <a href="#" className="text-estate-blue-lighter hover:text-white transition-colors">
+              <MessageSquare className="h-5 w-5" />
+            </a>
           </div>
         </div>
       </div>

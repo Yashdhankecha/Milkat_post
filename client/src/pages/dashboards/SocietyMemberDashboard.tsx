@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import DashboardNav from '@/components/DashboardNav';
 import RedevelopmentModule from '@/components/RedevelopmentModule';
 import { MemberInvitationsPanel } from '@/components/MemberInvitationsPanel';
@@ -182,9 +182,12 @@ const SocietyMemberDashboard: React.FC = () => {
   const fetchSocieties = async () => {
     try {
       setLoading(true);
+      console.log('Fetching societies for user...');
       const response = await apiClient.getMySocieties();
+      console.log('Societies API response:', response);
       
       if (response.error) {
+        console.error('Error fetching societies:', response.error);
         toast({
           title: "Error",
           description: "Failed to fetch societies",
@@ -193,9 +196,13 @@ const SocietyMemberDashboard: React.FC = () => {
         return;
       }
 
-      setSocieties(response.data.societies || []);
-      if (response.data.societies && response.data.societies.length > 0) {
-        setSelectedSociety(response.data.societies[0]);
+      const societiesData = response.data.societies || [];
+      console.log('Setting societies:', societiesData);
+      setSocieties(societiesData);
+      
+      if (societiesData.length > 0) {
+        console.log('Setting selected society:', societiesData[0]);
+        setSelectedSociety(societiesData[0]);
       }
     } catch (error) {
       console.error('Error fetching societies:', error);
@@ -381,16 +388,17 @@ const SocietyMemberDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <DashboardNav />
-      <div className="container mx-auto px-4 py-8">
-        <div className="space-y-8">
+      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-6 sm:py-8">
+        <div className="space-y-6 sm:space-y-8">
           {/* Modern Header */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-3">
-                <Sparkles className="h-8 w-8 text-indigo-600" />
-                Member Dashboard
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2 sm:gap-3">
+                <Sparkles className="h-6 w-6 sm:h-8 sm:w-8 text-indigo-600" />
+                <span className="hidden sm:inline">Member Dashboard</span>
+                <span className="sm:hidden">Dashboard</span>
               </h1>
-              <p className="text-gray-600 mt-2 text-lg">
+              <p className="text-gray-600 mt-1 sm:mt-2 text-base sm:text-lg">
                 Welcome back, <span className="font-semibold text-indigo-600">{user?.name || user?.phone}</span>
               </p>
             </div>
@@ -411,15 +419,35 @@ const SocietyMemberDashboard: React.FC = () => {
                   ))}
                 </select>
               )}
-              <Button
-                onClick={() => navigate(`/societies/${selectedSociety?._id}`)}
-                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6"
-                size="lg"
+              <div 
+                onClick={() => {
+                  console.log('View Society button clicked');
+                  console.log('Selected society:', selectedSociety);
+                  
+                  if (selectedSociety?._id) {
+                    console.log('Navigating to society:', selectedSociety._id);
+                    navigate(`/societies/${selectedSociety._id}`);
+                  } else {
+                    console.error('No selected society found');
+                    toast({
+                      title: "Error",
+                      description: "No society selected. Please select a society first.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className={`
+                  inline-flex items-center justify-center px-6 py-3 text-base font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 min-w-[200px] h-12
+                  ${!selectedSociety?._id || loading 
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50' 
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white cursor-pointer'
+                  }
+                `}
               >
                 <Eye className="h-5 w-5 mr-2" />
-                View Society
+                {loading ? 'Loading...' : selectedSociety?._id ? 'View Society' : 'Select Society First'}
                 <ExternalLink className="h-4 w-4 ml-2" />
-              </Button>
+              </div>
             </div>
           </div>
 
@@ -489,53 +517,58 @@ const SocietyMemberDashboard: React.FC = () => {
           )}
 
           {/* Main Content */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-            <TabsList className="grid w-full grid-cols-5 h-14 bg-white shadow-lg rounded-2xl p-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6 sm:space-y-8">
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-12 sm:h-14 bg-white shadow-lg rounded-xl sm:rounded-2xl p-1 sm:p-2">
               <TabsTrigger 
                 value="overview"
-                className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="rounded-lg sm:rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 text-xs sm:text-sm"
               >
-                <Activity className="h-4 w-4 mr-2" />
+                <Activity className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Overview</span>
+                <span className="sm:hidden">Overview</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="invitations"
-                className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="rounded-lg sm:rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 text-xs sm:text-sm"
               >
-                <Mail className="h-4 w-4 mr-2" />
+                <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Invitations</span>
+                <span className="sm:hidden">Invites</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="redevelopment"
-                className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="rounded-lg sm:rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 text-xs sm:text-sm"
               >
-                <Building2 className="h-4 w-4 mr-2" />
+                <Building2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Projects</span>
+                <span className="sm:hidden">Projects</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="notifications"
-                className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 relative"
+                className="rounded-lg sm:rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-purple-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 relative text-xs sm:text-sm"
               >
-                <Bell className="h-4 w-4 mr-2" />
+                <Bell className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Alerts</span>
+                <span className="sm:hidden">Alerts</span>
                 {notifications.filter(n => !n.isRead).length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg animate-pulse">
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center font-bold shadow-lg animate-pulse">
                     {notifications.filter(n => !n.isRead).length}
                   </span>
                 )}
               </TabsTrigger>
               <TabsTrigger 
                 value="queries"
-                className="rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300"
+                className="rounded-lg sm:rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-500 data-[state=active]:text-white data-[state=active]:shadow-lg transition-all duration-300 text-xs sm:text-sm"
               >
-                <MessageSquare className="h-4 w-4 mr-2" />
+                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Queries</span>
+                <span className="sm:hidden">Queries</span>
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-8">
+            <TabsContent value="overview" className="space-y-6 sm:space-y-8">
               {/* Enhanced Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 <Card className="border-0 shadow-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white overflow-hidden relative group hover:shadow-2xl transition-shadow duration-300">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500"></div>
                   <CardContent className="p-6 relative">

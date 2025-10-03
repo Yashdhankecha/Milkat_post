@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useToast } from '../hooks/use-toast';
-import { apiClient } from '../lib/api';
+import apiClient from '../lib/api';
 import { MessageSquare, Clock, CheckCircle, AlertCircle, ThumbsUp, Calendar, User } from 'lucide-react';
 
 interface Query {

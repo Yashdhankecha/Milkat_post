@@ -5,7 +5,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { useToast } from '../hooks/use-toast';
-import { apiClient } from '../lib/api';
+import apiClient from '../lib/api';
 import { MessageSquare, Send, AlertCircle } from 'lucide-react';
 
 interface MemberQueryFormProps {

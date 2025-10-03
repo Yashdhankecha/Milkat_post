@@ -18,7 +18,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 
 interface Notification {
   _id: string;

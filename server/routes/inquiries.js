@@ -80,7 +80,7 @@ router.post('/',
           message: 'Project not found'
         });
       }
-      projectOwner = project.owner;
+      projectOwner = project.developer; // Projects are owned by developers
       
       // Increment inquiry count for the project
       await project.incrementInquiries();
@@ -97,6 +97,7 @@ router.post('/',
       inquirer: userId,
       propertyOwner,
       projectOwner,
+      developer: projectOwner, // For project inquiries, developer is the same as projectOwner
       status: 'pending'
     });
 
@@ -252,6 +253,40 @@ router.get('/my-projects',
   })
 );
 
+// Get inquiries for a specific developer
+router.get('/developer/:developerId',
+  authenticate,
+  catchAsync(async (req, res) => {
+    const { developerId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Check if user is requesting their own inquiries or if they're admin
+    if (developerId !== req.user._id.toString() && req.profile.role !== 'admin') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You can only view your own inquiries.'
+      });
+    }
+
+    const inquiries = await Inquiry.getDeveloperInquiries(developerId, page, limit);
+    const total = await Inquiry.countDocuments({ developer: developerId });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        inquiries,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  })
+);
+
 // Get inquiries for a specific property
 router.get('/property/:propertyId',
   authenticate,
@@ -318,11 +353,12 @@ router.put('/:inquiryId/respond',
       });
     }
 
-    // Check if user is authorized to respond (property/project owner)
+    // Check if user is authorized to respond (property/project owner or developer)
     const isPropertyOwner = inquiry.propertyOwner && inquiry.propertyOwner.toString() === userId.toString();
     const isProjectOwner = inquiry.projectOwner && inquiry.projectOwner.toString() === userId.toString();
+    const isDeveloper = inquiry.developer && inquiry.developer.toString() === userId.toString();
     
-    if (!isPropertyOwner && !isProjectOwner) {
+    if (!isPropertyOwner && !isProjectOwner && !isDeveloper) {
       return res.status(403).json({
         status: 'error',
         message: 'You are not authorized to respond to this inquiry'
@@ -372,9 +408,10 @@ router.put('/:inquiryId/status',
     // Check if user is authorized to update status
     const isPropertyOwner = inquiry.propertyOwner && inquiry.propertyOwner.toString() === userId.toString();
     const isProjectOwner = inquiry.projectOwner && inquiry.projectOwner.toString() === userId.toString();
-    const isInquirer = inquiry.inquirer.toString() === userId.toString();
+    const isDeveloper = inquiry.developer && inquiry.developer.toString() === userId.toString();
+    const isInquirer = inquiry.inquirer && inquiry.inquirer.toString() === userId.toString();
     
-    if (!isPropertyOwner && !isProjectOwner && !isInquirer) {
+    if (!isPropertyOwner && !isProjectOwner && !isDeveloper && !isInquirer) {
       return res.status(403).json({
         status: 'error',
         message: 'You are not authorized to update this inquiry'
@@ -419,9 +456,10 @@ router.get('/:inquiryId',
     // Check if user is authorized to view this inquiry
     const isPropertyOwner = inquiry.propertyOwner && inquiry.propertyOwner.toString() === userId.toString();
     const isProjectOwner = inquiry.projectOwner && inquiry.projectOwner.toString() === userId.toString();
-    const isInquirer = inquiry.inquirer.toString() === userId.toString();
+    const isDeveloper = inquiry.developer && inquiry.developer.toString() === userId.toString();
+    const isInquirer = inquiry.inquirer && inquiry.inquirer.toString() === userId.toString();
     
-    if (!isPropertyOwner && !isProjectOwner && !isInquirer) {
+    if (!isPropertyOwner && !isProjectOwner && !isDeveloper && !isInquirer) {
       return res.status(403).json({
         status: 'error',
         message: 'You are not authorized to view this inquiry'

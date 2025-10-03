@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import apiClient from '@/lib/api';
-import { MessageSquare, Send, Phone, Mail, MessageCircle } from 'lucide-react';
+import { MessageSquare, Send, Phone, Mail, MessageCircle, User } from 'lucide-react';
 
 interface InquiryFormProps {
   propertyId?: string;
@@ -16,6 +16,7 @@ interface InquiryFormProps {
   propertyTitle?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
+  showUserInfo?: boolean;
 }
 
 const InquiryForm: React.FC<InquiryFormProps> = ({
@@ -23,7 +24,8 @@ const InquiryForm: React.FC<InquiryFormProps> = ({
   projectId,
   propertyTitle,
   onSuccess,
-  onCancel
+  onCancel,
+  showUserInfo = false
 }) => {
   const [formData, setFormData] = useState({
     subject: '',
@@ -120,6 +122,19 @@ const InquiryForm: React.FC<InquiryFormProps> = ({
         )}
       </CardHeader>
       <CardContent>
+        {showUserInfo && user && (
+          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 mb-2">
+              <User className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-200">Your Information</span>
+            </div>
+            <div className="text-sm text-blue-700 dark:text-blue-300">
+              <p><strong>Phone:</strong> {user.phone}</p>
+              {user.email && <p><strong>Email:</strong> {user.email}</p>}
+            </div>
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="subject">Subject *</Label>

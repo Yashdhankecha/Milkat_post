@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, MapPin, Calendar, Users, FileText, TrendingUp, Filter, X, Upload, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { formatDate, formatDateTime } from '@/lib/dateUtils';
 import { useNavigate } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
@@ -874,5 +874,7 @@ const GlobalRedevelopmentProjects: React.FC<GlobalRedevelopmentProjectsProps> = 
 };
 
 export default GlobalRedevelopmentProjects;
+
+
 
 

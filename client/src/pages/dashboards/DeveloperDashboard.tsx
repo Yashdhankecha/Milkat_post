@@ -268,19 +268,24 @@ const DeveloperDashboard = () => {
       // Process projects
       if (projectsResult.status === 'fulfilled' && !projectsResult.value.error) {
         const projectsData = projectsResult.value.data?.projects || [];
-        setProjects(projectsData);
+        // Transform projects to ensure consistent ID format
+        const transformedProjects = projectsData.map((project: any) => ({
+          ...project,
+          id: project._id || project.id
+        }));
+        setProjects(transformedProjects);
         
         // Calculate project stats
-        const activeProjects = projectsData.filter((p: any) => 
+        const activeProjects = transformedProjects.filter((p: any) => 
           ['planning', 'under_construction', 'ready_to_move'].includes(p.status)
         ).length;
-        const completedProjects = projectsData.filter((p: any) => 
+        const completedProjects = transformedProjects.filter((p: any) => 
           p.status === 'completed'
         ).length;
         
         setStats(prev => ({
           ...prev,
-          totalProjects: projectsData.length,
+          totalProjects: transformedProjects.length,
           activeProjects,
           completedProjects
         }));
@@ -1073,12 +1078,12 @@ const DeveloperDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Project Listed */}
+              {/* Project Inquiries */}
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Project Listed
+                    Project Inquiries
                   </CardTitle>
                   <CardDescription>Inquiries about your development projects</CardDescription>
                 </CardHeader>

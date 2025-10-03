@@ -203,12 +203,6 @@ class ApiClient {
     });
   }
 
-  async refreshToken() {
-    return this.request('/auth/refresh-token', {
-      method: 'POST',
-      body: JSON.stringify({ refreshToken: localStorage.getItem('auth_refresh_token') }),
-    });
-  }
 
   async signUpWithSMSForNewRole(phone: string, fullName: string, role: string) {
     const payload = { phone, fullName, role };
@@ -306,20 +300,30 @@ class ApiClient {
     });
   }
 
-  async updateProject(projectId: string, projectData: any) {
-    return this.request(`/projects/${projectId}`, {
-      method: 'PUT',
-      body: JSON.stringify(projectData),
-      headers: {
-        'X-Requested-Role': 'developer'
-      }
-    });
-  }
 
   async deleteProject(projectId: string) {
     return this.request(`/projects/${projectId}`, {
       method: 'DELETE',
     });
+  }
+
+  async saveProject(projectId: string) {
+    return this.request('/projects/save-project', {
+      method: 'POST',
+      body: JSON.stringify({ projectId }),
+    });
+  }
+
+  async unsaveProject(projectId: string) {
+    return this.request('/projects/unsave-project', {
+      method: 'DELETE',
+      body: JSON.stringify({ projectId }),
+    });
+  }
+
+  async getSavedProjects(userId: string, params?: any) {
+    const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.request(`/projects/saved-projects/${userId}${queryString}`);
   }
 
   // Requirements endpoints
@@ -357,13 +361,6 @@ class ApiClient {
     return this.request(`/requirements/my/requirements${queryString}`);
   }
 
-  // Inquiries endpoints
-  async createInquiry(inquiry: any) {
-    return this.request('/inquiries', {
-      method: 'POST',
-      body: JSON.stringify(inquiry),
-    });
-  }
 
   async getInquiries(params?: any) {
     const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -429,20 +426,9 @@ class ApiClient {
     });
   }
 
-  async markNotificationAsRead(notificationId: string) {
-    return this.request(`/notifications/${notificationId}/read`, {
-      method: 'PATCH',
-    });
-  }
 
   async getUnreadCount() {
     return this.request('/notifications/unread-count');
-  }
-
-  async deleteNotification(notificationId: string) {
-    return this.request(`/notifications/${notificationId}`, {
-      method: 'DELETE',
-    });
   }
 
   async clearAllNotifications() {
@@ -739,6 +725,42 @@ class ApiClient {
     files.forEach(file => {
       formData.append('images', file);
     });
+
+    const headers: HeadersInit = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const url = `${this.baseURL}/upload/property-images`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        error: data.message || data.error || 'Upload failed',
+        status: 'error'
+      };
+    }
+
+    return {
+      data: data.data || data,
+      message: data.message,
+      status: data.status || 'success'
+    };
+  }
+
+  // Upload multiple project images
+  async uploadProjectImages(files: File[]) {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    formData.append('folder', 'project_images');
 
     const headers: HeadersInit = {};
     if (this.token) {
@@ -1125,6 +1147,16 @@ class ApiClient {
     return this.request(`/member-votes/stats/${projectId}${queryParams}`);
   }
 
+  async closeVoting(projectId: string) {
+    return this.request(`/redevelopment-projects/${projectId}/close-voting`, {
+      method: 'POST'
+    });
+  }
+
+  async getFinalVotingResults(projectId: string) {
+    return this.request(`/redevelopment-projects/${projectId}/final-results`);
+  }
+
   async verifyVote(voteId: string) {
     return this.request(`/member-votes/${voteId}/verify`, {
       method: 'POST',
@@ -1248,8 +1280,9 @@ class ApiClient {
   async getInquiry(inquiryId: string) {
     return this.request(`/inquiries/${inquiryId}`);
   }
+
 }
 
 // Create and export a singleton instance
-export const apiClient = new ApiClient(API_BASE_URL);
+const apiClient = new ApiClient(API_BASE_URL);
 export default apiClient;

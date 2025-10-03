@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api';
+import apiClient from '@/lib/api';
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'

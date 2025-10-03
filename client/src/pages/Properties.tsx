@@ -254,14 +254,14 @@ const Properties = () => {
     <div className="min-h-screen bg-background">
       <Header />
       {/* Header */}
-      <section className="bg-gradient-hero py-16 relative overflow-hidden">
+      <section className="bg-gradient-hero py-12 sm:py-16 relative overflow-hidden">
         <div className="absolute inset-0 bg-black/10"></div>
-        <div className="container mx-auto px-6 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 relative z-10">
           <div className="animate-slide-in-down">
-            <h1 className="text-4xl md:text-5xl font-bold text-white text-center mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white text-center mb-4">
               Property Listings
             </h1>
-            <p className="text-xl text-white/90 text-center max-w-2xl mx-auto animate-fade-in-up" style={{animationDelay: '200ms'}}>
+            <p className="text-lg sm:text-xl text-white/90 text-center max-w-2xl mx-auto animate-fade-in-up px-4" style={{animationDelay: '200ms'}}>
               Discover your perfect property from our extensive collection of homes, 
               apartments, and commercial spaces.
             </p>
@@ -271,39 +271,39 @@ const Properties = () => {
       </section>
 
       {/* Filters */}
-      <section className="py-8 border-b">
-        <div className="container mx-auto px-6">
+      <section className="py-6 sm:py-8 border-b">
+        <div className="container mx-auto px-4 sm:px-6">
           {/* Active URL Filters Display */}
           {hasActiveFilters && (
             <div className="mb-4">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="text-sm font-medium">Active Filters:</span>
                 {urlFilters.country && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs">
                     Country: {urlFilters.country}
                     <X className="w-3 h-3 cursor-pointer" onClick={clearUrlFilters} />
                   </Badge>
                 )}
                 {urlFilters.state && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs">
                     State: {urlFilters.state}
                     <X className="w-3 h-3 cursor-pointer" onClick={clearUrlFilters} />
                   </Badge>
                 )}
                 {urlFilters.city && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs">
                     City: {urlFilters.city}
                     <X className="w-3 h-3 cursor-pointer" onClick={clearUrlFilters} />
                   </Badge>
                 )}
                 {urlFilters.propertyType && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs">
                     Type: {urlFilters.propertyType}
                     <X className="w-3 h-3 cursor-pointer" onClick={clearUrlFilters} />
                   </Badge>
                 )}
                 {urlFilters.budgetRange && (
-                  <Badge variant="secondary" className="flex items-center gap-1">
+                  <Badge variant="secondary" className="flex items-center gap-1 text-xs">
                     Budget: {urlFilters.budgetRange}
                     <X className="w-3 h-3 cursor-pointer" onClick={clearUrlFilters} />
                   </Badge>
@@ -312,7 +312,7 @@ const Properties = () => {
                   variant="ghost" 
                   size="sm" 
                   onClick={clearUrlFilters}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground text-xs"
                 >
                   Clear All
                 </Button>
@@ -321,11 +321,11 @@ const Properties = () => {
           )}
           
           <Card className="animate-fade-in-up" style={{animationDelay: '400ms'}}>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="space-y-4">
                 {/* Main Search Bar */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="relative">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="relative sm:col-span-2 lg:col-span-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search properties..."
@@ -358,9 +358,10 @@ const Properties = () => {
                     </SelectContent>
                   </Select>
 
-                  <Button onClick={() => setFiltersOpen(!filtersOpen)} variant="outline">
+                  <Button onClick={() => setFiltersOpen(!filtersOpen)} variant="outline" className="sm:col-span-2 lg:col-span-1">
                     <Filter className="w-4 h-4 mr-2" />
-                    Advanced Filters
+                    <span className="hidden sm:inline">Advanced Filters</span>
+                    <span className="sm:hidden">Filters</span>
                     <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
                   </Button>
                 </div>
@@ -497,7 +498,7 @@ const Properties = () => {
               ))}
             </div>
           ) : properties.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
               {properties.map((property, index) => {
                 // Get primary image or first image
                 const primaryImage = property.images?.find(img => img.isPrimary) || property.images?.[0];

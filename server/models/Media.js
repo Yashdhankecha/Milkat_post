@@ -67,9 +67,14 @@ MediaSchema.virtual('fileSizeFormatted').get(function() {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 });
 
-// Method to get Cloudinary transformation URL
+// Method to get Cloudinary transformation URL (only for Cloudinary URLs)
 MediaSchema.methods.getTransformedUrl = function(transformations = {}) {
   if (!this.url) return null;
+  
+  // Only apply transformations to Cloudinary URLs
+  if (!this.url.startsWith('http') || !this.url.includes('cloudinary.com')) {
+    return this.url;
+  }
   
   // Default transformations
   const defaultTransformations = {
@@ -95,6 +100,16 @@ MediaSchema.methods.getTransformedUrl = function(transformations = {}) {
   return this.url;
 };
 
+// Method to get storage type
+MediaSchema.methods.getStorageType = function() {
+  if (this.url.startsWith('http') && this.url.includes('cloudinary.com')) {
+    return 'cloudinary';
+  } else if (this.url.startsWith('/uploads/')) {
+    return 'local';
+  }
+  return 'unknown';
+};
+
 // Method to delete from Cloudinary
 MediaSchema.methods.deleteFromCloudinary = async function() {
   const cloudinary = require('cloudinary').v2;
@@ -108,6 +123,32 @@ MediaSchema.methods.deleteFromCloudinary = async function() {
     console.error('Error deleting from Cloudinary:', error);
     throw error;
   }
+};
+
+// Method to delete file based on storage type
+MediaSchema.methods.deleteFile = async function() {
+  const storageType = this.getStorageType();
+  
+  if (storageType === 'cloudinary') {
+    return await this.deleteFromCloudinary();
+  } else if (storageType === 'local') {
+    const fs = require('fs');
+    const path = require('path');
+    
+    try {
+      const filepath = path.join(process.cwd(), this.url);
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+        return { result: 'ok' };
+      }
+      return { result: 'not_found' };
+    } catch (error) {
+      console.error('Error deleting local file:', error);
+      throw error;
+    }
+  }
+  
+  throw new Error('Unknown storage type');
 };
 
 export default mongoose.model('Media', MediaSchema);

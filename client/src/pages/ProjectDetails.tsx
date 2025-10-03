@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import ProjectCard from "@/components/ProjectCard";
+import InquiryForm from "@/components/InquiryForm";
 import { 
   Heart, 
   Share2, 
@@ -57,12 +58,6 @@ const ProjectDetails = () => {
   const [project, setProject] = useState<any>(null);
   const [relatedProjects, setRelatedProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [contactForm, setContactForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    message: ''
-  });
 
   useEffect(() => {
     // Check if we have a valid project ID (not undefined, not empty, not the string 'undefined')
@@ -310,43 +305,6 @@ const ProjectDetails = () => {
     }
   };
 
-  const handleContactSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!user) {
-      toast({
-        title: "Login Required",
-        description: "Please login to contact developers.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await apiClient.createInquiry({
-        user_id: user.id,
-        project_id: projectId,
-        developer_id: project?.developer_id,
-        inquiry_type: 'project_inquiry',
-        subject: `Interest in ${project?.name}`,
-        message: contactForm.message,
-        contact_preference: 'email'
-      });
-
-      toast({
-        title: "Message Sent",
-        description: "Your inquiry has been sent to the developer.",
-      });
-      setContactForm({ name: '', email: '', phone: '', message: '' });
-    } catch (error) {
-      console.error('Error sending inquiry:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send inquiry. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Early return for invalid IDs
   if (!projectId || projectId === 'undefined') {
@@ -655,84 +613,50 @@ const ProjectDetails = () => {
           {/* Sidebar */}
           <div className="space-y-6 lg:sticky lg:top-8">
             {/* Contact Developer */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Contact Developer</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {project.developers && (
-                  <div className="p-4 bg-estate-blue-lighter/20 rounded-lg">
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      {project.developers.company_name || 'Developer'}
-                      {project.developers.verification_status === 'verified' && (
-                        <Badge className="bg-green-100 text-green-800 text-xs">Verified</Badge>
+            <div className="space-y-4">
+              {project.developers && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Developer Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="p-4 bg-estate-blue-lighter/20 rounded-lg">
+                      <h3 className="font-semibold mb-2 flex items-center gap-2">
+                        {project.developers.company_name || 'Developer'}
+                        {project.developers.verification_status === 'verified' && (
+                          <Badge className="bg-green-100 text-green-800 text-xs">Verified</Badge>
+                        )}
+                      </h3>
+                      {project.developers.website && (
+                        <div className="flex items-center mb-2">
+                          <Mail className="w-4 h-4 mr-2" />
+                          <a 
+                            href={project.developers.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline text-sm"
+                          >
+                            Visit Website
+                          </a>
+                        </div>
                       )}
-                    </h3>
-                    {project.developers.website && (
-                      <div className="flex items-center mb-2">
-                        <Mail className="w-4 h-4 mr-2" />
-                        <a 
-                          href={project.developers.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline text-sm"
-                        >
-                          Visit Website
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                <form onSubmit={handleContactSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name *</Label>
-                    <Input
-                      id="name"
-                      value={contactForm.name}
-                      onChange={(e) => setContactForm({...contactForm, name: e.target.value})}
-                      placeholder="Your full name"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={contactForm.email}
-                      onChange={(e) => setContactForm({...contactForm, email: e.target.value})}
-                      placeholder="your.email@example.com"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone *</Label>
-                    <Input
-                      id="phone"
-                      value={contactForm.phone}
-                      onChange={(e) => setContactForm({...contactForm, phone: e.target.value})}
-                      placeholder="+91 9876543210"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="message">Message *</Label>
-                    <Textarea
-                      id="message"
-                      placeholder="I'm interested in this project..."
-                      value={contactForm.message}
-                      onChange={(e) => setContactForm({...contactForm, message: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full">
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Send Inquiry
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+              <InquiryForm
+                projectId={finalProjectId}
+                propertyTitle={project?.name}
+                showUserInfo={true}
+                onSuccess={() => {
+                  toast({
+                    title: "Inquiry Sent Successfully",
+                    description: "Your inquiry has been sent to the developer. You'll receive a response soon!",
+                  });
+                }}
+              />
+            </div>
           </div>
         </div>
 

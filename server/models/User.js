@@ -68,7 +68,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['admin', 'buyer_seller', 'broker', 'developer', 'society_owner', 'society_member'],
     default: 'buyer_seller'
-  }
+  },
+  savedProjects: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project'
+  }]
 }, {
   timestamps: true
 });
