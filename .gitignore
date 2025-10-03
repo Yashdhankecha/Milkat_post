@@ -4,8 +4,8 @@ client/node_modules/
 server/node_modules/
 
 # Production builds
-client/dist/
-client/build/
+
+
 
 # Environment variables
 .env
