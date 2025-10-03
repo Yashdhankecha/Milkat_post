@@ -70,7 +70,7 @@ const redevelopmentProjectSchema = new mongoose.Schema({
   // Status and Progress
   status: {
     type: String,
-    enum: ['planning', 'tender_open', 'proposals_received', 'voting', 'developer_selected', 'construction', 'completed', 'cancelled'],
+    enum: ['planning', 'tender_open', 'proposals_received', 'voting', 'voting_closed', 'developer_selected', 'construction', 'completed', 'cancelled'],
     default: 'planning'
   },
   progress: {
@@ -88,6 +88,11 @@ const redevelopmentProjectSchema = new mongoose.Schema({
   selectedProposal: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'DeveloperProposal'
+  },
+  developerSelectedAt: Date,
+  developerSelectedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
 
   // Voting
@@ -325,34 +330,26 @@ redevelopmentProjectSchema.methods.closeVoting = async function(reason = 'manual
   this.votingStatus = 'closed';
   this.votingClosedAt = new Date();
   
-  if (winningProposal && winningProposal.approvalPercentage >= this.minimumApprovalPercentage) {
-    this.selectedDeveloper = winningProposal.proposal.developer;
-    this.selectedProposal = winningProposal.proposal._id;
-    this.status = 'developer_selected';
-  } else {
-    // If no proposal meets the threshold, mark as rejected
-    this.status = 'cancelled';
-  }
+  // Set status to voting_closed for manual developer selection by secretary
+  this.status = 'voting_closed';
 
   await this.save();
 
-  // Notify the selected developer if there's a winner
-  if (winningProposal && winningProposal.approvalPercentage >= this.minimumApprovalPercentage) {
-    try {
-      const Notification = (await import('./Notification.js')).default;
-      await Notification.create({
-        recipient: winningProposal.proposal.developer,
-        type: 'developer_proposal_selected',
-        title: 'You Have Been Selected!',
-        message: `Congratulations! You have been selected by society members in the voting process for "${this.title}". The society will contact you soon to proceed with the redevelopment project.`,
-        relatedEntity: {
-          entityType: 'redevelopment_project',
-          entityId: this._id
-        }
-      });
-    } catch (notificationError) {
-      console.warn('⚠️ Failed to notify selected developer:', notificationError.message);
-    }
+  // Notify society owner that voting is closed and manual selection is needed
+  try {
+    const Notification = (await import('./Notification.js')).default;
+    await Notification.create({
+      recipient: this.owner,
+      type: 'voting_closed_manual_selection',
+      title: 'Voting Closed - Manual Developer Selection Required',
+      message: `Voting has been closed for "${this.title}". Please review the results and manually select a developer to assign the project.`,
+      relatedEntity: {
+        entityType: 'redevelopment_project',
+        entityId: this._id
+      }
+    });
+  } catch (notificationError) {
+    console.warn('⚠️ Failed to notify society owner:', notificationError.message);
   }
 
   console.log(`✅ Voting closed for project ${this._id}, status: ${this.status}`);
@@ -374,6 +371,63 @@ redevelopmentProjectSchema.methods.closeVoting = async function(reason = 'manual
       approvalPercentage: winningProposal.approvalPercentage,
       totalVotes: winningProposal.totalVotes
     } : null
+  };
+};
+
+// Method to manually select a developer (secretary action)
+redevelopmentProjectSchema.methods.selectDeveloper = async function(developerId, proposalId, selectedBy) {
+  console.log(`👤 Manual developer selection for project ${this._id}:`, { developerId, proposalId, selectedBy });
+  
+  // Verify project is in voting_closed status
+  if (this.status !== 'voting_closed') {
+    throw new Error('Developer can only be selected after voting is closed');
+  }
+
+  // Verify the proposal belongs to this project
+  const DeveloperProposal = (await import('./DeveloperProposal.js')).default;
+  const proposal = await DeveloperProposal.findOne({
+    _id: proposalId,
+    redevelopmentProject: this._id,
+    developer: developerId
+  });
+
+  if (!proposal) {
+    throw new Error('Invalid proposal or developer for this project');
+  }
+
+  // Update project with selected developer
+  this.selectedDeveloper = developerId;
+  this.selectedProposal = proposalId;
+  this.status = 'developer_selected';
+  this.developerSelectedAt = new Date();
+  this.developerSelectedBy = selectedBy;
+
+  await this.save();
+
+  // Notify the selected developer
+  try {
+    const Notification = (await import('./Notification.js')).default;
+    await Notification.create({
+      recipient: developerId,
+      type: 'developer_proposal_selected',
+      title: 'You Have Been Selected!',
+      message: `Congratulations! You have been selected by the society secretary for the redevelopment project "${this.title}". The society will contact you soon to proceed with the project.`,
+      relatedEntity: {
+        entityType: 'redevelopment_project',
+        entityId: this._id
+      }
+    });
+  } catch (notificationError) {
+    console.warn('⚠️ Failed to notify selected developer:', notificationError.message);
+  }
+
+  console.log(`✅ Developer selected for project ${this._id}: ${developerId}`);
+  
+  return {
+    success: true,
+    selectedDeveloper: developerId,
+    selectedProposal: proposalId,
+    project: this
   };
 };
 

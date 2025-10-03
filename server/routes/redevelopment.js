@@ -917,4 +917,78 @@ router.delete('/:id',
   })
 );
 
+// Manual developer selection by secretary (after voting is closed)
+router.post('/:id/select-developer',
+  authenticate,
+  authorize('society_owner'),
+  [
+    param('id').isMongoId().withMessage('Invalid project ID'),
+    body('developerId').isMongoId().withMessage('Invalid developer ID'),
+    body('proposalId').isMongoId().withMessage('Invalid proposal ID')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { developerId, proposalId } = req.body;
+
+    console.log('👤 Manual developer selection request:', {
+      projectId: id,
+      developerId,
+      proposalId,
+      selectedBy: req.user._id
+    });
+
+    const project = await RedevelopmentProject.findById(id);
+    if (!project) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Project not found'
+      });
+    }
+
+    // Verify user is the project owner
+    if (project.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Only the project owner can select developers'
+      });
+    }
+
+    // Verify project is in voting_closed status
+    if (project.status !== 'voting_closed') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Developer can only be selected after voting is closed'
+      });
+    }
+
+    try {
+      // Use the new selectDeveloper method
+      const result = await project.selectDeveloper(developerId, proposalId, req.user._id);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Developer selected successfully',
+        data: {
+          selectedDeveloper: result.selectedDeveloper,
+          selectedProposal: result.selectedProposal,
+          project: {
+            id: project._id,
+            title: project.title,
+            status: project.status,
+            developerSelectedAt: project.developerSelectedAt,
+            developerSelectedBy: project.developerSelectedBy
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error selecting developer:', error);
+      res.status(400).json({
+        status: 'error',
+        message: error.message || 'Failed to select developer'
+      });
+    }
+  })
+);
+
 export default router;
