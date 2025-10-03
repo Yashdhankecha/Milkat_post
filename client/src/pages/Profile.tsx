@@ -72,7 +72,8 @@ const Profile = () => {
   useEffect(() => {
     if (profile || user) {
       setFullName(profile?.fullName || "");
-      setEmail(user?.email || "");
+      // Get email from profile data (populated from user) or fallback to user email
+      setEmail((profile as any)?.user?.email || user?.email || "");
       setPhone(user?.phone || (profile as any)?.phone || "");
       setAddress(profile?.address || "");
       // Comment out professional fields
@@ -170,7 +171,7 @@ const Profile = () => {
     if (profile) {
       const hasFormChanges = 
         fullName !== (profile.fullName || "") ||
-        email !== (user?.email || "") ||
+        email !== ((profile as any)?.user?.email || user?.email || "") ||
         address !== (profile.address || "");
         // Comment out professional field changes
         // website !== (profile.website || "") ||
@@ -358,7 +359,7 @@ const Profile = () => {
                         type="email"
                         value={email} 
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder={user?.email ? "" : "Enter your email"}
+                        placeholder={((profile as any)?.user?.email || user?.email) ? "" : "Enter your email"}
                         className={`pl-10 ${errors.email ? "border-destructive" : ""}`}
                       />
                     </div>

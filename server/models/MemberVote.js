@@ -79,7 +79,7 @@ memberVoteSchema.virtual('voteUrl').get(function() {
 
 // Static method to get voting statistics
 memberVoteSchema.statics.getVotingStats = function(projectId, session = null, proposalId = null) {
-  const matchQuery = { redevelopmentProject: projectId };
+  const matchQuery = { redevelopmentProject: new mongoose.Types.ObjectId(projectId) };
   
   const pipeline = [
     { $match: matchQuery },

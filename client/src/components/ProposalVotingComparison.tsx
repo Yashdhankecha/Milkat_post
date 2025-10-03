@@ -405,7 +405,7 @@ export default function ProposalVotingComparison({
         <TabsContent value="voting" className="space-y-4">
           <VotingPanel
             projectId={projectId}
-            session="default_session"
+            session="proposal_selection"
             userRole={userRole}
             votingDeadline={votingDeadline}
             isVotingOpen={isVotingOpen}

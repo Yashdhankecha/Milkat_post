@@ -20,12 +20,6 @@ import {
   MapPin, 
   Phone, 
   Mail, 
-  Globe, 
-  Linkedin, 
-  Twitter, 
-  Facebook, 
-  Instagram, 
-  Youtube,
   FileText,
   Shield,
   CheckCircle,
@@ -39,7 +33,6 @@ interface DeveloperProfile {
   companyName: string;
   companyDescription: string;
   establishedYear: number | null;
-  website: string;
   contactInfo: {
     phone?: string;
     email?: string;
@@ -48,14 +41,6 @@ interface DeveloperProfile {
     city?: string;
     state?: string;
     pincode?: string;
-  };
-  socialMedia: {
-    facebook?: string;
-    twitter?: string;
-    linkedin?: string;
-    instagram?: string;
-    youtube?: string;
-    website?: string;
   };
   businessType: string;
   registrationNumber: string;
@@ -116,25 +101,11 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
   const { profile } = useProfile();
   const { toast } = useToast();
 
-  // Function to format website URL
-  const formatWebsiteUrl = (url: string): string => {
-    if (!url.trim()) return '';
-    
-    let formattedUrl = url.trim();
-    
-    // If it doesn't start with http:// or https://, add https://
-    if (!formattedUrl.match(/^https?:\/\//i)) {
-      formattedUrl = `https://${formattedUrl}`;
-    }
-    
-    return formattedUrl;
-  };
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<DeveloperProfile>({
     companyName: '',
     companyDescription: '',
     establishedYear: null,
-    website: '',
     contactInfo: {
       phone: '',
       email: '',
@@ -143,14 +114,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
       city: '',
       state: '',
       pincode: ''
-    },
-    socialMedia: {
-      facebook: '',
-      twitter: '',
-      linkedin: '',
-      instagram: '',
-      youtube: '',
-      website: ''
     },
     businessType: 'private_limited',
     registrationNumber: '',
@@ -174,7 +137,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
         companyName: existingProfile.companyName || existingProfile.company_name || '',
         companyDescription: existingProfile.companyDescription || existingProfile.company_description || '',
         establishedYear: existingProfile.establishedYear || existingProfile.established_year || null,
-        website: existingProfile.website || '',
         contactInfo: {
           phone: existingProfile.contactInfo?.phone || existingProfile.contact_info?.phone || '',
           email: existingProfile.contactInfo?.email || existingProfile.contact_info?.email || '',
@@ -190,7 +152,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
           linkedin: existingProfile.socialMedia?.linkedin || existingProfile.social_media?.linkedin || '',
           instagram: existingProfile.socialMedia?.instagram || '',
           youtube: existingProfile.socialMedia?.youtube || '',
-          website: existingProfile.socialMedia?.website || ''
         },
         businessType: existingProfile.businessType || 'private_limited',
         registrationNumber: existingProfile.registrationNumber || '',
@@ -227,15 +188,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
     }));
   };
 
-  const handleSocialMediaChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      socialMedia: {
-        ...prev.socialMedia,
-        [field]: value
-      }
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -259,7 +211,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
         companyName: formData.companyName.trim(),
         ...(formData.companyDescription && { companyDescription: formData.companyDescription.trim() }),
         ...(formData.establishedYear && { establishedYear: parseInt(formData.establishedYear.toString()) }),
-        ...(formData.website && formData.website.trim() && { website: formatWebsiteUrl(formData.website.trim()) }),
         ...(formData.contactInfo && Object.keys(formData.contactInfo).length > 0 && { contactInfo: formData.contactInfo }),
         ...(formData.socialMedia && Object.keys(formData.socialMedia).length > 0 && { socialMedia: formData.socialMedia }),
         ...(formData.businessType && { businessType: formData.businessType }),
@@ -392,6 +343,11 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
                   className="mt-1"
                   placeholder="e.g., 2010"
                 />
+                {formData.establishedYear && (
+                  <p className="text-sm text-green-600 mt-1">
+                    Experience: {new Date().getFullYear() - formData.establishedYear} years
+                  </p>
+                )}
               </div>
             </div>
 
@@ -408,25 +364,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
               />
             </div>
 
-            <div>
-              <Label htmlFor="website" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Website URL
-              </Label>
-              <div className="relative mt-1">
-                <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="website"
-                  type="url"
-                  placeholder="www.yourcompany.com"
-                  value={formData.website}
-                  onChange={(e) => {
-                    const formattedUrl = formatWebsiteUrl(e.target.value);
-                    handleInputChange('website', formattedUrl);
-                  }}
-                  className="pl-10"
-                />
-              </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -534,88 +471,6 @@ const DeveloperProfileForm = ({ onUpdate, existingProfile }: DeveloperProfileFor
           </CardContent>
         </Card>
 
-        {/* Social Media */}
-        <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-orange-900/20">
-          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-red-500/5 dark:from-orange-900/10 dark:to-red-900/10 opacity-70 blur-3xl pointer-events-none"></div>
-          <CardHeader className="relative">
-            <CardTitle className="text-xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-              <Users className="h-5 w-5 text-orange-500" />
-              Social Media & Online Presence
-            </CardTitle>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Connect your social media profiles to increase visibility
-            </p>
-          </CardHeader>
-          <CardContent className="relative space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="linkedin" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  LinkedIn Profile
-                </Label>
-                <div className="relative mt-1">
-                  <Linkedin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-600" />
-                  <Input
-                    id="linkedin"
-                    placeholder="https://linkedin.com/company/..."
-                    value={formData.socialMedia.linkedin || ''}
-                    onChange={(e) => handleSocialMediaChange('linkedin', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="twitter" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Twitter Handle
-                </Label>
-                <div className="relative mt-1">
-                  <Twitter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400" />
-                  <Input
-                    id="twitter"
-                    placeholder="@yourcompany"
-                    value={formData.socialMedia.twitter || ''}
-                    onChange={(e) => handleSocialMediaChange('twitter', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="facebook" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Facebook Page
-                </Label>
-                <div className="relative mt-1">
-                  <Facebook className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-600" />
-                  <Input
-                    id="facebook"
-                    placeholder="https://facebook.com/yourcompany"
-                    value={formData.socialMedia.facebook || ''}
-                    onChange={(e) => handleSocialMediaChange('facebook', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="instagram" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Instagram Profile
-                </Label>
-                <div className="relative mt-1">
-                  <Instagram className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-pink-500" />
-                  <Input
-                    id="instagram"
-                    placeholder="https://instagram.com/yourcompany"
-                    value={formData.socialMedia.instagram || ''}
-                    onChange={(e) => handleSocialMediaChange('instagram', e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Business Information */}
         <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-teal-50 dark:from-gray-800 dark:to-teal-900/20">

@@ -15,6 +15,8 @@ import { createServer } from 'http';
 import config from './config-loader.js';
 // Import WebSocket service
 import socketService from './services/socketService.js';
+// Import voting scheduler
+import { initializeVotingScheduler } from './services/votingScheduler.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -201,9 +203,13 @@ const startServer = async () => {
   // Initialize WebSocket service
   socketService.initialize(server);
   
+  // Initialize voting scheduler
+  initializeVotingScheduler();
+  
   server.listen(PORT, HOST, () => {
     logger.info(`Server running on ${HOST}:${PORT} in ${config.NODE_ENV} mode`);
     logger.info(`WebSocket server initialized for real-time notifications`);
+    logger.info(`Voting scheduler initialized for automatic vote processing`);
   });
 };
 

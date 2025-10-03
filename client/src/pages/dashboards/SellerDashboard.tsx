@@ -167,8 +167,8 @@ const SellerDashboard = () => {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Welcome back, {profile?.full_name}</h1>
-            <p className="text-muted-foreground mt-1">Manage your property listings and inquiries</p>
+            <h1 className="text-3xl font-bold">Welcome back, {profile?.fullName}</h1>
+            <p className="text-muted-foreground mt-3">Manage your property listings and inquiries</p>
           </div>
           <div className="flex gap-2">
             <Button asChild>

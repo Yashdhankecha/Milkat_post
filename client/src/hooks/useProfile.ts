@@ -108,7 +108,8 @@ export const useProfile = () => {
         return;
       }
 
-      setProfile(result.data as UserProfile);
+      // The API returns { data: { profile: profileData } }
+      setProfile((result.data as any)?.profile as UserProfile);
     } catch (err) {
       console.error('[useProfile] Error fetching profile:', err);
       setError('Failed to fetch profile');
@@ -130,7 +131,8 @@ export const useProfile = () => {
         return { error: result.error };
       }
 
-      setProfile(result.data as UserProfile);
+      // The API returns { data: { profile: profileData } }
+      setProfile((result.data as any)?.profile as UserProfile);
       return { data: result.data, error: null };
     } catch (err) {
       console.error('[useProfile] Error updating profile:', err);
@@ -169,7 +171,8 @@ export const useProfile = () => {
         return { error: result.error };
       }
 
-      setProfile(result.data as UserProfile);
+      // The API returns { data: { profile: profileData } }
+      setProfile((result.data as any)?.profile as UserProfile);
       return { data: result.data, error: null };
     } catch (err) {
       console.error('[useProfile] Error creating profile:', err);
@@ -192,7 +195,8 @@ export const useProfile = () => {
         return { error: result.error };
       }
 
-      setProfile(result.data as UserProfile);
+      // The API returns { data: { profile: profileData } }
+      setProfile((result.data as any)?.profile as UserProfile);
       return { data: result.data, error: null };
     } catch (err) {
       console.error('[useProfile] Error switching role:', err);
@@ -225,7 +229,8 @@ export const useProfile = () => {
         return { error: updateResult.error };
       }
 
-      setProfile(updateResult.data as UserProfile);
+      // The API returns { data: { profile: profileData } }
+      setProfile((updateResult.data as any)?.profile as UserProfile);
       return { data: updateResult.data, error: null };
     } catch (err) {
       console.error('[useProfile] Error uploading profile picture:', err);

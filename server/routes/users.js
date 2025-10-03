@@ -55,11 +55,6 @@ router.put('/profile',
       .trim()
       .isLength({ min: 2, max: 100 })
       .withMessage('Full name must be between 2 and 100 characters'),
-    body('bio')
-      .optional()
-      .trim()
-      .isLength({ max: 500 })
-      .withMessage('Bio must not exceed 500 characters'),
     body('address')
       .optional()
       .trim()
@@ -77,28 +72,70 @@ router.put('/profile',
       .withMessage('Company name must not exceed 200 characters'),
     body('website')
       .optional()
-      .isURL()
-      .withMessage('Invalid website URL'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty values
+        // Basic URL validation - more lenient
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        if (!urlPattern.test(value)) {
+          throw new Error('Invalid website URL format');
+        }
+        return true;
+      }),
     body('socialMedia.facebook')
       .optional()
-      .isURL()
-      .withMessage('Invalid Facebook URL'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty values
+        // Basic URL validation - more lenient
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        if (!urlPattern.test(value)) {
+          throw new Error('Invalid Facebook URL format');
+        }
+        return true;
+      }),
     body('socialMedia.twitter')
       .optional()
-      .isURL()
-      .withMessage('Invalid Twitter URL'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty values
+        // Basic URL validation - more lenient
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        if (!urlPattern.test(value)) {
+          throw new Error('Invalid Twitter URL format');
+        }
+        return true;
+      }),
     body('socialMedia.linkedin')
       .optional()
-      .isURL()
-      .withMessage('Invalid LinkedIn URL'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty values
+        // Basic URL validation - more lenient
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        if (!urlPattern.test(value)) {
+          throw new Error('Invalid LinkedIn URL format');
+        }
+        return true;
+      }),
     body('socialMedia.instagram')
       .optional()
-      .isURL()
-      .withMessage('Invalid Instagram URL'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty values
+        // Basic URL validation - more lenient
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        if (!urlPattern.test(value)) {
+          throw new Error('Invalid Instagram URL format');
+        }
+        return true;
+      }),
     body('socialMedia.youtube')
       .optional()
-      .isURL()
-      .withMessage('Invalid YouTube URL'),
+      .custom((value) => {
+        if (!value) return true; // Allow empty values
+        // Basic URL validation - more lenient
+        const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+        if (!urlPattern.test(value)) {
+          throw new Error('Invalid YouTube URL format');
+        }
+        return true;
+      }),
     body('email')
       .optional()
       .isEmail()
@@ -106,56 +143,98 @@ router.put('/profile',
   ],
   validateRequest,
   catchAsync(async (req, res) => {
-    const allowedUpdates = [
-      'fullName', 'bio', 'address', 'businessType', 'companyName', 'website', 'socialMedia'
-    ];
-    
-    const updates = {};
-    Object.keys(req.body).forEach(key => {
-      if (allowedUpdates.includes(key)) {
-        updates[key] = req.body[key];
-      }
-    });
-
-    // Handle email update separately (it's in User model, not Profile model)
-    if (req.body.email) {
-      const user = await User.findByIdAndUpdate(
-        req.user._id,
-        { email: req.body.email },
-        { new: true, runValidators: true }
-      );
+    try {
+      console.log('Profile update request:', { userId: req.user._id, body: req.body });
       
-      if (!user) {
+      const allowedUpdates = [
+        'fullName', 'address', 'businessType', 'companyName', 'website', 'socialMedia'
+      ];
+      
+      const updates = {};
+      Object.keys(req.body).forEach(key => {
+        if (allowedUpdates.includes(key)) {
+          updates[key] = req.body[key];
+        }
+      });
+
+      console.log('Allowed updates:', updates);
+
+      // Handle email update separately (it's in User model, not Profile model)
+      if (req.body.email) {
+        console.log('Updating user email:', req.body.email);
+        const user = await User.findByIdAndUpdate(
+          req.user._id,
+          { email: req.body.email },
+          { new: true, runValidators: true }
+        );
+        
+        if (!user) {
+          return res.status(404).json({
+            status: 'error',
+            message: 'User not found'
+          });
+        }
+        console.log('User email updated successfully');
+      }
+
+      console.log('Updating profile with:', updates);
+      const profile = await Profile.findOneAndUpdate(
+        { user: req.user._id },
+        updates,
+        { new: true, runValidators: true }
+      ).populate('user', 'email phone isVerified lastLogin currentRole activeRole');
+
+      if (!profile) {
         return res.status(404).json({
           status: 'error',
-          message: 'User not found'
+          message: 'Profile not found'
         });
       }
-    }
 
-    const profile = await Profile.findOneAndUpdate(
-      { user: req.user._id },
-      updates,
-      { new: true, runValidators: true }
-    ).populate('user', 'email phone isVerified lastLogin currentRole activeRole');
+      console.log('Profile updated successfully');
 
-    if (!profile) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'Profile not found'
+      // Add current and active role from user model to profile data
+      const profileData = profile.toObject();
+      profileData.currentRole = profile.user.currentRole;
+      profileData.activeRole = profile.user.activeRole;
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Profile updated successfully',
+        data: { profile: profileData }
       });
+    } catch (error) {
+      console.error('Profile update error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        code: error.code,
+        stack: error.stack
+      });
+      
+      // Handle specific MongoDB errors
+      if (error.code === 11000) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Email already exists',
+          code: 'DUPLICATE_EMAIL'
+        });
+      }
+      
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Validation failed',
+          errors: Object.values(error.errors).map(err => ({
+            field: err.path,
+            message: err.message
+          }))
+        });
+      }
+      
+      // Re-throw other errors to be handled by global error handler
+      throw error;
     }
-
-    // Add current and active role from user model to profile data
-    const profileData = profile.toObject();
-    profileData.currentRole = profile.user.currentRole;
-    profileData.activeRole = profile.user.activeRole;
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Profile updated successfully',
-      data: { profile: profileData }
-    });
   })
 );
 

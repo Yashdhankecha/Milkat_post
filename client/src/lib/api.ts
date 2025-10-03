@@ -1147,6 +1147,16 @@ class ApiClient {
     return this.request(`/member-votes/stats/${projectId}${queryParams}`);
   }
 
+  async startVoting(projectId: string, votingDeadline?: string) {
+    return this.request(`/redevelopment-projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        status: 'voting',
+        votingDeadline: votingDeadline
+      })
+    });
+  }
+
   async closeVoting(projectId: string) {
     return this.request(`/redevelopment-projects/${projectId}/close-voting`, {
       method: 'POST'

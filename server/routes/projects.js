@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import Project from '../models/Project.js';
+import User from '../models/User.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { catchAsync } from '../middleware/errorHandler.js';
 
@@ -336,6 +337,125 @@ router.post('/:id/floor-plans',
       status: 'success',
       message: 'Floor plan added successfully',
       data: { project }
+    });
+  })
+);
+
+// Save project to user's saved list
+router.post('/save-project',
+  authenticate,
+  [
+    body('projectId')
+      .isMongoId()
+      .withMessage('Invalid project ID')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { projectId } = req.body;
+    const userId = req.user._id;
+
+    // Check if project exists
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Project not found'
+      });
+    }
+
+    // Check if user already saved this project
+    const user = await User.findById(userId);
+    if (user.savedProjects.includes(projectId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Project already saved'
+      });
+    }
+
+    // Add project to saved list
+    user.savedProjects.push(projectId);
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Project saved successfully'
+    });
+  })
+);
+
+// Remove project from user's saved list
+router.delete('/unsave-project',
+  authenticate,
+  [
+    body('projectId')
+      .isMongoId()
+      .withMessage('Invalid project ID')
+  ],
+  validateRequest,
+  catchAsync(async (req, res) => {
+    const { projectId } = req.body;
+    const userId = req.user._id;
+
+    // Remove project from saved list
+    const user = await User.findById(userId);
+    user.savedProjects = user.savedProjects.filter(id => id.toString() !== projectId);
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Project removed from saved list'
+    });
+  })
+);
+
+// Get user's saved projects
+router.get('/saved-projects/:userId',
+  authenticate,
+  catchAsync(async (req, res) => {
+    const { userId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Verify the user is requesting their own saved projects or is admin
+    if (req.user._id.toString() !== userId && req.profile.role !== 'admin') {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied. You can only view your own saved projects.'
+      });
+    }
+
+    // Get user with saved projects populated
+    const user = await User.findById(userId).populate({
+      path: 'savedProjects',
+      options: {
+        skip,
+        limit,
+        sort: { createdAt: -1 }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+
+    // Get total count for pagination
+    const total = user.savedProjects.length;
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        projects: user.savedProjects,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
     });
   })
 );

@@ -92,7 +92,7 @@ interface SocietyMember {
 
 
 const SocietyOwnerDashboard = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [society, setSociety] = useState<Society | null>(null);
   const [members, setMembers] = useState<SocietyMember[]>([]);
   const [queries, setQueries] = useState<any[]>([]);
@@ -505,8 +505,8 @@ const SocietyOwnerDashboard = () => {
                 <Sparkles className="h-10 w-10 text-blue-500 animate-pulse" />
                 Society Management Dashboard
               </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-400 mt-2 animate-fade-in">
-                Welcome back, <span className="font-semibold">{user?.phone}</span>! Manage your society with confidence.
+              <p className="text-lg text-gray-600 dark:text-gray-400 mt-4 animate-fade-in">
+                Welcome back, <span className="font-semibold">{profile?.fullName || user?.phone}</span>! Manage your society with confidence.
               </p>
           </div>
             <div className="flex items-center gap-3">

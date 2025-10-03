@@ -44,6 +44,8 @@ import MemberQueries from './MemberQueries';
 import VotingPanel from './VotingPanel';
 import SimpleVotingPanel from './SimpleVotingPanel';
 import VotingResults from './VotingResults';
+import VotingManagement from './VotingManagement';
+import ProposalVoting from './ProposalVoting';
 
 interface RedevelopmentProject {
   _id: string;
@@ -62,6 +64,9 @@ interface RedevelopmentProject {
   corpusAmount: number;
   rentAmount: number;
   expectedAmenities: string[];
+  minimumApprovalPercentage?: number;
+  votingDeadline?: string;
+  votingStatus?: string;
   timeline: {
     startDate?: string;
     expectedCompletionDate?: string;
@@ -123,6 +128,10 @@ interface DeveloperProposal {
   developer: {
     _id: string;
     phone: string;
+    companyName?: string;
+  };
+  developerProfile?: {
+    company_name?: string;
   };
   corpusAmount: number;
   rentAmount: number;
@@ -345,10 +354,13 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
 
   const fetchProposals = async (projectId: string) => {
     try {
-      console.log('Fetching proposals for project:', projectId);
+      console.log('🔍 Fetching proposals for project:', projectId);
       const response = await apiClient.getDeveloperProposals(`?project_id=${projectId}`);
       
+      console.log('📡 API Response:', response);
+      
       if (response.error) {
+        console.error('❌ API Error:', response.error);
         toast({
           title: "Error",
           description: "Failed to fetch developer proposals",
@@ -357,10 +369,13 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
         return;
       }
 
-      console.log('Proposals data for project', projectId, ':', response.data?.proposals);
-      setProposals(response.data?.proposals || []);
+      const proposalsData = response.data?.proposals || [];
+      console.log('📋 Proposals data for project', projectId, ':', proposalsData);
+      console.log('📊 Number of proposals found:', proposalsData.length);
+      
+      setProposals(proposalsData);
     } catch (error) {
-      console.error('Error fetching proposals:', error);
+      console.error('❌ Error fetching proposals:', error);
       toast({
         title: "Error",
         description: "Failed to fetch developer proposals",
@@ -431,7 +446,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
               votesByProposal[proposalId] = {
                 proposalId,
                 proposalTitle: vote.proposalId?.title || 'Unknown Proposal',
-                developerName: vote.proposalId?.developerInfo?.companyName || 'Unknown Developer',
+                developerName: vote.proposalId?.developerInfo?.companyName || vote.proposalId?.developer?.name || 'Developer',
                 yesVotes: [],
                 noVotes: [],
                 totalVotes: 0
@@ -459,7 +474,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
           votesByProposal[proposal._id] = {
             proposalId: proposal._id,
             proposalTitle: proposal.title,
-            developerName: proposal.developerInfo?.companyName || 'Unknown Developer',
+            developerName: proposal.developerInfo?.companyName || proposal.developer?.companyName || proposal.developerProfile?.company_name || 'Developer',
             yesVotes: [],
             noVotes: [],
             totalVotes: 0
@@ -819,7 +834,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
         redevelopmentProject: selectedProject._id,
         proposal: proposalId,
         vote: vote, // Send the string value directly ('yes', 'no', 'abstain')
-        votingSession: 'default_session'
+        votingSession: 'proposal_selection'
       });
 
       if (response.error) {
@@ -980,19 +995,45 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
     setVotesFinalized(false);
     setVotingState({});
     
+    // Always fetch proposals for any project status
+    await fetchProposals(project._id);
+    
+    // Fetch voting results only for projects that have voting
     if (project.status === 'proposals_received' || project.status === 'voting' || project.status === 'developer_selected') {
-      await Promise.all([
-        fetchProposals(project._id),
-        fetchVotingResults(project._id)
-      ]);
+      await fetchVotingResults(project._id);
     }
     
     setLoadingProjectData(false);
   };
 
-  const handleViewMore = (projectId: string, e: React.MouseEvent) => {
+  const handleViewMore = async (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
-    setExpandedProjectId(expandedProjectId === projectId ? null : projectId);
+    
+    const isExpanding = expandedProjectId !== projectId;
+    setExpandedProjectId(isExpanding ? projectId : null);
+    
+    // If expanding, fetch proposals and voting data
+    if (isExpanding) {
+      setLoadingProjectData(true);
+      
+      // Clear previous data
+      setProposals([]);
+      setVotingResultsData([]);
+      
+      // Find the project
+      const project = projects.find(p => p._id === projectId);
+      if (project) {
+        // Always fetch proposals for any project status
+        await fetchProposals(projectId);
+        
+        // Fetch voting results only for projects that have voting
+        if (project.status === 'proposals_received' || project.status === 'voting' || project.status === 'developer_selected') {
+          await fetchVotingResults(projectId);
+        }
+      }
+      
+      setLoadingProjectData(false);
+    }
   };
 
   const handleProjectCreated = (newProject: RedevelopmentProject) => {
@@ -1304,6 +1345,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                             myVotes={memberVotes}
                             hasVoted={hasMemberVoted}
                             votingOpen={project?.status === 'voting'}
+                            onRefreshProposals={() => fetchProposals(project._id)}
                           />
                         )}
                       </TabsContent>
@@ -1352,122 +1394,109 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                       </TabsContent>
                     </Tabs>
                   ) : (
-                    /* For Owners: Show basic project details in expanded section */
-                    <div className="space-y-6">
-                      {/* Project Description */}
-                      <div>
-                        <h3 className="font-semibold mb-2">Description</h3>
-                        <p className="text-muted-foreground">{project.description}</p>
-                      </div>
+                    /* For Owners: Show tabs in expanded section */
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                      <TabsList className="grid w-full grid-cols-4">
+                        <TabsTrigger value="overview">Overview</TabsTrigger>
+                        <TabsTrigger value="voting">Voting Management</TabsTrigger>
+                        <TabsTrigger value="results">Voting Results</TabsTrigger>
+                        <TabsTrigger value="queries">Queries</TabsTrigger>
+                      </TabsList>
 
-                      {/* Project Timeline */}
-                      {project.timeline && (
-                        <div>
-                          <h3 className="font-semibold mb-2">Timeline</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {project.timeline.startDate && (
-                              <div>
-                                <span className="text-sm text-muted-foreground">Start Date:</span>
-                                <p className="font-medium">
-                                  {new Date(project.timeline.startDate).toLocaleDateString('en-IN')}
-                                </p>
-                              </div>
-                            )}
-                            {project.timeline.expectedCompletionDate && (
-                              <div>
-                                <span className="text-sm text-muted-foreground">Expected Completion:</span>
-                                <p className="font-medium">
-                                  {new Date(project.timeline.expectedCompletionDate).toLocaleDateString('en-IN')}
-                                </p>
-                              </div>
-                            )}
+                      <TabsContent value="overview" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading project data...</p>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <ProjectOverview 
+                            project={project} 
+                            proposals={proposals} 
+                            onViewProposal={handleViewProposal}
+                            userRole={user?.currentRole}
+                            votingResultsData={votingResultsData}
+                            onVote={handleMemberVote}
+                            myVotes={memberVotes}
+                            hasVoted={hasMemberVoted}
+                            votingOpen={project?.status === 'voting'}
+                            onRefreshProposals={() => fetchProposals(project._id)}
+                          />
+                        )}
+                      </TabsContent>
 
-                      {/* Expected Amenities */}
-                      {project.expectedAmenities && project.expectedAmenities.length > 0 && (
-                        <div>
-                          <h3 className="font-semibold mb-2">Expected Amenities</h3>
-                          <div className="flex flex-wrap gap-2">
-                            {project.expectedAmenities.map((amenity, index) => (
-                              <Badge key={index} variant="secondary">
-                                {amenity}
-                              </Badge>
-                            ))}
+                      <TabsContent value="voting" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading voting data...</p>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <VotingManagement
+                            project={{
+                              _id: project._id,
+                              title: project.title,
+                              status: project.status,
+                              votingDeadline: project.votingDeadline,
+                              votingStatus: project.votingStatus,
+                              minimumApprovalPercentage: project.minimumApprovalPercentage || 75
+                            }}
+                            onVotingUpdate={async () => {
+                              await fetchVotingResults(project._id);
+                              fetchProjects();
+                            }}
+                            userRole="society_owner"
+                          />
+                        )}
+                      </TabsContent>
 
-                      {/* Project Documents */}
-                      {project.documents && project.documents.length > 0 && (
-                        <div>
-                          <h3 className="font-semibold mb-2">Documents ({project.documents.length})</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {project.documents.slice(0, 4).map((document, index) => (
-                              <div key={index} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                                  <FileText className="h-5 w-5 text-red-600" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm truncate">
-                                    {document.name}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground capitalize">
-                                    {document.type.replace('_', ' ')} Document
-                                  </p>
-                                </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const link = window.document.createElement('a');
-                                    link.href = document.url;
-                                    link.download = document.name;
-                                    link.target = '_blank';
-                                    window.document.body.appendChild(link);
-                                    link.click();
-                                    window.document.body.removeChild(link);
-                                  }}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))}
+                      <TabsContent value="results" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading voting results...</p>
+                            </div>
                           </div>
-                          {project.documents.length > 4 && (
-                            <p className="text-sm text-muted-foreground mt-2">
-                              +{project.documents.length - 4} more documents
-                            </p>
-                          )}
-                        </div>
-                      )}
+                        ) : (
+                          <VotingResults
+                            projectId={project._id}
+                            userRole="society_owner"
+                            showCloseButton={true}
+                            onCloseVoting={() => {
+                              // Refresh project data after closing voting
+                              fetchProjects();
+                            }}
+                          />
+                        )}
+                      </TabsContent>
 
-                      {/* Recent Updates */}
-                      {project.updates && project.updates.length > 0 && (
-                        <div>
-                          <h3 className="font-semibold mb-2">Recent Updates</h3>
-                          <div className="space-y-3">
-                            {project.updates.slice(0, 3).map((update, index) => (
-                              <div key={index} className="p-3 border rounded-lg">
-                                <div className="flex items-start justify-between mb-2">
-                                  <h4 className="font-medium">{update.title}</h4>
-                                  <span className="text-xs text-muted-foreground">
-                                    {new Date(update.postedAt).toLocaleDateString('en-IN')}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{update.description}</p>
-                              </div>
-                            ))}
+                      <TabsContent value="queries" className="space-y-6">
+                        {loadingProjectData ? (
+                          <div className="flex items-center justify-center py-12">
+                            <div className="text-center">
+                              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                              <p className="text-muted-foreground">Loading queries data...</p>
+                            </div>
                           </div>
-                          {project.updates.length > 3 && (
-                            <p className="text-sm text-muted-foreground mt-2">
-                              +{project.updates.length - 3} more updates
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                        ) : (
+                          <MemberQueries 
+                            project={{
+                              _id: project._id,
+                              title: project.title,
+                              queries: project.queries.map(q => ({
+                                ...q,
+                                status: q.status as "open" | "in_review" | "resolved" | "closed"
+                              }))
+                            }}
+                          />
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   )}
                 </CardContent>
               </Card>
@@ -1507,6 +1536,7 @@ const RedevelopmentModule: React.FC<RedevelopmentModuleProps> = ({ societyId, is
                 myVotes={memberVotes}
                 hasVoted={hasMemberVoted}
                 votingOpen={selectedProject?.status === 'voting'}
+                onRefreshProposals={() => fetchProposals(selectedProject._id)}
               />
               )}
             </TabsContent>
@@ -2059,6 +2089,7 @@ const ProjectOverview: React.FC<{
   myVotes?: Record<string, { vote: 'yes' | 'no' }>;
   hasVoted?: boolean;
   votingOpen?: boolean;
+  onRefreshProposals?: () => void;
 }> = ({ 
   project, 
   proposals, 
@@ -2068,8 +2099,12 @@ const ProjectOverview: React.FC<{
   onVote,
   myVotes = {},
   hasVoted = false,
-  votingOpen = false
+  votingOpen = false,
+  onRefreshProposals
 }) => {
+  console.log('🎯 ProjectOverview - Project:', project._id, 'Status:', project.status);
+  console.log('📋 ProjectOverview - Proposals received:', proposals.length, proposals);
+  
   return (
     <div className="space-y-6">
       {/* Project Details */}
@@ -2239,135 +2274,151 @@ const ProjectOverview: React.FC<{
         </Card>
       )}
 
-      {/* Society Member Voting Section */}
-      {userRole === 'society_member' && proposals.length > 0 && (
-        <Card>
+      {/* All Proposals */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All Proposals ({proposals.length})</CardTitle>
+              <CardDescription>View all submitted proposals for this project</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                console.log('🔄 Manual refresh proposals for project:', project._id);
+                if (onRefreshProposals) {
+                  onRefreshProposals();
+                }
+              }}
+            >
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {proposals.length > 0 ? (
+            <div className="space-y-4">
+              {proposals.map((proposal) => (
+                <div key={proposal._id} className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-lg">{proposal.title}</h4>
+                      <p className="text-muted-foreground mb-2">
+                        by {proposal.developerInfo?.companyName || proposal.developer?.companyName || proposal.developerProfile?.company_name || 'Developer'}
+                      </p>
+                      <p className="text-sm">{proposal.description}</p>
+                      
+                      {/* Additional Proposal Details */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Corpus:</span>
+                          <div className="font-medium">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Rent:</span>
+                          <div className="font-medium">₹{proposal.rentAmount?.toLocaleString() || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">FSI:</span>
+                          <div className="font-medium">{proposal.fsi || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Timeline:</span>
+                          <div className="font-medium">{proposal.timeline || 'N/A'}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge variant={proposal.status === 'selected' ? 'default' : 'outline'}>
+                        {proposal.status}
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onViewProposal(proposal)}
+                        className="text-green-600 border-green-200 hover:bg-green-50"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        View Proposal
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">No Proposals Yet</h3>
+              <p className="text-gray-600">
+                {project.status === 'planning' 
+                  ? 'This project is still in planning phase. Proposals will appear here once the tender is opened.'
+                  : project.status === 'tender_open'
+                  ? 'No proposals have been submitted yet. Check back later.'
+                  : 'No proposals available for this project.'
+                }
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Voting Interface for Society Members */}
+      {userRole === 'society_member' && votingOpen && proposals.length > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-blue-800">
               <Vote className="h-5 w-5" />
-              {votingOpen ? 'Vote on Proposals' : 'Voting Results'}
+              Cast Your Vote
             </CardTitle>
-            <CardDescription>
-              {votingOpen 
-                ? 'Cast your vote on the submitted proposals. You can only vote once per proposal.'
-                : 'Voting has been completed. Here are the results.'
-              }
+            <CardDescription className="text-blue-700">
+              Vote on the developer proposals for this redevelopment project
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {votingOpen && !hasVoted ? (
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-blue-800 mb-2">Voting Instructions</h3>
-                  <ul className="text-blue-600 text-sm space-y-1">
-                    <li>• You can vote Yes or No for each proposal</li>
-                    <li>• You can only vote once per proposal</li>
-                    <li>• Your vote will be recorded anonymously</li>
-                  </ul>
+            <ProposalVoting
+              projectId={project._id}
+              proposals={proposals}
+              userRole="society_member"
+              votingDeadline={project.votingDeadline}
+              isVotingOpen={votingOpen}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Voting Status for Society Members when not open */}
+      {userRole === 'society_member' && !votingOpen && (
+        <Card className="border-gray-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Voting Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-4">
+              {project.status === 'proposals_received' ? (
+                <div className="text-amber-700">
+                  <AlertCircle className="h-8 w-8 mx-auto mb-2" />
+                  <p className="font-medium">Proposals received. Waiting for voting to begin.</p>
+                  <p className="text-sm text-amber-600">The society owner will start the voting process soon.</p>
                 </div>
-                
-                <div className="space-y-4">
-                  {proposals.map((proposal) => (
-                    <Card key={proposal._id} className="border-l-4 border-l-blue-500">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4 mb-4">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-lg">{proposal.title}</h4>
-                            <p className="text-muted-foreground mb-2">
-                              by {proposal.developerInfo?.companyName || 'Developer'}
-                            </p>
-                            <p className="text-sm">{proposal.description}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-semibold">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
-                            <div className="text-sm text-muted-foreground">Corpus Amount</div>
-                          </div>
-                        </div>
-                        
-                        {/* Voting Interface */}
-                        <div className="border-t pt-4">
-                          <div className="flex items-center gap-4 mb-3">
-                            <span className="font-medium">Your Vote:</span>
-                            <div className="flex gap-2">
-                              <Button
-                                variant={myVotes[proposal._id]?.vote === 'yes' ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => onVote?.(proposal._id, 'yes')}
-                                className={myVotes[proposal._id]?.vote === 'yes' ? 'bg-green-600 hover:bg-green-700' : ''}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Yes
-                              </Button>
-                              <Button
-                                variant={myVotes[proposal._id]?.vote === 'no' ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => onVote?.(proposal._id, 'no')}
-                                className={myVotes[proposal._id]?.vote === 'no' ? 'bg-red-600 hover:bg-red-700' : ''}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                No
-                              </Button>
-                            </div>
-                          </div>
-                          
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+              ) : project.status === 'developer_selected' ? (
+                <div className="text-green-700">
+                  <CheckCircle className="h-8 w-8 mx-auto mb-2" />
+                  <p className="font-medium">Voting completed and developer selected.</p>
+                  <p className="text-sm text-green-600">Check the results below to see the final outcome.</p>
                 </div>
-              </div>
-            ) : hasVoted ? (
-              <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-green-800 mb-2">✓ You Have Voted</h3>
-                  <p className="text-green-600 text-sm">
-                    Thank you for participating in the voting process. Your votes have been recorded.
-                  </p>
+              ) : (
+                <div className="text-gray-700">
+                  <Clock className="h-8 w-8 mx-auto mb-2" />
+                  <p className="font-medium">Voting is not currently open.</p>
+                  <p className="text-sm text-gray-600">Check back later for voting updates.</p>
                 </div>
-                
-                {/* Show user's votes */}
-                <div className="space-y-4">
-                  {proposals.map((proposal) => {
-                    const myVote = myVotes[proposal._id];
-                    return (
-                      <Card key={proposal._id} className="border-l-4 border-l-green-500">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-4 mb-3">
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-lg">{proposal.title}</h4>
-                              <p className="text-muted-foreground mb-2">
-                                by {proposal.developerInfo?.companyName || 'Developer'}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-semibold">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
-                              <div className="text-sm text-muted-foreground">Corpus Amount</div>
-                            </div>
-                          </div>
-                          
-                          {myVote && (
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="font-medium">Your Vote:</span>
-                                <Badge className={myVote.vote === 'yes' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                                  {myVote.vote === 'yes' ? 'Yes' : 'No'}
-                                </Badge>
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <div className="text-muted-foreground">
-                  {votingOpen ? 'Voting is not available at this time.' : 'Voting results will be displayed here once voting is completed.'}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -2404,11 +2455,11 @@ const ProjectOverview: React.FC<{
                     
                     <div className="grid grid-cols-3 gap-4 bg-gray-50 p-3 rounded-lg">
                       <div className="text-center">
-                        <div className="text-lg font-bold text-green-600">{result.yesVotes || 0}</div>
+                        <div className="text-lg font-bold text-green-600">{Array.isArray(result.yesVotes) ? result.yesVotes.length : (result.yesVotes || 0)}</div>
                         <div className="text-xs text-muted-foreground">Yes Votes</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg font-bold text-red-600">{result.noVotes || 0}</div>
+                        <div className="text-lg font-bold text-red-600">{Array.isArray(result.noVotes) ? result.noVotes.length : (result.noVotes || 0)}</div>
                         <div className="text-xs text-muted-foreground">No Votes</div>
                       </div>
                       <div className="text-center">
@@ -2418,51 +2469,6 @@ const ProjectOverview: React.FC<{
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* All Proposals */}
-      {proposals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>All Proposals ({proposals.length})</CardTitle>
-            <CardDescription>View all submitted proposals for this project</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {proposals.map((proposal) => (
-                <div key={proposal._id} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-lg">{proposal.title}</h4>
-                      <p className="text-muted-foreground mb-2">
-                        by {proposal.developerInfo?.companyName || 'Developer'}
-                      </p>
-                      <p className="text-sm">{proposal.description}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge variant={proposal.status === 'selected' ? 'default' : 'outline'}>
-                        {proposal.status}
-                      </Badge>
-                      <div className="text-right text-sm">
-                        <div className="font-medium">₹{proposal.corpusAmount?.toLocaleString() || 'N/A'}</div>
-                        <div className="text-muted-foreground">Corpus</div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onViewProposal(proposal)}
-                        className="text-green-600 border-green-200 hover:bg-green-50"
-                      >
-                        <FileText className="h-4 w-4 mr-1" />
-                        View Proposal
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               ))}
             </div>
           </CardContent>

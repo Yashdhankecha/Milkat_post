@@ -40,6 +40,14 @@ router.get('/',
     const { project_id, developer_id, status, page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
+    console.log('🔍 Developer Proposals API - Request:', {
+      project_id,
+      developer_id,
+      status,
+      userRole: req.user.currentRole,
+      userId: req.user._id
+    });
+
     let query = {};
     
     // If user is a developer, show only their proposals
@@ -51,16 +59,41 @@ router.get('/',
     if (project_id) {
       query.redevelopmentProject = project_id;
       
-      // If user is a society owner, verify they own the project
+      // Verify user has access to this project
+      const project = await RedevelopmentProject.findById(project_id).populate('society', 'owner');
+      if (!project) {
+        return res.status(404).json({
+          status: 'error',
+          message: 'Project not found.'
+        });
+      }
+
+      // Check access based on user role
       if (req.user.currentRole === 'society_owner') {
-        const project = await RedevelopmentProject.findById(project_id).populate('society', 'owner');
-        if (!project || project.society.owner.toString() !== req.user._id.toString()) {
+        // Society owner can only view proposals for their own projects
+        if (project.society.owner.toString() !== req.user._id.toString()) {
           return res.status(403).json({
             status: 'error',
             message: 'Access denied. You can only view proposals for your own projects.'
           });
         }
+      } else if (req.user.currentRole === 'society_member') {
+        // Society member can view proposals for projects in their society
+        const SocietyMember = (await import('../models/SocietyMember.js')).default;
+        const isMember = await SocietyMember.findOne({
+          society: project.society._id,
+          user: req.user._id,
+          status: 'active'
+        });
+        
+        if (!isMember) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Access denied. You can only view proposals for projects in your society.'
+          });
+        }
       }
+      // Developers can view proposals (handled by the developer filter above)
     }
     
     // If developer_id is provided, filter by it
@@ -73,6 +106,8 @@ router.get('/',
       query.status = status;
     }
 
+    console.log('🔍 Final query for proposals:', query);
+
     const proposals = await DeveloperProposal.find(query)
       .populate('redevelopmentProject', 'title society status')
       .populate('developer', 'phone')
@@ -82,6 +117,18 @@ router.get('/',
       .limit(parseInt(limit));
 
     const total = await DeveloperProposal.countDocuments(query);
+
+    console.log('📋 Proposals found:', {
+      count: proposals.length,
+      total,
+      proposals: proposals.map(p => ({
+        id: p._id,
+        title: p.title,
+        project: p.redevelopmentProject?.title,
+        developer: p.developer?.phone,
+        status: p.status
+      }))
+    });
 
     res.status(200).json({
       status: 'success',

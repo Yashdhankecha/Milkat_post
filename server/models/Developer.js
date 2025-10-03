@@ -23,10 +23,6 @@ const developerSchema = new mongoose.Schema({
     min: 1900,
     max: new Date().getFullYear()
   },
-  website: {
-    type: String,
-    trim: true
-  },
   contactInfo: {
     phone: String,
     email: String,
@@ -35,14 +31,6 @@ const developerSchema = new mongoose.Schema({
     city: String,
     state: String,
     pincode: String
-  },
-  socialMedia: {
-    facebook: String,
-    twitter: String,
-    linkedin: String,
-    instagram: String,
-    youtube: String,
-    website: String
   },
   businessType: {
     type: String,

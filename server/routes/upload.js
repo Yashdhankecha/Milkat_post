@@ -193,7 +193,7 @@ router.post('/multiple',
 // Upload property images (images and videos only)
 router.post('/property-images',
   authenticate,
-  authorize('buyer_seller', 'broker', 'developer', 'society_owner'),
+  authorize('buyer_seller', 'broker', 'developer', 'society_owner', 'society_member'),
   smartUpload('images', 20),
   validateFileType,
   processUploadedFiles,

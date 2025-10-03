@@ -221,7 +221,7 @@ const BrokerDashboard = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Broker Dashboard</h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground mt-3">
               Welcome back, {profile?.fullName} 
               {brokerProfile.status === 'pending' && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800">

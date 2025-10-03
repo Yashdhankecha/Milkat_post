@@ -812,7 +812,21 @@ router.post(
     }
 
     // Check if invitation belongs to the user
-    if (invitation.registeredUserId.toString() !== userId.toString()) {
+    // Check both registeredUserId (if available) and invitedPhone
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'User not found'
+      });
+    }
+
+    const belongsToUser = (
+      (invitation.registeredUserId && invitation.registeredUserId.toString() === userId.toString()) ||
+      invitation.invitedPhone === user.phone
+    );
+
+    if (!belongsToUser) {
       return res.status(403).json({
         status: 'error',
         message: 'This invitation does not belong to you'

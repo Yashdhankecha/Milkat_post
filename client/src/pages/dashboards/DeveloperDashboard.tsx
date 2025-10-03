@@ -71,7 +71,12 @@ interface DeveloperProject {
   status: string
   completion_date: string | null
   price_range: string
-  images: string[]
+  images: Array<{
+    url: string
+    caption?: string
+    isPrimary?: boolean
+    uploadedAt?: string
+  }>
   documents?: Array<{
     name: string
     type: string
@@ -354,7 +359,7 @@ const DeveloperDashboard = () => {
         // Calculate proposal stats
         const totalProposals = proposalsData.length;
         const acceptedProposals = proposalsData.filter((p: any) => 
-          p.status === 'selected' || p.status === 'approved'
+          p.status === 'selected'
         ).length;
         
         setStats(prev => ({
@@ -742,7 +747,7 @@ const DeveloperDashboard = () => {
                   </div>
                 </div>
                 <p className="text-3xl font-extrabold text-purple-900 dark:text-purple-100 leading-none">
-                  {stats.totalInquiries}
+                  {stats.totalProjects}
                 </p>
                 <p className="text-sm text-purple-700 dark:text-purple-300 mt-2">Projects Listed</p>
               </CardContent>
@@ -837,11 +842,14 @@ const DeveloperDashboard = () => {
                     {projects.map((project, index) => (
                       <Card key={project.id || project._id || `project-${index}`} className="overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-blue-500/20 group">
                         <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 relative overflow-hidden">
-                          {project.images?.[0] ? (
+                          {project.images?.[0]?.url ? (
                             <img 
-                              src={project.images[0]} 
+                              src={project.images[0].url} 
                               alt={project.name}
                               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              onError={(e) => {
+                                e.currentTarget.src = '/placeholder.svg';
+                              }}
                             />
                           ) : (
                             <div className="flex items-center justify-center h-full">

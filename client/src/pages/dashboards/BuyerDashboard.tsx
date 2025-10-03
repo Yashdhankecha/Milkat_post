@@ -152,7 +152,7 @@ const BuyerDashboard = () => {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Welcome back, {profile?.fullName}</h1>
-            <p className="text-muted-foreground mt-1">Find your dream property with MilkatPost</p>
+            <p className="text-muted-foreground mt-3">Find your dream property with MilkatPost</p>
           </div>
           <div className="flex gap-2">
             <Button asChild variant="outline">

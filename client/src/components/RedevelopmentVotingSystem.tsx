@@ -76,7 +76,7 @@ const RedevelopmentVotingSystem: React.FC<RedevelopmentVotingSystemProps> = ({
 
   const fetchVotingResults = async () => {
     try {
-      const response = await apiClient.getVotingResults(project._id);
+      const response = await apiClient.getVotingResults(project._id, 'proposal_selection');
       
       if (response.error) {
         console.error('Error fetching voting results:', response.error);
@@ -103,7 +103,7 @@ const RedevelopmentVotingSystem: React.FC<RedevelopmentVotingSystemProps> = ({
     try {
       const voteData = {
         vote: userVote,
-        voting_session: 'default_session',
+        voting_session: 'proposal_selection',
         proposal_id: selectedProposal || undefined,
         reason: voteReason.trim() || undefined
       };

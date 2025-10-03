@@ -109,7 +109,7 @@ interface Stats {
 }
 
 const SocietyMemberDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [societies, setSocieties] = useState<Society[]>([]);
@@ -334,7 +334,7 @@ const SocietyMemberDashboard: React.FC = () => {
                 Society Member Dashboard
               </h1>
               <p className="text-gray-600 mt-2 text-lg">
-                Welcome, {user?.name || user?.phone}
+                Welcome, {profile?.fullName || user?.phone}
               </p>
             </div>
 
@@ -398,8 +398,8 @@ const SocietyMemberDashboard: React.FC = () => {
                 <span className="hidden sm:inline">Member Dashboard</span>
                 <span className="sm:hidden">Dashboard</span>
               </h1>
-              <p className="text-gray-600 mt-1 sm:mt-2 text-base sm:text-lg">
-                Welcome back, <span className="font-semibold text-indigo-600">{user?.name || user?.phone}</span>
+              <p className="text-gray-600 mt-3 sm:mt-4 text-base sm:text-lg">
+                Welcome back, <span className="font-semibold text-indigo-600">{profile?.fullName || user?.phone}</span>
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -419,35 +419,6 @@ const SocietyMemberDashboard: React.FC = () => {
                   ))}
                 </select>
               )}
-              <div 
-                onClick={() => {
-                  console.log('View Society button clicked');
-                  console.log('Selected society:', selectedSociety);
-                  
-                  if (selectedSociety?._id) {
-                    console.log('Navigating to society:', selectedSociety._id);
-                    navigate(`/societies/${selectedSociety._id}`);
-                  } else {
-                    console.error('No selected society found');
-                    toast({
-                      title: "Error",
-                      description: "No society selected. Please select a society first.",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                className={`
-                  inline-flex items-center justify-center px-6 py-3 text-base font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 min-w-[200px] h-12
-                  ${!selectedSociety?._id || loading 
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50' 
-                    : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white cursor-pointer'
-                  }
-                `}
-              >
-                <Eye className="h-5 w-5 mr-2" />
-                {loading ? 'Loading...' : selectedSociety?._id ? 'View Society' : 'Select Society First'}
-                <ExternalLink className="h-4 w-4 ml-2" />
-              </div>
             </div>
           </div>
 

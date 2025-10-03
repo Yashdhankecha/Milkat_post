@@ -319,12 +319,30 @@ router.post('/batch',
 
     const newVotesAdded = memberVote.votes.length - (existingVoteDoc ? existingVoteDoc.votes.length : 0);
     
+    // Check if voting should be auto-closed after this vote
+    let autoCloseResult = null;
+    try {
+      const RedevelopmentProject = (await import('../models/RedevelopmentProject.js')).default;
+      const project = await RedevelopmentProject.findById(firstVote.redevelopmentProject);
+      if (project) {
+        autoCloseResult = await project.checkAndAutoCloseVoting();
+        if (autoCloseResult.closed) {
+          console.log(`🔄 Voting auto-closed after vote submission: ${autoCloseResult.reason}`);
+        }
+      }
+    } catch (autoCloseError) {
+      console.warn('⚠️ Failed to check auto-close voting:', autoCloseError.message);
+      // Don't fail the vote submission if auto-close check fails
+    }
+    
     console.log('✅ Batch votes submitted successfully:', {
       inputVotesCount: voteDataArray.length,
       newVotesAdded,
       finalVotesCount: memberVote.votes.length,
       memberVoteId: memberVote._id,
       projectId: firstVote.redevelopmentProject,
+      autoClosed: autoCloseResult?.closed || false,
+      autoCloseReason: autoCloseResult?.reason,
       allVotes: memberVote.votes.map(v => ({
         proposalId: v.proposalId?.toString().slice(-4),
         vote: v.vote,
@@ -345,7 +363,8 @@ router.post('/batch',
           noVotes: stats.noVotes,
           abstainVotes: stats.abstainVotes,
           approvalPercentage
-        }
+        },
+        autoCloseResult
       }
     });
   })
@@ -369,10 +388,22 @@ router.post('/',
       proposal
     } = req.body;
 
+    console.log('🗳️ Single vote submission request:', {
+      redevelopmentProject,
+      vote,
+      votingSession,
+      proposal,
+      userId: req.user._id,
+      body: req.body
+    });
+
     // Check voting eligibility
     const eligibility = await checkVotingEligibility(req.user._id, redevelopmentProject);
     
+    console.log('🗳️ Voting eligibility check:', eligibility);
+    
     if (!eligibility.eligible) {
+      console.log('🗳️ User not eligible to vote:', eligibility.reason);
       return res.status(403).json({
         status: 'error',
         message: eligibility.reason,
@@ -446,10 +477,12 @@ router.post('/',
     // Create or update the vote document
     let memberVote;
     if (existingVoteDoc) {
+      console.log('🗳️ Adding vote to existing document');
       // Add vote to existing document
       await existingVoteDoc.addVote(voteData);
       memberVote = existingVoteDoc;
     } else {
+      console.log('🗳️ Creating new vote document');
       // Create new document with first vote
       memberVote = new MemberVote({
         redevelopmentProject,
@@ -459,6 +492,7 @@ router.post('/',
         totalVotes: 1
       });
       await memberVote.save();
+      console.log('🗳️ New vote document saved:', memberVote._id);
     }
 
     // Calculate updated voting statistics
@@ -502,10 +536,26 @@ router.post('/',
       // Don't fail the vote submission if notification fails
     }
 
+    // Check if voting should be auto-closed after this vote
+    let autoCloseResult = null;
+    try {
+      if (project) {
+        autoCloseResult = await project.checkAndAutoCloseVoting();
+        if (autoCloseResult.closed) {
+          console.log(`🔄 Voting auto-closed after vote submission: ${autoCloseResult.reason}`);
+        }
+      }
+    } catch (autoCloseError) {
+      console.warn('⚠️ Failed to check auto-close voting:', autoCloseError.message);
+      // Don't fail the vote submission if auto-close check fails
+    }
+
     console.log('✅ Single vote submitted successfully:', {
       memberVoteId: memberVote._id,
       votesCount: memberVote.votes.length,
-      projectId: redevelopmentProject
+      projectId: redevelopmentProject,
+      autoClosed: autoCloseResult?.closed || false,
+      autoCloseReason: autoCloseResult?.reason
     });
 
     res.status(201).json({
@@ -519,7 +569,8 @@ router.post('/',
           noVotes: stats.noVotes,
           abstainVotes: stats.abstainVotes,
           approvalPercentage
-        }
+        },
+        autoCloseResult
       }
     });
   })
@@ -754,6 +805,8 @@ router.get('/stats/:projectId',
     const { projectId } = req.params;
     const { session } = req.query;
 
+    console.log('📊 Voting stats request:', { projectId, session });
+
     const project = await RedevelopmentProject.findById(projectId).populate('society');
     if (!project) {
       return res.status(404).json({
@@ -762,8 +815,11 @@ router.get('/stats/:projectId',
       });
     }
 
+    console.log('📊 Project found:', { id: project._id, status: project.status, society: project.society._id });
+
     // Get voting statistics
     const votingStats = await MemberVote.getVotingStats(projectId, session);
+    console.log('📊 Raw voting stats from aggregation:', votingStats);
     
     const stats = {
       yesVotes: 0,
@@ -780,11 +836,15 @@ router.get('/stats/:projectId',
     const totalVotes = stats.yesVotes + stats.noVotes + stats.abstainVotes;
     const approvalPercentage = totalVotes > 0 ? Math.round((stats.yesVotes / totalVotes) * 100) : 0;
 
+    console.log('📊 Processed stats:', { stats, totalVotes, approvalPercentage });
+
     // Get total eligible members
     const totalMembers = await SocietyMember.countDocuments({
       society: project.society._id,
       status: 'active'
     });
+
+    console.log('📊 Total members:', totalMembers);
 
     // Check if voting deadline is approaching
     const now = new Date();

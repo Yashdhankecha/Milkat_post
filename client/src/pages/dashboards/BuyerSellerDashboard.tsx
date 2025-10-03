@@ -100,6 +100,7 @@ interface PropertyInquiry {
 
 const BuyerSellerDashboard = () => {
   const [savedProperties, setSavedProperties] = useState<SavedProperty[]>([])
+  const [savedProjects, setSavedProjects] = useState<any[]>([])
   const [myProperties, setMyProperties] = useState<UserProperty[]>([])
   const [myInquiries, setMyInquiries] = useState<UserInquiry[]>([])
   const [propertyInquiries, setPropertyInquiries] = useState<PropertyInquiry[]>([])
@@ -120,8 +121,9 @@ const BuyerSellerDashboard = () => {
       console.log('🔍 Fetching buyer-seller dashboard data...');
       
       // Fetch all data in parallel
-      const [likesResult, propertiesResult, myInquiriesResult, propertyInquiriesResult] = await Promise.allSettled([
+      const [likesResult, savedProjectsResult, propertiesResult, myInquiriesResult, propertyInquiriesResult] = await Promise.allSettled([
         apiClient.getLikes(),
+        user?.id ? apiClient.getSavedProjects(user.id) : Promise.resolve({ error: true, data: [] }),
         user?.id ? apiClient.getProperties({ owner_id: user.id }) : Promise.resolve({ error: true, data: [] }),
         apiClient.getMyInquiries().catch(() => ({ error: true, data: [] })), // Inquiries I made
         apiClient.getMyPropertyInquiries().catch(() => ({ error: true, data: [] })) // Inquiries for my properties
@@ -135,6 +137,16 @@ const BuyerSellerDashboard = () => {
       } else {
         console.log('❌ Failed to load saved properties');
         setSavedProperties([]);
+      }
+
+      // Process saved projects
+      if (savedProjectsResult.status === 'fulfilled' && !savedProjectsResult.value.error) {
+        const savedProjectsData = savedProjectsResult.value.data?.projects || [];
+        console.log('✅ Saved projects loaded:', savedProjectsData.length);
+        setSavedProjects(savedProjectsData);
+      } else {
+        console.log('❌ Failed to load saved projects');
+        setSavedProjects([]);
       }
       
       // Process my properties
@@ -293,7 +305,7 @@ const BuyerSellerDashboard = () => {
           
           <div className="relative p-6 sm:p-8">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-800 to-blue-600 dark:from-white dark:to-blue-400 bg-clip-text text-transparent">
                   Welcome back, {profile?.fullName || 'Property Owner'}
                 </h1>
@@ -357,6 +369,24 @@ const BuyerSellerDashboard = () => {
             </CardContent>
           </Card>
 
+          <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-orange-50 dark:from-gray-800 dark:to-orange-900/20 hover:shadow-xl transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-yellow-500/5 dark:from-orange-900/10 dark:to-yellow-900/10 opacity-70 blur-3xl pointer-events-none"></div>
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Saved Projects</p>
+                  <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 mt-1">
+                    {savedProjects.length}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Projects you saved</p>
+                </div>
+                <div className="p-3 rounded-full bg-orange-100 dark:bg-orange-900/30">
+                  <Building2 className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-blue-900/20 hover:shadow-xl transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-cyan-500/5 dark:from-blue-900/10 dark:to-cyan-900/10 opacity-70 blur-3xl pointer-events-none"></div>
             <CardContent className="relative p-6">
@@ -375,30 +405,12 @@ const BuyerSellerDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-green-50 dark:from-gray-800 dark:to-green-900/20 hover:shadow-xl transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-emerald-500/5 dark:from-green-900/10 dark:to-emerald-900/10 opacity-70 blur-3xl pointer-events-none"></div>
-            <CardContent className="relative p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Listings</p>
-                  <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 mt-1">
-                    {myProperties.filter(p => p.status === 'available').length}
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Available now</p>
-                </div>
-                <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/30">
-                  <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card className="relative overflow-hidden rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-purple-900/20 hover:shadow-xl transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-indigo-500/5 dark:from-purple-900/10 dark:to-indigo-900/10 opacity-70 blur-3xl pointer-events-none"></div>
             <CardContent className="relative p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">New Inquiries</p>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">New Queries</p>
                   <div className="text-3xl font-bold text-gray-800 dark:text-gray-100 mt-1">
                     {propertyInquiries.filter(inq => inq.status === 'pending').length}
                   </div>

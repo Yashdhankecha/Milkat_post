@@ -156,7 +156,7 @@ export const ProposalForm = ({ requirementId, onSuccess, proposal, isEditing = f
           description: "Your proposal has been updated successfully.",
         })
       } else {
-        const { error } = await apiClient.createProposal([proposalData])
+        const { error } = await apiClient.createDeveloperProposal(proposalData)
         if (error) throw error
 
         toast({
