@@ -4,7 +4,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-// import rateLimit from 'express-rate-limit'; // Removed - no rate limiting needed
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import xss from 'xss-clean';
@@ -17,6 +16,28 @@ import config from './config-loader.js';
 import socketService from './services/socketService.js';
 // Import voting scheduler
 import { initializeVotingScheduler } from './services/votingScheduler.js';
+// Import production middleware
+import { 
+  productionSecurity, 
+  generalRateLimit, 
+  authRateLimit, 
+  smsRateLimit,
+  requestLogger,
+  sanitizeErrorResponse 
+} from './middleware/security.js';
+import { 
+  healthCheck, 
+  performanceMonitor, 
+  errorTracker, 
+  metricsCollector, 
+  securityMonitor, 
+  resourceMonitor 
+} from './middleware/monitoring.js';
+import { 
+  productionPerformance, 
+  memoryMonitor, 
+  optimizeDatabase 
+} from './middleware/performance.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -53,43 +74,44 @@ const app = express();
 // Trust proxy for rate limiting behind reverse proxy
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-// Rate limiting - REMOVED
-// const limiter = rateLimit({
-//   windowMs: config.RATE_LIMIT_WINDOW_MS,
-//   max: config.RATE_LIMIT_MAX_REQUESTS,
-//   message: {
-//     error: 'Too many requests from this IP, please try again later.'
-//   },
-//   standardHeaders: true,
-//   legacyHeaders: false,
-// });
-
-// app.use('/api/', limiter); // Removed - no rate limiting needed
-
-// CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = config.ALLOWED_ORIGINS.split(',');
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
+// Production security middleware
+if (config.NODE_ENV === 'production') {
+  app.use(productionSecurity);
+  app.use(generalRateLimit);
+  app.use(performanceMonitor);
+  app.use(metricsCollector);
+  app.use(securityMonitor);
+  app.use(requestLogger);
+  
+  // Start resource monitoring
+  resourceMonitor();
+  memoryMonitor();
+} else {
+  // Development middleware
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  }));
+  
+  // CORS configuration for development
+  const corsOptions = {
+    origin: function (origin, callback) {
+      const allowedOrigins = config.ALLOWED_ORIGINS.split(',');
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
+  };
+  
+  app.use(cors(corsOptions));
+}
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: config.MAX_FILE_SIZE || '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: config.MAX_FILE_SIZE || '10mb' }));
 
 // Data sanitization against NoSQL query injection
 app.use(mongoSanitize());
@@ -100,8 +122,10 @@ app.use(xss());
 // Prevent parameter pollution
 app.use(hpp());
 
-// Compression middleware
-app.use(compression());
+// Production performance middleware
+if (config.NODE_ENV === 'production') {
+  app.use(productionPerformance);
+}
 
 // Logging middleware
 if (config.NODE_ENV === 'development') {
@@ -118,14 +142,12 @@ if (config.NODE_ENV === 'development') {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-    environment: config.NODE_ENV
-  });
-});
+app.get('/health', healthCheck);
+
+// Rate limiting for specific routes
+app.use('/api/auth', authRateLimit);
+app.use('/api/auth/send-otp', smsRateLimit);
+app.use('/api/auth/verify-otp', smsRateLimit);
 
 // API routes
 app.use('/api/auth', authRoutes);
@@ -161,6 +183,12 @@ app.use('*', (req, res) => {
 // Global error handler
 app.use(errorHandler);
 
+// Production error handling
+if (config.NODE_ENV === 'production') {
+  app.use(errorTracker);
+  app.use(sanitizeErrorResponse);
+}
+
 // Database connection
 const connectDB = async () => {
   try {
@@ -168,7 +196,9 @@ const connectDB = async () => {
       ? config.MONGODB_TEST_URI 
       : config.MONGODB_URI;
 
-    await mongoose.connect(mongoURI);
+    const options = config.NODE_ENV === 'production' ? optimizeDatabase() : {};
+    
+    await mongoose.connect(mongoURI, options);
 
     logger.info('MongoDB connected successfully');
   } catch (error) {
