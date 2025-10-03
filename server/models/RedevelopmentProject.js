@@ -342,7 +342,7 @@ redevelopmentProjectSchema.methods.closeVoting = async function(reason = 'manual
       const Notification = (await import('./Notification.js')).default;
       await Notification.create({
         recipient: winningProposal.proposal.developer,
-        type: 'developer_selected',
+        type: 'developer_proposal_selected',
         title: 'You Have Been Selected!',
         message: `Congratulations! You have been selected by society members in the voting process for "${this.title}". The society will contact you soon to proceed with the redevelopment project.`,
         relatedEntity: {

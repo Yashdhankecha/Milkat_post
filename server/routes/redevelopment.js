@@ -293,8 +293,8 @@ router.put('/:id',
           const Notification = (await import('../models/Notification.js')).default;
           
           await Notification.create({
-            user: req.body.selectedDeveloper,
-            type: 'developer_selected',
+            recipient: req.body.selectedDeveloper,
+            type: 'developer_proposal_selected',
             title: 'Congratulations! You have been selected',
             message: `You have been selected as the developer for the project "${project.title}". Please contact the society owner to proceed.`,
             data: {
@@ -711,7 +711,7 @@ router.post('/:id/close-voting',
         const Notification = (await import('../models/Notification.js')).default;
         await Notification.create({
           recipient: winningProposal.proposal.developer,
-          type: 'developer_selected',
+          type: 'developer_proposal_selected',
           title: 'You Have Been Selected!',
           message: `Congratulations! You have been selected by society members in the voting process for "${project.title}". The society will contact you soon to proceed with the redevelopment project.`,
           relatedEntity: {
