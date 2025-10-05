@@ -135,7 +135,7 @@ const Auth = () => {
 
   // Fetch available roles when phone number changes (for login)
   useEffect(() => {
-    if (isLogin && phone && phone.length >= 10) {
+    if (isLogin && phone && phone.length === 10) {
       const timeoutId = setTimeout(() => {
         fetchAvailableRoles(phone);
       }, 500); // Debounce the API call
@@ -167,7 +167,7 @@ const Auth = () => {
   };
 
   const fetchAvailableRoles = async (phoneNumber: string) => {
-    if (!phoneNumber || phoneNumber.length < 10) {
+    if (!phoneNumber || phoneNumber.length !== 10) {
       setUserAvailableRoles([]);
       return;
     }
@@ -414,7 +414,7 @@ const Auth = () => {
           // For registration, create profile after successful verification
           await createProfile({
             role: selectedRole as any,
-            full_name: fullName,
+            fullName: fullName,
             phone: phone,
           });
         }
@@ -660,7 +660,7 @@ const Auth = () => {
               )}
 
               {/* Show message if no roles found */}
-              {isLogin && phone && phone.length >= 10 && !loadingRoles && userAvailableRoles.length === 0 && (
+              {isLogin && phone && phone.length === 10 && !loadingRoles && userAvailableRoles.length === 0 && (
                 <div className="p-3 bg-muted/50 rounded-lg">
                   <p className="text-sm text-muted-foreground">
                     No registered roles found for this phone number. Please register first.

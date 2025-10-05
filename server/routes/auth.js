@@ -134,13 +134,15 @@ router.post('/send-otp',
       }
     }
 
-    // Generate OTP
-    const otp = generateOTP();
+    // Generate OTP - Using hardcoded OTP to bypass Twilio issues
+    const otp = '123456';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Save OTP to user
     user.verificationCode = otp;
     user.verificationCodeExpires = otpExpiry;
+    
+    logger.info(`🔑 BYPASS MODE: Using hardcoded OTP ${otp} for user ${user.phone}`);
     await user.save();
 
     // Send OTP via SMS service
@@ -377,8 +379,8 @@ router.post('/register',
       }
     }
 
-    // Generate OTP
-    const otp = generateOTP();
+    // Generate OTP - Using hardcoded OTP to bypass Twilio issues
+    const otp = '123456';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     let user;
@@ -400,6 +402,8 @@ router.post('/register',
       });
       await user.save();
     }
+    
+    logger.info(`🔑 BYPASS MODE: Using hardcoded OTP ${otp} for user ${user.phone}`);
 
     // Create profile
     const profile = new Profile({
@@ -492,8 +496,8 @@ router.post('/signup-new-role',
       }
     }
 
-    // Generate OTP
-    const otp = generateOTP();
+    // Generate OTP - Using hardcoded OTP to bypass Twilio issues
+    const otp = '123456';
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     let user;
@@ -513,6 +517,8 @@ router.post('/signup-new-role',
       });
       await user.save();
     }
+    
+    logger.info(`🔑 BYPASS MODE: Using hardcoded OTP ${otp} for user ${user.phone}`);
 
     // Create profile
     const profile = new Profile({
