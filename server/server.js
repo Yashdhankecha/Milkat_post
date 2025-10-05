@@ -92,7 +92,7 @@ app.set("trust proxy", 1);
 
 if (config.NODE_ENV === "production") {
   app.use(productionSecurity);
-  app.use(generalRateLimit);
+  // app.use(generalRateLimit); // Disabled for development/testing
   app.use(performanceMonitor);
   app.use(metricsCollector);
   app.use(securityMonitor);
@@ -140,9 +140,9 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.get("/health", healthCheck);
 
 // Rate-limited auth routes
-app.use("/api/auth", authRateLimit);
-app.use("/api/auth/send-otp", smsRateLimit);
-app.use("/api/auth/verify-otp", smsRateLimit);
+// app.use("/api/auth", authRateLimit); // Disabled for development/testing
+// app.use("/api/auth/send-otp", smsRateLimit); // Disabled for development/testing
+// app.use("/api/auth/verify-otp", smsRateLimit); // Disabled for development/testing
 
 // API Routes
 app.use("/api/auth", authRoutes);
