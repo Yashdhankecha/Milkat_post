@@ -3,280 +3,144 @@ import User from '../models/User.js';
 import Profile from '../models/Profile.js';
 import config from '../config-loader.js';
 
-// Generate JWT token
+// ================= JWT FUNCTIONS ================= //
 export const generateToken = (userId, additionalPayload = {}) => {
-  const payload = { userId, ...additionalPayload };
-  return jwt.sign(payload, config.JWT_SECRET, {
-    expiresIn: config.JWT_EXPIRE
+  return jwt.sign({ userId, ...additionalPayload }, config.JWT_SECRET, {
+    expiresIn: config.JWT_EXPIRE,
   });
 };
 
-// Generate refresh token
 export const generateRefreshToken = (userId) => {
   return jwt.sign({ userId }, config.JWT_REFRESH_SECRET, {
-    expiresIn: config.JWT_REFRESH_EXPIRE
+    expiresIn: config.JWT_REFRESH_EXPIRE,
   });
 };
 
-// Verify JWT token
-export const verifyToken = (token) => {
-  return jwt.verify(token, config.JWT_SECRET);
-};
+export const verifyToken = (token) => jwt.verify(token, config.JWT_SECRET);
+export const verifyRefreshToken = (token) => jwt.verify(token, config.JWT_REFRESH_SECRET);
 
-// Verify refresh token
-export const verifyRefreshToken = (token) => {
-  return jwt.verify(token, config.JWT_REFRESH_SECRET);
-};
+// ================= RATE LIMITING ================= //
+const authAttempts = new Map(); // key = phone, value = [timestamps]
+const MAX_ATTEMPTS = 5;
+const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-// Authentication middleware
-export const authenticate = async (req, res, next) => {
-  try {
-    let token;
+export const authRateLimit = (req, res, next) => {
+  const phone = req.body.phone;
+  if (!phone) return next();
 
-    // Get token from header
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+  const now = Date.now();
+  if (!authAttempts.has(phone)) authAttempts.set(phone, []);
 
-    // Check if token exists
-    if (!token) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Access denied. No token provided.'
-      });
-    }
+  // clean old attempts
+  const attempts = authAttempts.get(phone).filter((t) => t > now - WINDOW_MS);
+  authAttempts.set(phone, attempts);
 
-    // Verify token
-    const decoded = verifyToken(token);
-    
-    // Get user from database
-    const user = await User.findById(decoded.userId).select('-password');
-    
-    if (!user) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Token is invalid. User not found.'
-      });
-    }
-
-    // Check if user is active
-    if (!user.isActive) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Account is deactivated.'
-      });
-    }
-
-    // Check if user is suspended
-    if (user.isSuspended) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Account is suspended.',
-        suspensionReason: user.suspensionReason
-      });
-    }
-
-    // Check if user is locked
-    if (user.isLocked) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Account is temporarily locked due to multiple failed login attempts.'
-      });
-    }
-
-    // Get user profiles - prioritize based on request context
-    const profiles = await Profile.find({ user: user._id, status: 'active' });
-    
-    // Check if this is a developer-specific request
-    const isDeveloperRequest = req.originalUrl.includes('/projects') || 
-                              req.originalUrl.includes('/developers') ||
-                              req.headers['x-requested-role'] === 'developer';
-    
-    let profile;
-    if (isDeveloperRequest) {
-      // For developer requests, prioritize developer profile
-      const developerProfile = profiles.find(p => p.role === 'developer');
-      profile = developerProfile || profiles[0] || null;
-    } else {
-      // For other requests, prioritize society_owner profile
-      const societyOwnerProfile = profiles.find(p => p.role === 'society_owner');
-      profile = societyOwnerProfile || profiles[0] || null;
-    }
-    
-    req.user = user;
-    req.profile = profile;
-    req.allProfiles = profiles;
-    next();
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid token.'
-      });
-    }
-    
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Token expired.'
-      });
-    }
-
-    return res.status(500).json({
+  if (attempts.length >= MAX_ATTEMPTS) {
+    return res.status(429).json({
       status: 'error',
-      message: 'Server error during authentication.'
+      message: 'Too many authentication attempts. Try again later.',
     });
   }
+
+  // record this attempt
+  authAttempts.get(phone).push(now);
+  next();
 };
 
-// Authorization middleware for specific roles
-export const authorize = (...roles) => {
-  return (req, res, next) => {
-    console.log('Authorization check - User:', req.user._id);
-    console.log('Authorization check - Current profile:', req.profile);
-    console.log('Authorization check - All profiles:', req.allProfiles);
-    console.log('Authorization check - Required roles:', roles);
-    
-    if (!req.profile) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'User profile not found.'
-      });
-    }
-
-    // Flatten roles array in case it's nested
-    const flatRoles = roles.flat();
-    
-    if (!flatRoles.includes(req.profile.role)) {
-      return res.status(403).json({
-        status: 'error',
-        message: `Access denied. Required role: ${flatRoles.join(' or ')}, but user has role: ${req.profile.role}`,
-        debug: {
-          userProfiles: req.allProfiles.map(p => ({
-            role: p.role,
-            companyName: p.companyName,
-            status: p.status
-          })),
-          currentProfile: req.profile ? {
-            role: req.profile.role,
-            companyName: req.profile.companyName,
-            status: req.profile.status
-          } : null
-        }
-      });
-    }
-
-    next();
-  };
-};
-
-// Optional authentication middleware (doesn't fail if no token)
-export const optionalAuth = async (req, res, next) => {
-  try {
-    let token;
-
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
-
-    if (token) {
-      const decoded = verifyToken(token);
-      const user = await User.findById(decoded.userId).select('-password');
-      
-      if (user && user.isActive && !user.isSuspended && !user.isLocked) {
-        const profile = await Profile.findOne({ user: user._id });
-        req.user = user;
-        req.profile = profile;
-      }
-    }
-
-    next();
-  } catch (error) {
-    // Continue without authentication
-    next();
-  }
-};
-
-// Check if user owns resource
-export const checkOwnership = (resourceUserIdField = 'owner') => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'Authentication required.'
-      });
-    }
-
-    const resourceUserId = req.resource ? req.resource[resourceUserIdField] : req.params.userId;
-    
-    if (req.user._id.toString() !== resourceUserId.toString() && req.profile.role !== 'admin') {
-      return res.status(403).json({
-        status: 'error',
-        message: 'Access denied. You can only access your own resources.'
-      });
-    }
-
-    next();
-  };
-};
-
-// Rate limiting for authentication endpoints - REMOVED
-// export const authRateLimit = (maxAttempts = 5, windowMs = 15 * 60 * 1000) => {
-//   const attempts = new Map();
-
-//   return (req, res, next) => {
-//     const key = req.ip + req.body.phone;
-//     const now = Date.now();
-//     const windowStart = now - windowMs;
-
-//     // Clean old attempts
-//     if (attempts.has(key)) {
-//       const userAttempts = attempts.get(key).filter(time => time > windowStart);
-//       attempts.set(key, userAttempts);
-//     }
-
-//     // Check if limit exceeded
-//     if (attempts.has(key) && attempts.get(key).length >= maxAttempts) {
-//       return res.status(429).json({
-//         status: 'error',
-//         message: 'Too many authentication attempts. Please try again later.'
-//       });
-//     }
-
-//     // Record attempt
-//     if (!attempts.has(key)) {
-//       attempts.set(key, []);
-//     }
-//     attempts.get(key).push(now);
-
-//     next();
-//   };
-// };
-
-// Generate OTP
+// ================= OTP GENERATION ================= //
 export const generateOTP = (length = 6) => {
-  const digits = '0123456789';
   let otp = '';
+  const digits = '0123456789';
   for (let i = 0; i < length; i++) {
     otp += digits[Math.floor(Math.random() * 10)];
   }
   return otp;
 };
 
-// Validate phone number - E.164 format
+// ================= VALIDATION ================= //
 export const validatePhoneNumber = (phone) => {
-  // E.164 format: +[country code][number] (max 15 digits total including country code)
   const e164Regex = /^\+[1-9]\d{7,14}$/;
-  
-  // Also allow 10-digit numbers for backward compatibility
   const tenDigitRegex = /^\d{10}$/;
-  
   return e164Regex.test(phone) || tenDigitRegex.test(phone);
 };
 
-// Validate email
-export const validateEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+export const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// ================= AUTHENTICATION ================= //
+export const authenticate = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer')) {
+      return res.status(401).json({ status: 'error', message: 'Access denied. No token provided.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+    const user = await User.findById(decoded.userId).select('-password');
+
+    if (!user) return res.status(401).json({ status: 'error', message: 'User not found.' });
+    if (!user.isActive) return res.status(401).json({ status: 'error', message: 'Account deactivated.' });
+    if (user.isSuspended) return res.status(401).json({ status: 'error', message: 'Account suspended.', suspensionReason: user.suspensionReason });
+    if (user.isLocked) return res.status(401).json({ status: 'error', message: 'Account temporarily locked due to multiple failed attempts.' });
+
+    const profiles = await Profile.find({ user: user._id, status: 'active' });
+
+    // prioritize profile based on request
+    const isDevRequest = req.originalUrl.includes('/projects') || req.originalUrl.includes('/developers') || req.headers['x-requested-role'] === 'developer';
+    let profile = isDevRequest
+      ? profiles.find(p => p.role === 'developer') || profiles[0] || null
+      : profiles.find(p => p.role === 'society_owner') || profiles[0] || null;
+
+    req.user = user;
+    req.profile = profile;
+    req.allProfiles = profiles;
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') return res.status(401).json({ status: 'error', message: 'Invalid token.' });
+    if (error.name === 'TokenExpiredError') return res.status(401).json({ status: 'error', message: 'Token expired.' });
+    return res.status(500).json({ status: 'error', message: 'Server error during authentication.' });
+  }
 };
-    ` `
+
+// Optional auth (doesn’t block if no token)
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return next();
+
+    const decoded = verifyToken(token);
+    const user = await User.findById(decoded.userId).select('-password');
+    if (user && user.isActive && !user.isSuspended && !user.isLocked) {
+      const profile = await Profile.findOne({ user: user._id });
+      req.user = user;
+      req.profile = profile;
+    }
+    next();
+  } catch (err) {
+    next();
+  }
+};
+
+// ================= AUTHORIZATION ================= //
+export const authorize = (...roles) => (req, res, next) => {
+  if (!req.profile) return res.status(401).json({ status: 'error', message: 'User profile not found.' });
+  const flatRoles = roles.flat();
+  if (!flatRoles.includes(req.profile.role)) {
+    return res.status(403).json({
+      status: 'error',
+      message: `Access denied. Required role: ${flatRoles.join(' or ')}, but user has role: ${req.profile.role}`,
+      debug: { userProfiles: req.allProfiles, currentProfile: req.profile },
+    });
+  }
+  next();
+};
+
+// ================= RESOURCE OWNERSHIP ================= //
+export const checkOwnership = (resourceUserIdField = 'owner') => (req, res, next) => {
+  if (!req.user) return res.status(401).json({ status: 'error', message: 'Authentication required.' });
+  const resourceUserId = req.resource ? req.resource[resourceUserIdField] : req.params.userId;
+  if (req.user._id.toString() !== resourceUserId.toString() && req.profile.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Access denied. You can only access your own resources.' });
+  }
+  next();
+};

@@ -97,7 +97,6 @@ invitationSchema.index({ society: 1 });
 invitationSchema.index({ invitedBy: 1 });
 invitationSchema.index({ invitedPhone: 1 });
 invitationSchema.index({ status: 1 });
-invitationSchema.index({ invitationToken: 1 });
 invitationSchema.index({ expiresAt: 1 });
 
 // Virtual for invitation URL
