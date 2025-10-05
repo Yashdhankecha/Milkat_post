@@ -135,13 +135,18 @@ const Auth = () => {
 
   // Fetch available roles when phone number changes (for login)
   useEffect(() => {
-    if (isLogin && phone && phone.length === 10) {
+    console.log('[useEffect] Phone change detected:', { isLogin, phone, phoneLength: phone?.length });
+    
+    // Check if phone number is complete (starts with + and has at least 12 characters for +91XXXXXXXXXX)
+    if (isLogin && phone && phone.startsWith('+') && phone.length >= 12) {
+      console.log('[useEffect] Conditions met, setting timeout for API call');
       const timeoutId = setTimeout(() => {
         fetchAvailableRoles(phone);
       }, 500); // Debounce the API call
       
       return () => clearTimeout(timeoutId);
     } else {
+      console.log('[useEffect] Conditions not met, clearing roles');
       setUserAvailableRoles([]);
       setShowLoginRoleSelection(false);
     }
@@ -167,25 +172,35 @@ const Auth = () => {
   };
 
   const fetchAvailableRoles = async (phoneNumber: string) => {
-    if (!phoneNumber || phoneNumber.length !== 10) {
+    console.log('[fetchAvailableRoles] Called with phone:', phoneNumber, 'length:', phoneNumber?.length);
+    
+    if (!phoneNumber || !phoneNumber.startsWith('+') || phoneNumber.length < 12) {
+      console.log('[fetchAvailableRoles] Phone number invalid, clearing roles');
       setUserAvailableRoles([]);
+      setShowLoginRoleSelection(false);
       return;
     }
 
     try {
       setLoadingRoles(true);
+      console.log('[fetchAvailableRoles] Making API call for phone:', phoneNumber);
       const result = await apiClient.getAvailableRoles(phoneNumber);
+      console.log('[fetchAvailableRoles] API result:', result);
+      
       if (result.data && result.data.roles) {
+        console.log('[fetchAvailableRoles] Found roles:', result.data.roles);
         setUserAvailableRoles(result.data.roles);
         if (result.data.roles.length > 0) {
+          console.log('[fetchAvailableRoles] Setting showLoginRoleSelection to true');
           setShowLoginRoleSelection(true);
         }
       } else {
+        console.log('[fetchAvailableRoles] No roles found, clearing');
         setUserAvailableRoles([]);
         setShowLoginRoleSelection(false);
       }
     } catch (error) {
-      console.error('Error fetching available roles:', error);
+      console.error('[fetchAvailableRoles] Error fetching available roles:', error);
       setUserAvailableRoles([]);
       setShowLoginRoleSelection(false);
     } finally {
@@ -660,7 +675,7 @@ const Auth = () => {
               )}
 
               {/* Show message if no roles found */}
-              {isLogin && phone && phone.length === 10 && !loadingRoles && userAvailableRoles.length === 0 && (
+              {isLogin && phone && phone.startsWith('+') && phone.length >= 12 && !loadingRoles && userAvailableRoles.length === 0 && (
                 <div className="p-3 bg-muted/50 rounded-lg">
                   <p className="text-sm text-muted-foreground">
                     No registered roles found for this phone number. Please register first.
